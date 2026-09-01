@@ -2,6 +2,7 @@
   "expo": {
     "name": "kairos",
     "slug": "kairos",
+    "scheme": "kairos",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -17,9 +18,11 @@
       }
     },
     "ios": {
+      "bundleIdentifier": "com.kairos.mobile",
       "supportsTablet": true
     },
     "android": {
+      "package": "com.kairos.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -29,6 +32,18 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "@clerk/expo",
+      "expo-secure-store",
+      "expo-router",
+      "expo-web-browser"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "db67eb03-9650-4973-ab5a-38c3942255ae"
+      }
     }
   }
 }

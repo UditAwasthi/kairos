@@ -35,6 +35,7 @@ type OnboardingCarouselProps = {
   logoFloat: SharedValue<number>;
   themeProgress: SharedValue<number>;
   onToggleTheme: () => void;
+  onComplete?: () => void;
 };
 
 export function OnboardingCarousel({
@@ -42,6 +43,7 @@ export function OnboardingCarousel({
   logoFloat,
   themeProgress,
   onToggleTheme,
+  onComplete,
 }: OnboardingCarouselProps) {
   const { width: slideWidth } = useWindowDimensions();
   const [pageIndex, setPageIndex] = useState(0);
@@ -170,7 +172,10 @@ export function OnboardingCarousel({
   const handleButtonPress = () => {
     if (pageIndex < SLIDE_COUNT - 1) {
       snapToIndex(pageIndex + 1);
+      return;
     }
+
+    onComplete?.();
   };
 
   const stepLabel = `${String(pageIndex + 1).padStart(2, '0')} / 03`;
@@ -247,7 +252,7 @@ export function OnboardingCarousel({
           colorKey="textMuted"
           style={styles.footer}
         >
-          NOTHING INSPIRED · KAIROS
+         WELCOME TO KAIROS
         </ThemedText>
       </View>
     </View>
