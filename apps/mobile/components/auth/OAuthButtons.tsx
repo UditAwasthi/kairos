@@ -1,8 +1,7 @@
 import type { OAuthStrategy } from '@clerk/expo/types';
 import { useSSO } from '@clerk/expo/experimental';
 import { useRouter } from 'expo-router';
-import * as AuthSession from 'expo-auth-session';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   interpolateColor,
@@ -12,17 +11,19 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as WebBrowser from 'expo-web-browser';
 
-import { navigateToApp } from '../../lib/auth-navigation';
+import {
+  beginSsoFlow,
+  classifyOAuthResult,
+  endSsoFlow,
+  logOAuthDevEvent,
+  navigateToAppWhenSignedIn,
+  getOAuthRedirectUrl,
+} from '../../lib/auth-oauth';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import { ThemedText } from '../ThemedText';
 import { themeColor } from '../../themeAnimation';
 
 WebBrowser.maybeCompleteAuthSession();
-
-const redirectUrl = AuthSession.makeRedirectUri({
-  scheme: 'kairos',
-  path: 'sso-callback',
-});
 
 const OAUTH_PROVIDERS: { strategy: OAuthStrategy; label: string }[] = [
   { strategy: 'oauth_google', label: 'Continue with Google' },
@@ -92,6 +93,10 @@ export function OAuthButtons({ disabled = false, onError }: OAuthButtonsProps) {
   const { startSSOFlow } = useSSO();
   const { themeProgress } = useAppTheme();
   const router = useRouter();
+  const [activeStrategy, setActiveStrategy] = useState<OAuthStrategy | null>(null);
+
+  const isOAuthBusy = activeStrategy !== null;
+  const buttonsDisabled = disabled || isOAuthBusy;
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -104,49 +109,63 @@ export function OAuthButtons({ disabled = false, onError }: OAuthButtonsProps) {
 
   const handlePress = useCallback(
     async (strategy: OAuthStrategy) => {
+      if (isOAuthBusy) {
+        return;
+      }
+
+      setActiveStrategy(strategy);
+      beginSsoFlow();
+
       try {
         const result = await startSSOFlow({
           strategy,
-          redirectUrl,
+          redirectUrl: getOAuthRedirectUrl(),
         });
 
-        if (result.authSessionResult?.type === 'cancel') {
+        if (
+          result.authSessionResult?.type === 'cancel' ||
+          result.authSessionResult?.type === 'dismiss'
+        ) {
+          logOAuthDevEvent('cancelled', { strategy });
           return;
         }
 
-        if (result.createdSessionId) {
-          navigateToApp(router);
+        const outcome = classifyOAuthResult(result);
+
+        if (outcome.type === 'error') {
+          logOAuthDevEvent(outcome.kind, { strategy });
+          onError?.(outcome.message);
           return;
         }
 
-        if (result.signUp?.status === 'complete') {
-          const { error } = await result.signUp.finalize();
-          if (error) {
-            onError?.(error.message ?? 'Sign up could not be completed');
-            return;
-          }
-          navigateToApp(router);
+        const navigated = await navigateToAppWhenSignedIn(router);
+
+        if (navigated) {
+          logOAuthDevEvent('success', { strategy });
           return;
         }
 
-        if (result.signIn?.status === 'complete') {
-          const { error } = await result.signIn.finalize();
-          if (error) {
-            onError?.(error.message ?? 'Sign in could not be completed');
-            return;
-          }
-          navigateToApp(router);
+        if (outcome.type === 'pending') {
+          logOAuthDevEvent('incomplete_flow', { strategy });
+          onError?.('OAuth sign-in did not complete. Please try again.');
           return;
         }
 
-        onError?.('OAuth sign-in did not complete. Please try again.');
+        onError?.('Sign-in completed but the session could not be activated. Please try again.');
       } catch (error) {
+        logOAuthDevEvent('clerk_auth_failure', {
+          strategy,
+          message: error instanceof Error ? error.message : 'unknown',
+        });
         onError?.(
           error instanceof Error ? error.message : 'OAuth sign-in failed',
         );
+      } finally {
+        endSsoFlow();
+        setActiveStrategy(null);
       }
     },
-    [onError, router, startSSOFlow],
+    [isOAuthBusy, onError, router, startSSOFlow],
   );
 
   return (
@@ -161,11 +180,16 @@ export function OAuthButtons({ disabled = false, onError }: OAuthButtonsProps) {
       {OAUTH_PROVIDERS.map(({ strategy, label }) => (
         <OAuthButton
           key={strategy}
-          disabled={disabled}
+          disabled={buttonsDisabled}
           label={label}
           onPress={() => void handlePress(strategy)}
         />
       ))}
+      {isOAuthBusy ? (
+        <View style={styles.loading}>
+          <ActivityIndicator />
+        </View>
+      ) : null}
     </View>
   );
 }

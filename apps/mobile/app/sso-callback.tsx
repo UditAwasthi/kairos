@@ -5,7 +5,12 @@ import { useEffect, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '../components/ThemedText';
-import { navigateToApp } from '../lib/auth-navigation';
+import { navigateToApp, navigateToSignIn } from '../lib/auth-navigation';
+import {
+  isSsoFlowInProgress,
+  logOAuthDevEvent,
+  navigateToAppWhenSignedIn,
+} from '../lib/auth-oauth';
 import { useAppTheme } from '../providers/ThemeProvider';
 
 function sanitizeNonce(value: string | undefined): string | undefined {
@@ -24,6 +29,12 @@ export default function SsoCallbackScreen() {
   const hasRun = useRef(false);
 
   useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      navigateToApp(router);
+    }
+  }, [isLoaded, isSignedIn, router]);
+
+  useEffect(() => {
     if (!isLoaded || hasRun.current) {
       return;
     }
@@ -32,7 +43,13 @@ export default function SsoCallbackScreen() {
 
     void (async () => {
       if (isSignedIn) {
-        navigateToApp(router);
+        return;
+      }
+
+      if (isSsoFlowInProgress()) {
+        logOAuthDevEvent('incomplete_flow', {
+          reason: 'sso_callback_waiting_for_start_sso_flow',
+        });
         return;
       }
 
@@ -43,7 +60,10 @@ export default function SsoCallbackScreen() {
       );
 
       if (!nonce) {
-        router.replace('/(auth)/sign-in');
+        logOAuthDevEvent('redirect_failure', {
+          reason: 'missing_rotating_token_nonce',
+        });
+        navigateToSignIn(router);
         return;
       }
 
@@ -51,7 +71,10 @@ export default function SsoCallbackScreen() {
         const clerk = getClerkInstance();
 
         if (!clerk.client) {
-          router.replace('/(auth)/sign-in');
+          logOAuthDevEvent('clerk_auth_failure', {
+            reason: 'clerk_client_unavailable',
+          });
+          navigateToSignIn(router);
           return;
         }
 
@@ -59,7 +82,15 @@ export default function SsoCallbackScreen() {
 
         if (signIn.status === 'complete' && signIn.createdSessionId) {
           await clerk.setActive({ session: signIn.createdSessionId });
-          navigateToApp(router);
+          const navigated = await navigateToAppWhenSignedIn(router);
+          if (navigated) {
+            logOAuthDevEvent('success', { reason: 'sso_callback_cold_start' });
+            return;
+          }
+          logOAuthDevEvent('session_activation_failure', {
+            reason: 'set_active_without_signed_in_state',
+          });
+          navigateToSignIn(router);
           return;
         }
 
@@ -68,14 +99,27 @@ export default function SsoCallbackScreen() {
 
           if (signUp.createdSessionId) {
             await clerk.setActive({ session: signUp.createdSessionId });
-            navigateToApp(router);
-            return;
+            const navigated = await navigateToAppWhenSignedIn(router);
+            if (navigated) {
+              logOAuthDevEvent('success', {
+                reason: 'sso_callback_transfer_sign_up',
+              });
+              return;
+            }
           }
         }
 
-        router.replace('/(auth)/sign-in');
-      } catch {
-        router.replace('/(auth)/sign-in');
+        logOAuthDevEvent('incomplete_flow', {
+          reason: 'sso_callback_sign_in_not_complete',
+          status: signIn.status ?? 'unknown',
+        });
+        navigateToSignIn(router);
+      } catch (error) {
+        logOAuthDevEvent('clerk_auth_failure', {
+          reason: 'sso_callback_exception',
+          message: error instanceof Error ? error.message : 'unknown',
+        });
+        navigateToSignIn(router);
       }
     })();
   }, [isLoaded, isSignedIn, params.rotating_token_nonce, router]);

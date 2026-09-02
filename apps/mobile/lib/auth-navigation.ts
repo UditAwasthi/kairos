@@ -1,6 +1,6 @@
 import { Router } from 'expo-router';
 
-export function navigateToApp(router: Router) {
+export function navigateToApp(router: Router): void {
   router.replace('/(app)');
 }
 
