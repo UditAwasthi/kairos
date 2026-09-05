@@ -1,49 +1,32 @@
 import { StyleSheet, View } from 'react-native';
-import Animated, {
-  SharedValue,
-  interpolate,
-  useAnimatedStyle,
-} from 'react-native-reanimated';
 
-import { themeColor } from '../themeAnimation';
+import { useAppTheme } from '../providers/ThemeProvider';
 
-const COLS = 8;
-const ROWS = 6;
-const DOT_COUNT = COLS * ROWS;
+const COLS = 7;
+const ROWS = 5;
 
-type DotProps = {
-  index: number;
-  phase: SharedValue<number>;
-  themeProgress: SharedValue<number>;
-};
+/**
+ * Static decorative grid — no Reanimated worklets.
+ * (Previous animated version ran 77 continuous styles and caused auth/onboarding lag.)
+ */
+export function DotField() {
+  const { colors } = useAppTheme();
 
-function Dot({ index, phase, themeProgress }: DotProps) {
-  const style = useAnimatedStyle(() => {
-    const wave = (phase.value + index * 0.06) % 1;
-    const opacity = interpolate(wave, [0, 0.45, 1], [0.06, 0.32, 0.06]);
-    const scale = interpolate(wave, [0, 0.45, 1], [0.85, 1.15, 0.85]);
-
-    return {
-      opacity,
-      transform: [{ scale }],
-      backgroundColor: themeColor(themeProgress.value, 'dot'),
-    };
-  });
-
-  return <Animated.View style={[styles.dot, style]} />;
-}
-
-type DotFieldProps = {
-  phase: SharedValue<number>;
-  themeProgress: SharedValue<number>;
-};
-
-export function DotField({ phase, themeProgress }: DotFieldProps) {
   return (
     <View style={styles.grid} pointerEvents="none">
-      {Array.from({ length: DOT_COUNT }, (_, index) => (
-        <Dot key={index} index={index} phase={phase} themeProgress={themeProgress} />
-      ))}
+      {Array.from({ length: COLS * ROWS }, (_, index) => {
+        const col = index % COLS;
+        const row = Math.floor(index / COLS);
+        const centerDist = Math.abs(col - 3) + Math.abs(row - 2);
+        const opacity = Math.max(0.06, 0.22 - centerDist * 0.03);
+
+        return (
+          <View
+            key={index}
+            style={[styles.dot, { backgroundColor: colors.dot, opacity }]}
+          />
+        );
+      })}
     </View>
   );
 }
@@ -52,13 +35,13 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    width: 168,
-    gap: 12,
+    width: 120,
+    gap: 10,
     justifyContent: 'center',
   },
   dot: {
     width: 4,
     height: 4,
-    borderRadius: 2,
+    borderRadius: 999,
   },
 });

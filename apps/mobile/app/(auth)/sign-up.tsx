@@ -15,7 +15,7 @@ import { useAppTheme } from '../../providers/ThemeProvider';
 export default function SignUpScreen() {
   const { isLoaded, isSignedIn } = useAuth();
   const { signUp } = useSignUp();
-  const { themeProgress, isLight } = useAppTheme();
+  const { themeProgress, isLight, colors } = useAppTheme();
   const router = useRouter();
 
   const [username, setUsername] = useState('');
@@ -37,10 +37,10 @@ export default function SignUpScreen() {
       <View
         style={[
           styles.loading,
-          { backgroundColor: isLight ? '#ffffff' : '#000000' },
+          { backgroundColor: colors.background },
         ]}
       >
-        <ActivityIndicator size="large" color={isLight ? '#111111' : '#ffffff'} />
+        <ActivityIndicator size="large" color={colors.text} />
       </View>
     );
   }
@@ -49,7 +49,7 @@ export default function SignUpScreen() {
     return <Redirect href="/(app)" />;
   }
 
-  const errorTextColor = isLight ? '#D71921' : '#FF453A';
+  const errorTextColor = colors.error;
 
   const handleSignUp = async () => {
     if (!signUp) {

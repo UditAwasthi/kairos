@@ -15,7 +15,7 @@ import { useAppTheme } from '../../providers/ThemeProvider';
 export default function SignInScreen() {
   const { isLoaded, isSignedIn } = useAuth();
   const { signIn } = useSignIn();
-  const { themeProgress, isLight } = useAppTheme();
+  const { themeProgress, isLight, colors } = useAppTheme();
   const router = useRouter();
 
   const [identifier, setIdentifier] = useState('');
@@ -28,10 +28,10 @@ export default function SignInScreen() {
       <View
         style={[
           styles.loading,
-          { backgroundColor: isLight ? '#ffffff' : '#000000' },
+          { backgroundColor: colors.background },
         ]}
       >
-        <ActivityIndicator size="large" color={isLight ? '#111111' : '#ffffff'} />
+        <ActivityIndicator size="large" color={colors.text} />
       </View>
     );
   }
@@ -75,7 +75,7 @@ export default function SignInScreen() {
     }
   };
 
-  const errorTextColor = isLight ? '#D71921' : '#FF453A';
+  const errorTextColor = colors.error;
 
   return (
     <AuthScreenLayout

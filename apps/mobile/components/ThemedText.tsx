@@ -1,26 +1,45 @@
-import { StyleSheet, TextProps, TextStyle } from 'react-native';
+import { StyleSheet, Text, TextProps, TextStyle, ImageStyle } from 'react-native';
 import Animated, {
   AnimatedStyle,
   SharedValue,
   useAnimatedStyle,
 } from 'react-native-reanimated';
-import { ImageStyle } from 'react-native';
 
-import { AppTheme } from '../theme';
+import { ThemeColorKey } from '../theme';
+import { useAppTheme } from '../providers/ThemeProvider';
 import { themeColor } from '../themeAnimation';
 
 type ThemedTextProps = TextProps & {
-  themeProgress: SharedValue<number>;
-  colorKey: keyof AppTheme;
-  style?: TextStyle | TextStyle[];
+  /**
+   * @deprecated Ignored for static text. Colors come from ThemeContext.colors.
+   */
+  themeProgress?: SharedValue<number>;
+  colorKey: ThemeColorKey;
+  style?: TextStyle | TextStyle[] | (TextStyle | undefined)[];
 };
 
+/**
+ * App text uses static ThemeContext.colors (fast).
+ * Change theme.ts → colors update everywhere this is used.
+ */
 export function ThemedText({
-  themeProgress,
+  themeProgress: _themeProgress,
   colorKey,
   style,
   ...props
 }: ThemedTextProps) {
+  const { colors } = useAppTheme();
+
+  return <Text style={[{ color: colors[colorKey] }, style]} {...props} />;
+}
+
+/** Smooth color crossfade — only for onboarding (few nodes). */
+export function AnimatedThemedText({
+  themeProgress,
+  colorKey,
+  style,
+  ...props
+}: ThemedTextProps & { themeProgress: SharedValue<number> }) {
   const colorStyle = useAnimatedStyle(() => ({
     color: themeColor(themeProgress.value, colorKey),
   }));

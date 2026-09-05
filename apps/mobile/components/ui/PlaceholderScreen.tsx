@@ -9,18 +9,23 @@ type PlaceholderScreenProps = {
 };
 
 export function PlaceholderScreen({ title, subtitle }: PlaceholderScreenProps) {
-  const { themeProgress } = useAppTheme();
+  const { colors, spacing, radius } = useAppTheme();
 
   return (
-    <View style={styles.container}>
-      <ThemedText themeProgress={themeProgress} colorKey="text" style={styles.title}>
+    <View style={[styles.container, { padding: spacing['8'], gap: spacing['4'] }]}>
+      <View
+        style={{
+          width: 10,
+          height: 10,
+          borderRadius: radius.sm,
+          backgroundColor: colors.accent,
+          marginBottom: spacing['2'],
+        }}
+      />
+      <ThemedText colorKey="text" style={styles.title}>
         {title}
       </ThemedText>
-      <ThemedText
-        themeProgress={themeProgress}
-        colorKey="textSecondary"
-        style={styles.subtitle}
-      >
+      <ThemedText colorKey="textSecondary" style={styles.subtitle}>
         {subtitle}
       </ThemedText>
     </View>
@@ -32,13 +37,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
-    gap: 12,
   },
   title: {
     fontFamily: 'DotGothic16_400Regular',
-    fontSize: 28,
+    fontSize: 32,
     letterSpacing: 4,
+    textAlign: 'center',
   },
   subtitle: {
     fontFamily: 'Inter_400Regular',
@@ -46,5 +50,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     maxWidth: 300,
+    letterSpacing: -0.1,
   },
 });

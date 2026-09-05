@@ -9,13 +9,22 @@ type ThemedLinkProps = {
   label: string;
 };
 
+/** Text-only navigation link — accent red. */
 export function ThemedLink({ href, label }: ThemedLinkProps) {
-  const { themeProgress } = useAppTheme();
+  const { typography } = useAppTheme();
 
   return (
     <Link href={href} asChild>
-      <Pressable>
-        <ThemedText themeProgress={themeProgress} colorKey="text" style={styles.link}>
+      <Pressable style={{ alignSelf: 'flex-start' }}>
+        <ThemedText
+          colorKey="accent"
+          style={[
+            styles.link,
+            {
+              fontSize: typography.bodySmall.size,
+            },
+          ]}
+        >
           {label}
         </ThemedText>
       </Pressable>
@@ -26,6 +35,6 @@ export function ThemedLink({ href, label }: ThemedLinkProps) {
 const styles = StyleSheet.create({
   link: {
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
+    letterSpacing: 0.2,
   },
 });

@@ -7,11 +7,9 @@ import {
   View,
 } from 'react-native';
 
-import { DotField } from '../DotField';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import { ThemeToggleButton } from '../ThemeToggleButton';
 import { ThemedText } from '../ThemedText';
-import { nothing } from '../../theme';
 
 type AuthScreenLayoutProps = {
   title: string;
@@ -26,51 +24,47 @@ export function AuthScreenLayout({
   children,
   footer,
 }: AuthScreenLayoutProps) {
-  const { themeProgress, toggleTheme, dotPhase, isLight } = useAppTheme();
-  const backgroundColor = isLight ? '#ffffff' : '#000000';
+  const { colors, themeProgress, toggleTheme, spacing, typography } = useAppTheme();
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={[styles.root, { backgroundColor }]}
+      style={[styles.root, { backgroundColor: colors.background }]}
     >
-      <View style={[StyleSheet.absoluteFill, { backgroundColor }]} pointerEvents="none">
-        <DotField phase={dotPhase} themeProgress={themeProgress} />
-      </View>
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingHorizontal: spacing['6'] }]}>
         <View style={styles.glyphRow}>
-          <View style={styles.redDot} />
-          <ThemedText
-            themeProgress={themeProgress}
-            colorKey="textSecondary"
-            style={styles.glyphLabel}
-          >
+          <View style={[styles.redDot, { backgroundColor: colors.accent }]} />
+          <ThemedText colorKey="textSecondary" style={styles.glyphLabel}>
             KAIROS
           </ThemedText>
         </View>
-        <ThemeToggleButton
-          themeProgress={themeProgress}
-          onToggle={toggleTheme}
-        />
+        <ThemeToggleButton themeProgress={themeProgress} onToggle={toggleTheme} />
       </View>
 
       <ScrollView
-        style={[styles.scroll, { backgroundColor }]}
-        contentContainerStyle={styles.content}
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, { padding: spacing['6'], gap: spacing['4'] }]}
         keyboardShouldPersistTaps="handled"
+        removeClippedSubviews
       >
-        <View style={styles.header}>
+        <View style={[styles.header, { gap: spacing['2'] }]}>
           <ThemedText
-            themeProgress={themeProgress}
             colorKey="text"
-            style={styles.title}
+            style={{
+              fontFamily: 'DotGothic16_400Regular',
+              fontSize: typography.title1.size,
+              letterSpacing: 2,
+            }}
           >
             {title}
           </ThemedText>
           <ThemedText
-            themeProgress={themeProgress}
             colorKey="textSecondary"
-            style={styles.subtitle}
+            style={{
+              fontFamily: 'Inter_400Regular',
+              fontSize: typography.bodySmall.size + 1,
+              lineHeight: typography.body.lineHeight,
+            }}
           >
             {subtitle}
           </ThemedText>
@@ -93,7 +87,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 28,
     paddingTop: 64,
     paddingBottom: 8,
   },
@@ -106,7 +99,6 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: nothing.red,
   },
   glyphLabel: {
     fontFamily: 'DotGothic16_400Regular',
@@ -116,21 +108,8 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 28,
-    gap: 16,
   },
   header: {
-    gap: 8,
     marginBottom: 8,
-  },
-  title: {
-    fontFamily: 'DotGothic16_400Regular',
-    fontSize: 32,
-    letterSpacing: 2,
-  },
-  subtitle: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    lineHeight: 22,
   },
 });

@@ -1,14 +1,14 @@
 export const ONBOARDING_SLIDES = [
   {
-    id: 'patterns',
-    slogan: 'Understand Your Patterns. Shape Your Future.',
+    id: 'track',
+    slogan: 'Track behavior with calm, structured observations.',
   },
   {
-    id: 'future',
-    slogan: "See What's Coming. Change What Comes Next.",
+    id: 'understand',
+    slogan: 'Understand patterns associated with your recorded data.',
   },
   {
-    id: 'data',
-    slogan: 'Your Life, Understood by Data.',
+    id: 'predict',
+    slogan: 'See model estimates, explore scenarios, and inspect evidence.',
   },
 ] as const;

@@ -12,7 +12,7 @@ export default function OnboardingScreen() {
   const { isLoaded, isSignedIn } = useAuth();
   const router = useRouter();
   const { completeOnboarding } = useOnboarding();
-  const { dotPhase, logoFloat, themeProgress, toggleTheme } = useAppTheme();
+  const { toggleTheme } = useAppTheme();
 
   const handleComplete = useCallback(() => {
     void completeOnboarding().then(() => {
@@ -29,12 +29,6 @@ export default function OnboardingScreen() {
   }
 
   return (
-    <OnboardingCarousel
-      dotPhase={dotPhase}
-      logoFloat={logoFloat}
-      themeProgress={themeProgress}
-      onToggleTheme={toggleTheme}
-      onComplete={handleComplete}
-    />
+    <OnboardingCarousel onToggleTheme={toggleTheme} onComplete={handleComplete} />
   );
 }

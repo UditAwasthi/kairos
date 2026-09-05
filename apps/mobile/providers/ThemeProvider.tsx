@@ -18,24 +18,36 @@ import React, {
 } from 'react';
 import { StyleSheet, useColorScheme } from 'react-native';
 import Animated, {
-  Easing,
   interpolateColor,
   runOnJS,
   SharedValue,
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
-  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 
 import { useThemeTransition } from '../hooks/useThemeTransition';
-import { darkTheme, lightTheme } from '../theme';
+import {
+  AppTheme,
+  darkTheme,
+  lightTheme,
+  radius,
+  shadows,
+  spacing,
+  typography,
+  TypographyScale,
+} from '../theme';
 
 SplashScreen.preventAutoHideAsync();
 
 type ThemeContextValue = {
+  /** Resolved semantic palette — edit theme.ts light/dark to restyle the app. */
+  colors: AppTheme;
+  typography: TypographyScale;
+  spacing: typeof spacing;
+  radius: typeof radius;
+  shadows: typeof shadows;
   themeProgress: SharedValue<number>;
   toggleTheme: () => void;
   isLight: boolean;
@@ -64,6 +76,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const dotPhase = useSharedValue(0);
   const logoFloat = useSharedValue(0);
 
+  const colors = isLight ? lightTheme : darkTheme;
+
   const updateThemeUi = useCallback((nextIsLight: boolean) => {
     setIsLight(nextIsLight);
     setStatusBarStyle(nextIsLight ? 'dark' : 'light');
@@ -89,23 +103,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
 
     void SplashScreen.hideAsync();
-    screenOpacity.value = withTiming(1, { duration: 500 });
-
-    dotPhase.value = withRepeat(
-      withTiming(1, { duration: 4200, easing: Easing.linear }),
-      -1,
-      false,
-    );
-
-    logoFloat.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 2200, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0, { duration: 2200, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1,
-      false,
-    );
-  }, [dotPhase, fontsLoaded, logoFloat, screenOpacity]);
+    screenOpacity.value = withTiming(1, { duration: 280 });
+    // No infinite logoFloat/dotPhase loops — they burned CPU on auth/onboarding.
+  }, [fontsLoaded, screenOpacity]);
 
   const screenStyle = useAnimatedStyle(() => ({
     opacity: screenOpacity.value,
@@ -118,6 +118,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo(
     () => ({
+      colors,
+      typography,
+      spacing,
+      radius,
+      shadows,
       themeProgress,
       toggleTheme,
       isLight,
@@ -125,7 +130,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       dotPhase,
       logoFloat,
     }),
-    [dotPhase, fontsLoaded, isLight, logoFloat, themeProgress, toggleTheme],
+    [colors, dotPhase, fontsLoaded, isLight, logoFloat, themeProgress, toggleTheme],
   );
 
   if (!fontsLoaded) {

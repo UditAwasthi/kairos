@@ -3,13 +3,9 @@ import { useSSO } from '@clerk/expo/experimental';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
-import Animated, {
-  interpolateColor,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
 import * as WebBrowser from 'expo-web-browser';
+import { AntDesign, FontAwesome } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 
 import {
   beginSsoFlow,
@@ -21,14 +17,29 @@ import {
 } from '../../lib/auth-oauth';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import { ThemedText } from '../ThemedText';
-import { themeColor } from '../../themeAnimation';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const OAUTH_PROVIDERS: { strategy: OAuthStrategy; label: string }[] = [
-  { strategy: 'oauth_google', label: 'Continue with Google' },
-  { strategy: 'oauth_github', label: 'Continue with GitHub' },
-  { strategy: 'oauth_linkedin_oidc', label: 'Continue with LinkedIn' },
+const OAUTH_PROVIDERS: {
+  strategy: OAuthStrategy;
+  label: string;
+  icon: (color: string) => React.ReactNode;
+}[] = [
+  {
+    strategy: 'oauth_google',
+    label: 'Continue with Google',
+    icon: (color: string) => <AntDesign name="google" size={20} color={color} />,
+  },
+  {
+    strategy: 'oauth_github',
+    label: 'Continue with GitHub',
+    icon: (color: string) => <AntDesign name="github" size={20} color={color} />,
+  },
+  {
+    strategy: 'oauth_linkedin_oidc',
+    label: 'Continue with LinkedIn',
+    icon: (color: string) => <FontAwesome name="linkedin-square" size={20} color={color} />,
+  },
 ];
 
 type OAuthButtonsProps = {
@@ -36,62 +47,46 @@ type OAuthButtonsProps = {
   onError?: (message: string) => void;
 };
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
 function OAuthButton({
+  icon,
   label,
   disabled,
   onPress,
 }: {
+  icon: (color: string) => React.ReactNode;
   label: string;
   disabled: boolean;
   onPress: () => void;
 }) {
-  const { themeProgress } = useAppTheme();
-  const press = useSharedValue(0);
-
-  const buttonStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(
-      press.value,
-      [0, 1],
-      [themeColor(themeProgress.value, 'buttonFill'), themeColor(themeProgress.value, 'buttonPressedFill')],
-    ),
-    borderColor: interpolateColor(
-      press.value,
-      [0, 1],
-      [themeColor(themeProgress.value, 'border'), themeColor(themeProgress.value, 'borderActive')],
-    ),
-    opacity: disabled ? 0.5 : 1,
-  }));
-
-  const textStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(
-      press.value,
-      [0, 1],
-      [themeColor(themeProgress.value, 'buttonText'), themeColor(themeProgress.value, 'buttonPressedText')],
-    ),
-  }));
+  const { colors, radius } = useAppTheme();
 
   return (
-    <AnimatedPressable
+    <Pressable
       disabled={disabled}
-      onPress={onPress}
-      onPressIn={() => {
-        press.value = withSpring(1, { damping: 14, stiffness: 280 });
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onPress();
       }}
-      onPressOut={() => {
-        press.value = withSpring(0, { damping: 14, stiffness: 280 });
-      }}
-      style={[styles.button, buttonStyle]}
+      style={({ pressed }) => [
+        styles.button,
+        {
+          borderRadius: radius.full,
+          borderColor: pressed ? colors.borderActive : colors.border,
+          backgroundColor: pressed ? colors.buttonPressedFill : colors.buttonFill,
+          opacity: disabled ? 0.5 : 1,
+        },
+      ]}
+      accessibilityLabel={label}
+      accessibilityRole="button"
     >
-      <Animated.Text style={[styles.buttonText, textStyle]}>{label}</Animated.Text>
-    </AnimatedPressable>
+      {icon(colors.buttonText)}
+    </Pressable>
   );
 }
 
 export function OAuthButtons({ disabled = false, onError }: OAuthButtonsProps) {
   const { startSSOFlow } = useSSO();
-  const { themeProgress } = useAppTheme();
+  const { typography, spacing } = useAppTheme();
   const router = useRouter();
   const [activeStrategy, setActiveStrategy] = useState<OAuthStrategy | null>(null);
 
@@ -169,22 +164,30 @@ export function OAuthButtons({ disabled = false, onError }: OAuthButtonsProps) {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { gap: spacing['2'] }]}>
       <ThemedText
-        themeProgress={themeProgress}
         colorKey="textMuted"
-        style={styles.dividerLabel}
+        style={{
+          textAlign: 'center',
+          fontFamily: 'DotGothic16_400Regular',
+          fontSize: typography.overline.size,
+          letterSpacing: 2,
+          marginBottom: spacing['1'],
+        }}
       >
         OR CONTINUE WITH
       </ThemedText>
-      {OAUTH_PROVIDERS.map(({ strategy, label }) => (
-        <OAuthButton
-          key={strategy}
-          disabled={buttonsDisabled}
-          label={label}
-          onPress={() => void handlePress(strategy)}
-        />
-      ))}
+      <View style={styles.iconRow}>
+        {OAUTH_PROVIDERS.map(({ strategy, label, icon }) => (
+          <OAuthButton
+            key={strategy}
+            icon={icon}
+            disabled={buttonsDisabled}
+            label={label}
+            onPress={() => void handlePress(strategy)}
+          />
+        ))}
+      </View>
       {isOAuthBusy ? (
         <View style={styles.loading}>
           <ActivityIndicator />
@@ -204,26 +207,19 @@ export function OAuthButtonsLoading() {
 
 const styles = StyleSheet.create({
   container: {
-    gap: 10,
     width: '100%',
   },
-  dividerLabel: {
-    textAlign: 'center',
-    fontFamily: 'DotGothic16_400Regular',
-    fontSize: 10,
-    letterSpacing: 2,
-    marginBottom: 4,
+  iconRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
   },
   button: {
     borderWidth: 1,
-    borderRadius: 27,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    width: 54,
+    height: 54,
     alignItems: 'center',
-  },
-  buttonText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
+    justifyContent: 'center',
   },
   loading: {
     alignItems: 'center',

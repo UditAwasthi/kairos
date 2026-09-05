@@ -1,5 +1,4 @@
-import { Image, StyleSheet, View } from 'react-native';
-import { ActivityIndicator } from 'react-native';
+import { Image, StyleSheet, View, ActivityIndicator } from 'react-native';
 
 import { useAppTheme } from '../../providers/ThemeProvider';
 import { darkTheme, lightTheme } from '../../theme';
@@ -19,7 +18,9 @@ export function SplashLoading() {
         style={styles.logo}
         resizeMode="contain"
       />
-      <ActivityIndicator size="large" style={styles.loader} color={theme.text} />
+      <View style={styles.loaderWrap}>
+        <ActivityIndicator size="small" color={theme.textMuted} />
+      </View>
     </View>
   );
 }
@@ -32,10 +33,10 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   logo: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
   },
-  loader: {
-    marginTop: 24,
+  loaderWrap: {
+    marginTop: 32,
   },
 });

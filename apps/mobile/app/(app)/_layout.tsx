@@ -1,19 +1,17 @@
 import { useAuth } from '@clerk/expo';
-import { Redirect, Tabs } from 'expo-router';
+import { Redirect, Stack } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { useAppTheme } from '../../providers/ThemeProvider';
-import { darkTheme, lightTheme } from '../../theme';
 
 export default function AppLayout() {
   const { isLoaded, isSignedIn } = useAuth();
-  const { isLight } = useAppTheme();
-  const theme = isLight ? lightTheme : darkTheme;
+  const { colors } = useAppTheme();
 
   if (!isLoaded) {
     return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color={theme.text} />
+      <View style={[styles.loading, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.text} />
       </View>
     );
   }
@@ -23,33 +21,35 @@ export default function AppLayout() {
   }
 
   return (
-    <Tabs
+    <Stack
       screenOptions={{
-        headerShown: true,
-        headerStyle: { backgroundColor: theme.background },
-        headerTintColor: theme.text,
+        headerStyle: { backgroundColor: colors.background },
+        headerTintColor: colors.text,
         headerTitleStyle: {
           fontFamily: 'DotGothic16_400Regular',
-          letterSpacing: 1,
         },
-        tabBarStyle: {
-          backgroundColor: theme.background,
-          borderTopColor: theme.border,
-        },
-        tabBarActiveTintColor: theme.text,
-        tabBarInactiveTintColor: theme.textMuted,
-        tabBarLabelStyle: {
-          fontFamily: 'Inter_400Regular',
-          fontSize: 11,
-        },
-        sceneStyle: { backgroundColor: theme.background },
+        headerShadowVisible: false,
+        contentStyle: { backgroundColor: colors.background },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Home' }} />
-      <Tabs.Screen name="timeline" options={{ title: 'Timeline' }} />
-      <Tabs.Screen name="insights" options={{ title: 'Insights' }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
-    </Tabs>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="event/add" options={{ title: 'Add event' }} />
+      <Stack.Screen name="event/[id]" options={{ title: 'Event' }} />
+      <Stack.Screen name="prediction/[id]" options={{ title: 'Prediction' }} />
+      <Stack.Screen name="scenario" options={{ title: 'What if?' }} />
+      <Stack.Screen name="evidence" options={{ title: 'Evidence' }} />
+      <Stack.Screen name="patterns" options={{ title: 'Patterns' }} />
+      <Stack.Screen name="recommendations" options={{ title: 'Recommendations' }} />
+      <Stack.Screen name="goals/index" options={{ title: 'Goals' }} />
+      <Stack.Screen name="goals/create" options={{ title: 'New goal' }} />
+      <Stack.Screen name="goals/[id]" options={{ title: 'Goal' }} />
+      <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+      <Stack.Screen name="privacy" options={{ title: 'Privacy' }} />
+      <Stack.Screen name="data" options={{ title: 'Data' }} />
+      <Stack.Screen name="subscription" options={{ title: 'Subscription' }} />
+      <Stack.Screen name="paywall" options={{ title: 'Upgrade' }} />
+      <Stack.Screen name="about" options={{ title: 'About' }} />
+    </Stack>
   );
 }
 

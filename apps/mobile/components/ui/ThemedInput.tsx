@@ -1,28 +1,39 @@
 import { TextInput, TextInputProps, StyleSheet } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import { useState } from 'react';
 
 import { useAppTheme } from '../../providers/ThemeProvider';
-import { themeColor } from '../../themeAnimation';
-
-const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 export function ThemedInput(props: TextInputProps) {
-  const { themeProgress, isLight } = useAppTheme();
-
-  const inputStyle = useAnimatedStyle(() => ({
-    color: themeColor(themeProgress.value, 'text'),
-    borderColor: themeColor(themeProgress.value, 'borderActive'),
-    backgroundColor: themeColor(themeProgress.value, 'background'),
-  }));
+  const { colors, radius, typography, spacing, isLight } = useAppTheme();
+  const [focused, setFocused] = useState(false);
 
   return (
-    <AnimatedTextInput
-      placeholderTextColor={
-        isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)'
-      }
+    <TextInput
+      placeholderTextColor={colors.inputPlaceholder}
       keyboardAppearance={isLight ? 'light' : 'dark'}
       {...props}
-      style={[styles.input, inputStyle, props.style]}
+      onFocus={(e) => {
+        setFocused(true);
+        props.onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        props.onBlur?.(e);
+      }}
+      style={[
+        styles.input,
+        {
+          color: colors.text,
+          borderColor: focused ? colors.inputBorderFocused : colors.inputBorder,
+          backgroundColor: colors.inputFill,
+          borderRadius: radius.md,
+          paddingHorizontal: spacing['4'],
+          paddingVertical: spacing['3'] + 2,
+          fontSize: typography.bodySmall.size,
+          lineHeight: typography.bodySmall.lineHeight,
+        },
+        props.style,
+      ]}
     />
   );
 }
@@ -30,10 +41,6 @@ export function ThemedInput(props: TextInputProps) {
 const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
-    borderRadius: 27,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
     fontFamily: 'Inter_400Regular',
-    fontSize: 15,
   },
 });
