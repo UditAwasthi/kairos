@@ -1,6 +1,6 @@
 import { useAuth } from '@clerk/expo';
 import { Redirect, Stack } from 'expo-router';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 
 import { useAppTheme } from '../../providers/ThemeProvider';
 
@@ -26,28 +26,39 @@ export default function AppLayout() {
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.text,
         headerTitleStyle: {
-          fontFamily: 'DotGothic16_400Regular',
+          fontFamily: 'Inter_600SemiBold',
+          fontSize: 17,
         },
         headerShadowVisible: false,
         contentStyle: { backgroundColor: colors.background },
+        animation: 'slide_from_right',
+        animationDuration: 280,
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
+        gestureDirection: 'horizontal',
+        animationTypeForReplace: 'push',
+        ...(Platform.OS === 'ios'
+          ? {
+              headerBackButtonDisplayMode: 'minimal' as const,
+            }
+          : null),
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="event/add" options={{ title: 'Add event' }} />
-      <Stack.Screen name="event/[id]" options={{ title: 'Event' }} />
-      <Stack.Screen name="prediction/[id]" options={{ title: 'Prediction' }} />
-      <Stack.Screen name="scenario" options={{ title: 'What if?' }} />
-      <Stack.Screen name="evidence" options={{ title: 'Evidence' }} />
-      <Stack.Screen name="patterns" options={{ title: 'Patterns' }} />
-      <Stack.Screen name="recommendations" options={{ title: 'Recommendations' }} />
-      <Stack.Screen name="goals/index" options={{ title: 'Goals' }} />
-      <Stack.Screen name="goals/create" options={{ title: 'New goal' }} />
-      <Stack.Screen name="goals/[id]" options={{ title: 'Goal' }} />
+      <Stack.Screen name="memory/[id]" options={{ title: 'Memory' }} />
+      <Stack.Screen name="observation/[id]" options={{ title: 'Observation' }} />
+      <Stack.Screen name="search" options={{ title: 'Search' }} />
+      <Stack.Screen name="topics/index" options={{ title: 'Topics' }} />
+      <Stack.Screen name="topics/[id]" options={{ title: 'Topic' }} />
+      <Stack.Screen name="projects/index" options={{ title: 'Projects' }} />
+      <Stack.Screen name="projects/[id]" options={{ title: 'Project' }} />
+      <Stack.Screen name="related/[id]" options={{ title: 'Related' }} />
+      <Stack.Screen name="activity" options={{ title: 'Processing' }} />
+      <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
+      <Stack.Screen name="devices" options={{ title: 'Devices' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="privacy" options={{ title: 'Privacy' }} />
       <Stack.Screen name="data" options={{ title: 'Data' }} />
-      <Stack.Screen name="subscription" options={{ title: 'Subscription' }} />
-      <Stack.Screen name="paywall" options={{ title: 'Upgrade' }} />
       <Stack.Screen name="about" options={{ title: 'About' }} />
     </Stack>
   );

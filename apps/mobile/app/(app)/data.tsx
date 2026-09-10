@@ -49,13 +49,38 @@ export default function DataScreen() {
     );
   };
 
+  const onDeleteAccount = () => {
+    Alert.alert(
+      'Delete account?',
+      'Records a mock account deletion request. Clerk teardown requires the real backend.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Request deletion',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setBusy(true);
+              try {
+                const result = await privacyService.requestAccountDeletion();
+                setMessage(result.message);
+              } finally {
+                setBusy(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
       <SectionHeader title="Export" />
       <SurfaceCard>
         <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
-          Request an export of recorded observations. Download delivery requires the backend privacy
-          API.
+          Request an export of memories, observations, and organization data. Download delivery
+          requires the backend privacy API.
         </ThemedText>
       </SurfaceCard>
       <ThemedButton
@@ -65,7 +90,7 @@ export default function DataScreen() {
         onPress={() => void onExport()}
       />
 
-      <SectionHeader title="Delete" />
+      <SectionHeader title="Delete library data" />
       <SurfaceCard>
         <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
           Deletion requires confirmation. This frontend demo does not permanently erase cloud data
@@ -74,13 +99,19 @@ export default function DataScreen() {
       </SurfaceCard>
       <ThemedButton label="Delete data" disabled={busy} onPress={onDelete} />
 
-      <SectionHeader title="AI / data controls" />
+      <SectionHeader title="Delete account" />
       <SurfaceCard>
         <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
-          Current builds use mock analytics and predictions only. When real models are enabled, model
-          usage toggles will appear here.
+          Account deletion will remove identity and personal memory data once Clerk and the NestJS
+          privacy APIs are wired together.
         </ThemedText>
       </SurfaceCard>
+      <ThemedButton
+        label="Delete account"
+        variant="outline"
+        disabled={busy}
+        onPress={onDeleteAccount}
+      />
 
       {message ? (
         <SurfaceCard>

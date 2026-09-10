@@ -38,7 +38,13 @@ export function formatMinutes(minutes: number): string {
 }
 
 export function delay(ms = 420): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    // Avoid Jest open-handle warnings when timers outlive the test.
+    if (typeof timer === 'object' && timer && 'unref' in timer) {
+      (timer as NodeJS.Timeout).unref();
+    }
+  });
 }
 
 export const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;

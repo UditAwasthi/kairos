@@ -2,6 +2,7 @@ import { StyleSheet, StyleProp, View, ViewStyle } from 'react-native';
 
 import { ThemedText } from '../ThemedText';
 import { useAppTheme } from '../../providers/ThemeProvider';
+import { GlassPanel } from './Glass';
 import { TextAction } from './TextAction';
 
 type SectionHeaderProps = {
@@ -25,23 +26,23 @@ export function SectionHeader({
     <View style={[styles.row, { marginBottom: spacing['3'], gap: spacing['3'] }, style]}>
       <View
         style={{
-          width: 3,
+          width: 4,
           alignSelf: 'stretch',
-          borderRadius: radius.sm,
+          borderRadius: radius.full,
           marginTop: 2,
           minHeight: 20,
           backgroundColor: colors.accent,
+          opacity: 0.9,
         }}
       />
       <View style={[styles.textCol, { gap: spacing['1'] }]}>
         <ThemedText
           colorKey="text"
           style={{
-            fontFamily: 'DotGothic16_400Regular',
-            fontSize: typography.overline.size,
-            lineHeight: typography.overline.lineHeight,
-            letterSpacing: typography.overline.letterSpacing,
-            textTransform: 'uppercase',
+            fontFamily: 'Inter_600SemiBold',
+            fontSize: typography.overline.size + 1,
+            lineHeight: typography.overline.lineHeight + 2,
+            letterSpacing: 0.4,
           }}
         >
           {title}
@@ -73,27 +74,12 @@ type CardProps = {
   elevated?: boolean;
 };
 
+/** Glass card — default widget shell across the app */
 export function SurfaceCard({ children, style, elevated = false }: CardProps) {
-  const { colors, spacing, radius } = useAppTheme();
-  const shadow = elevated ? colors.shadowElevated : colors.shadow;
-
   return (
-    <View
-      style={[
-        {
-          borderWidth: 1,
-          borderRadius: radius.lg,
-          padding: spacing['4'],
-          gap: spacing['2'],
-          borderColor: colors.border,
-          backgroundColor: elevated ? colors.surfaceElevated : colors.surface,
-          ...shadow,
-        },
-        style,
-      ]}
-    >
+    <GlassPanel elevated={elevated} style={style}>
       {children}
-    </View>
+    </GlassPanel>
   );
 }
 

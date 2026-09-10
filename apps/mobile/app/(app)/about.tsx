@@ -16,8 +16,8 @@ export default function AboutScreen() {
       </ThemedText>
       <SurfaceCard>
         <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
-          Personal behavior analytics and prediction. Track observations, understand patterns,
-          inspect evidence, and explore scenarios — without overclaiming causality.
+          Personal AI memory for your digital life. Capture observations, browse a timeline, search
+          what you saved, and ask Kairos questions grounded in your own memories.
         </ThemedText>
         <ThemedText themeProgress={themeProgress} colorKey="textMuted" style={styles.meta}>
           Version 1.0.0 · Frontend mock services

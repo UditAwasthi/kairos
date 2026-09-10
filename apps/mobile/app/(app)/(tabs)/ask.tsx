@@ -1,0 +1,426 @@
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { Feather } from '@expo/vector-icons';
+import {
+  useGenericKeyboardHandler,
+  useKeyboardState,
+} from 'react-native-keyboard-controller';
+
+import { ThemedText } from '../../../components/ThemedText';
+import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
+import { AccentGradient, GlassPanel, ScreenGradient } from '../../../components/ui/Glass';
+import { AskBubble, EvidenceCard } from '../../../components/ui/MemoryCards';
+import { useAppTheme } from '../../../providers/ThemeProvider';
+import { askService } from '../../../services';
+import type { AskMessage } from '../../../types';
+
+const STARTERS = [
+  'What was I working on yesterday?',
+  'What did I learn about machine learning?',
+  'Show me things related to Kairos',
+  'What did I save last week?',
+];
+
+const INPUT_MIN = 22;
+const INPUT_MAX = 120;
+
+/** Tracks keyboard height without forcing Android adjustResize (we use pan + spacer). */
+function useGradualKeyboardHeight() {
+  const height = useSharedValue(0);
+
+  useGenericKeyboardHandler(
+    {
+      onMove: (event) => {
+        'worklet';
+        height.value = Math.max(event.height, 0);
+      },
+      onEnd: (event) => {
+        'worklet';
+        height.value = Math.max(event.height, 0);
+      },
+    },
+    [],
+  );
+
+  return height;
+}
+
+export default function AskScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { colors, radius, isLight } = useAppTheme();
+  const params = useLocalSearchParams<{ q?: string }>();
+  const scrollRef = useRef<ScrollView>(null);
+  const inputRef = useRef<TextInput>(null);
+  const keyboardHeight = useGradualKeyboardHeight();
+  const keyboardVisible = useKeyboardState((state) => state.isVisible);
+
+  const [input, setInput] = useState('');
+  const [inputHeight, setInputHeight] = useState(INPUT_MIN);
+  const [messages, setMessages] = useState<AskMessage[]>([]);
+  const [conversationId, setConversationId] = useState<string | undefined>();
+  const [typing, setTyping] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const canSend = input.trim().length > 0 && !typing;
+  const empty = messages.length === 0 && !typing;
+
+  const keyboardSpacerStyle = useAnimatedStyle(() => ({
+    height: Math.abs(keyboardHeight.value),
+  }));
+
+  const scrollToEnd = (animated = true) => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollToEnd({ animated });
+    });
+  };
+
+  useEffect(() => {
+    if (keyboardVisible) scrollToEnd();
+  }, [keyboardVisible]);
+
+  const send = async (text: string) => {
+    const query = text.trim();
+    if (!query || typing) return;
+
+    const userMessage: AskMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: query,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, userMessage]);
+    setInput('');
+    setInputHeight(INPUT_MIN);
+    setTyping(true);
+    setError(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    scrollToEnd();
+
+    try {
+      const result = await askService.ask(query, conversationId);
+      setConversationId(result.conversationId);
+      setMessages((prev) => [...prev, result.message]);
+    } catch {
+      setError('Kairos could not answer right now. Try again.');
+    } finally {
+      setTyping(false);
+      scrollToEnd();
+    }
+  };
+
+  useEffect(() => {
+    if (typeof params.q === 'string' && params.q.length > 0 && messages.length === 0) {
+      void send(params.q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.q]);
+
+  return (
+    <ScreenGradient>
+      <View style={styles.flex}>
+        <ScrollView
+          ref={scrollRef}
+          style={styles.flex}
+          contentContainerStyle={[
+            styles.content,
+            empty && styles.contentEmpty,
+            { paddingBottom: 16 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => {
+            if (!empty) scrollToEnd(false);
+          }}
+        >
+          {empty ? (
+            <Pressable style={styles.empty} onPress={() => inputRef.current?.focus()}>
+              <ThemedText colorKey="text" style={styles.emptyTitle}>
+                Ask Kairos
+              </ThemedText>
+              <ThemedText colorKey="textMuted" style={styles.emptyHint}>
+                Grounded in what you saved
+              </ThemedText>
+
+              <View style={styles.starters}>
+                {STARTERS.map((q) => (
+                  <Pressable
+                    key={q}
+                    onPress={() => void send(q)}
+                    accessibilityRole="button"
+                    accessibilityLabel={q}
+                  >
+                    <GlassPanel contentStyle={styles.starterInner} padded={false}>
+                      <Feather name="arrow-up-right" size={14} color={colors.accent} />
+                      <ThemedText colorKey="text" style={styles.starter} numberOfLines={2}>
+                        {q}
+                      </ThemedText>
+                    </GlassPanel>
+                  </Pressable>
+                ))}
+              </View>
+            </Pressable>
+          ) : null}
+
+          <View style={styles.thread}>
+            {messages.map((message) => (
+              <View key={message.id} style={styles.messageBlock}>
+                <AskBubble message={message} />
+                {message.role === 'kairos' && message.sources && message.sources.length > 0 ? (
+                  <View style={styles.sources}>
+                    <ThemedText colorKey="textMuted" style={styles.kicker}>
+                      Sources
+                    </ThemedText>
+                    {message.sources.map((source) => (
+                      <EvidenceCard
+                        key={source.memoryId}
+                        source={source}
+                        onPress={() => router.push(`/(app)/memory/${source.memoryId}`)}
+                      />
+                    ))}
+                  </View>
+                ) : null}
+                {message.role === 'kairos' && message.followUps ? (
+                  <View style={styles.followUps}>
+                    {message.followUps.map((follow) => (
+                      <Pressable key={follow} onPress={() => void send(follow)}>
+                        <GlassPanel
+                          padded={false}
+                          contentStyle={styles.followInner}
+                          style={styles.followChip}
+                        >
+                          <ThemedText colorKey="textSecondary" style={styles.followLabel}>
+                            {follow}
+                          </ThemedText>
+                        </GlassPanel>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            ))}
+
+            {typing ? (
+              <View style={styles.typingBlock}>
+                <ActivityIndicator color={colors.accent} size="small" />
+                <ThemedText colorKey="textMuted" style={styles.typingLabel}>
+                  Thinking…
+                </ThemedText>
+              </View>
+            ) : null}
+
+            {error ? (
+              <View style={styles.errorBlock}>
+                <ThemedText colorKey="error" style={styles.body}>
+                  {error}
+                </ThemedText>
+                <Pressable
+                  onPress={() => {
+                    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+                    if (lastUser) void send(lastUser.content);
+                  }}
+                  hitSlop={8}
+                >
+                  <ThemedText colorKey="accent" style={styles.retry}>
+                    Retry
+                  </ThemedText>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        </ScrollView>
+
+        <View
+          style={[
+            styles.composerDock,
+            {
+              borderTopColor: colors.glassBorder,
+              backgroundColor: colors.background,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.composer,
+              {
+                borderRadius: radius['2xl'],
+                borderColor: colors.glassBorder,
+                backgroundColor: colors.surfaceGlass,
+              },
+            ]}
+          >
+            <TextInput
+              ref={inputRef}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Message Kairos…"
+              placeholderTextColor={colors.inputPlaceholder}
+              accessibilityLabel="Ask Kairos"
+              multiline
+              blurOnSubmit={false}
+              returnKeyType="default"
+              keyboardAppearance={isLight ? 'light' : 'dark'}
+              onContentSizeChange={(e) => {
+                const next = Math.min(
+                  INPUT_MAX,
+                  Math.max(INPUT_MIN, e.nativeEvent.contentSize.height),
+                );
+                setInputHeight(next);
+              }}
+              onFocus={() => scrollToEnd()}
+              style={[
+                styles.input,
+                {
+                  color: colors.text,
+                  height: Math.max(inputHeight, INPUT_MIN),
+                },
+              ]}
+            />
+            <Pressable
+              disabled={!canSend}
+              onPress={() => void send(input)}
+              accessibilityRole="button"
+              accessibilityLabel="Send"
+              style={({ pressed }) => [
+                styles.sendWrap,
+                { opacity: !canSend ? 0.35 : pressed ? 0.75 : 1 },
+              ]}
+            >
+              <AccentGradient style={styles.send}>
+                <Feather name="arrow-up" size={18} color={colors.inverseText} />
+              </AccentGradient>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Keyboard spacer when open; floating tab clearance when closed */}
+        {keyboardVisible ? (
+          <Animated.View style={keyboardSpacerStyle} />
+        ) : (
+          <View style={{ height: FLOATING_TAB_BAR_CONTENT + Math.max(insets.bottom, 10) }} />
+        )}
+      </View>
+    </ScreenGradient>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    gap: 12,
+    flexGrow: 1,
+  },
+  contentEmpty: { justifyContent: 'center' },
+  empty: { gap: 10, paddingBottom: 24 },
+  emptyTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 28,
+    letterSpacing: -0.5,
+    textAlign: 'center',
+  },
+  emptyHint: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 18,
+  },
+  starters: { gap: 10 },
+  starterInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 52,
+  },
+  starter: {
+    flex: 1,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  kicker: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    letterSpacing: 0.3,
+  },
+  body: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 22 },
+  thread: { gap: 20 },
+  messageBlock: { gap: 10 },
+  sources: { gap: 8 },
+  followUps: { gap: 8, marginTop: 2 },
+  followChip: { borderRadius: 999 },
+  followInner: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  followLabel: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+  typingBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 4,
+  },
+  typingLabel: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+  },
+  errorBlock: { gap: 6, paddingVertical: 4 },
+  retry: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+  },
+  composerDock: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  composer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    paddingLeft: 14,
+    paddingRight: 6,
+    paddingVertical: 6,
+    minHeight: 48,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+  },
+  input: {
+    flex: 1,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 16,
+    lineHeight: 22,
+    paddingTop: Platform.OS === 'ios' ? 8 : 6,
+    paddingBottom: Platform.OS === 'ios' ? 8 : 6,
+    maxHeight: INPUT_MAX,
+    textAlignVertical: 'center',
+  },
+  sendWrap: {
+    marginBottom: 1,
+  },
+  send: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

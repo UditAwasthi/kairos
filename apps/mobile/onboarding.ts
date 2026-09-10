@@ -1,14 +1,14 @@
 export const ONBOARDING_SLIDES = [
   {
-    id: 'track',
-    slogan: 'Track behavior with calm, structured observations.',
+    id: 'capture',
+    slogan: 'Capture what matters from your digital life.',
   },
   {
-    id: 'understand',
-    slogan: 'Understand patterns associated with your recorded data.',
+    id: 'remember',
+    slogan: 'Turn observations into searchable personal memory.',
   },
   {
-    id: 'predict',
-    slogan: 'See model estimates, explore scenarios, and inspect evidence.',
+    id: 'ask',
+    slogan: 'Ask Kairos — answers grounded in what you saved.',
   },
 ] as const;

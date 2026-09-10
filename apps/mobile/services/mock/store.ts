@@ -1,473 +1,769 @@
 import type {
-  BehaviorEvent,
-  EventType,
-  Goal,
-  Pattern,
-  Prediction,
-  Recommendation,
-  SubscriptionPlanInfo,
+  AppNotification,
+  AppSettings,
+  Device,
+  Entity,
+  Memory,
+  Observation,
+  ProcessingJob,
+  Project,
+  Source,
+  Topic,
 } from '../../types';
-import { clamp, createRng, isoDaysAgo, pick, round } from '../utils';
+import { isoDaysAgo } from '../utils';
 
-const SUBJECTS = ['Algorithms', 'Systems', 'Math', 'Writing', 'Design'] as const;
-const EXERCISES = ['Run', 'Strength', 'Yoga', 'Walk', 'Cycling'] as const;
-const HABITS = ['Meditate', 'Journal', 'Read', 'Stretch'] as const;
-const TASK_CATS = ['Work', 'Personal', 'Learning', 'Health'] as const;
-const MOODS = [
-  { score: 2, label: 'Low' },
-  { score: 3, label: 'Okay' },
-  { score: 4, label: 'Good' },
-  { score: 5, label: 'Great' },
-] as const;
-const SPEND_CATS = ['Food', 'Transport', 'Books', 'Subscriptions'] as const;
-const SCREEN_CATS = ['Social', 'Productivity', 'Entertainment', 'Learning'] as const;
+export const SOURCE_TYPE_LABELS = {
+  screenshot: 'Screenshot',
+  photo: 'Photo',
+  document: 'Document',
+  note: 'Note',
+  link: 'Link',
+  audio: 'Audio',
+  conversation: 'Conversation',
+  task: 'Task',
+} as const;
 
-function eventId(day: number, index: number): string {
-  return `evt-${String(day).padStart(2, '0')}-${String(index).padStart(2, '0')}`;
-}
+type Store = {
+  topics: Topic[];
+  projects: Project[];
+  entities: Entity[];
+  sources: Source[];
+  observations: Observation[];
+  memories: Memory[];
+  jobs: ProcessingJob[];
+  notifications: AppNotification[];
+  devices: Device[];
+  settings: AppSettings;
+  recentSearches: string[];
+  askHistory: { role: 'user' | 'kairos'; content: string; createdAt: string }[];
+  deleted: boolean;
+  forceError: boolean;
+  forceEmpty: boolean;
+};
 
-function buildDayEvents(day: number, rng: () => number): BehaviorEvent[] {
-  const events: BehaviorEvent[] = [];
-  const weekday = new Date(isoDaysAgo(day)).getDay();
-  const isWeekend = weekday === 0 || weekday === 6;
+let store: Store | null = null;
 
-  // Sleep — slightly better mid-week
-  const sleepHours = clamp(7.1 + (weekday >= 1 && weekday <= 4 ? 0.4 : -0.3) + (rng() - 0.5) * 0.8, 5.5, 9);
-  const sleepStartHour = 23;
-  const wakeHour = Math.floor((sleepStartHour + sleepHours) % 24);
-  const wakeMin = Math.round((sleepHours % 1) * 60);
-  const sleepTs = isoDaysAgo(day, wakeHour, wakeMin);
-  events.push({
-    id: eventId(day, 0),
-    type: 'sleep',
-    timestamp: sleepTs,
-    title: `Sleep · ${round(sleepHours, 1)}h`,
-    meta: {
-      sleepTime: isoDaysAgo(day + 1, sleepStartHour, 15),
-      wakeTime: sleepTs,
-      quality: clamp(Math.round(3 + sleepHours - 6 + (rng() - 0.5)), 1, 5),
-      durationMinutes: Math.round(sleepHours * 60),
+function buildStore(): Store {
+  const topics: Topic[] = [
+    {
+      id: 'topic-ai',
+      name: 'AI',
+      description: 'Models, agents, and applied machine intelligence.',
+      memoryCount: 0,
+      recentActivityAt: isoDaysAgo(0, 19, 42),
     },
-    createdAt: sleepTs,
-    updatedAt: sleepTs,
+    {
+      id: 'topic-ml',
+      name: 'Machine Learning',
+      description: 'Training, evaluation, and retrieval systems.',
+      memoryCount: 0,
+      recentActivityAt: isoDaysAgo(0, 9, 42),
+    },
+    {
+      id: 'topic-programming',
+      name: 'Programming',
+      description: 'Implementation notes, APIs, and architecture.',
+      memoryCount: 0,
+      recentActivityAt: isoDaysAgo(1, 18, 12),
+    },
+    {
+      id: 'topic-research',
+      name: 'Research',
+      description: 'Papers, articles, and deep reading sessions.',
+      memoryCount: 0,
+      recentActivityAt: isoDaysAgo(2, 21, 5),
+    },
+    {
+      id: 'topic-college',
+      name: 'College',
+      description: 'Coursework, lectures, and academic planning.',
+      memoryCount: 0,
+      recentActivityAt: isoDaysAgo(3, 14, 30),
+    },
+    {
+      id: 'topic-projects',
+      name: 'Projects',
+      description: 'Active builds and product workstreams.',
+      memoryCount: 0,
+      recentActivityAt: isoDaysAgo(0, 8, 31),
+    },
+    {
+      id: 'topic-fitness',
+      name: 'Fitness',
+      description: 'Training notes and recovery observations.',
+      memoryCount: 0,
+      recentActivityAt: isoDaysAgo(4, 7, 15),
+    },
+    {
+      id: 'topic-personal',
+      name: 'Personal',
+      description: 'Life admin, ideas, and private notes.',
+      memoryCount: 0,
+      recentActivityAt: isoDaysAgo(5, 22, 10),
+    },
+  ];
+
+  const projects: Project[] = [
+    {
+      id: 'proj-kairos',
+      name: 'Kairos',
+      description: 'Personal AI memory system — capture, retrieve, and ask.',
+      memoryCount: 0,
+      topicIds: ['topic-ai', 'topic-programming', 'topic-projects'],
+      updatedAt: isoDaysAgo(0, 19, 42),
+      status: 'active',
+    },
+    {
+      id: 'proj-ml',
+      name: 'Learning ML',
+      description: 'Structured path through transformers, RAG, and evaluation.',
+      memoryCount: 0,
+      topicIds: ['topic-ml', 'topic-ai', 'topic-research'],
+      updatedAt: isoDaysAgo(0, 9, 42),
+      status: 'active',
+    },
+    {
+      id: 'proj-college',
+      name: 'College',
+      description: 'Semester coursework and exam prep.',
+      memoryCount: 0,
+      topicIds: ['topic-college', 'topic-programming'],
+      updatedAt: isoDaysAgo(3, 14, 30),
+      status: 'active',
+    },
+    {
+      id: 'proj-personal',
+      name: 'Personal Projects',
+      description: 'Side experiments and weekend builds.',
+      memoryCount: 0,
+      topicIds: ['topic-projects', 'topic-personal'],
+      updatedAt: isoDaysAgo(6, 16, 45),
+      status: 'paused',
+    },
+  ];
+
+  const entities: Entity[] = [
+    { id: 'ent-rag', name: 'RAG', type: 'concept' },
+    { id: 'ent-transformers', name: 'Transformers', type: 'concept' },
+    { id: 'ent-embeddings', name: 'Embeddings', type: 'concept' },
+    { id: 'ent-nestjs', name: 'NestJS', type: 'tool' },
+    { id: 'ent-expo', name: 'Expo', type: 'tool' },
+    { id: 'ent-clerk', name: 'Clerk', type: 'tool' },
+    { id: 'ent-pinecone', name: 'Vector databases', type: 'concept' },
+    { id: 'ent-rerank', name: 'Reranking', type: 'concept' },
+    { id: 'ent-udit', name: 'Udit', type: 'person' },
+  ];
+
+  const sources: Source[] = [
+    {
+      id: 'src-1',
+      type: 'screenshot',
+      label: 'Screenshot · Chrome',
+      previewText: 'Article section on transformer attention and positional encodings.',
+    },
+    {
+      id: 'src-2',
+      type: 'link',
+      label: 'Saved article',
+      url: 'https://example.com/vector-databases',
+      previewText: 'Overview of ANN indexes and hybrid search tradeoffs.',
+    },
+    {
+      id: 'src-3',
+      type: 'note',
+      label: 'Quick note',
+      previewText: 'API surface for memory retrieval and observation ingestion.',
+    },
+    {
+      id: 'src-4',
+      type: 'document',
+      label: 'PDF · RAG Evaluation Notes',
+      previewText: 'Metrics for faithfulness, context precision, and answer relevance.',
+    },
+    {
+      id: 'src-5',
+      type: 'conversation',
+      label: 'Study session notes',
+      previewText: 'Discussion of chunking strategies and embedding model choice.',
+    },
+    {
+      id: 'src-6',
+      type: 'audio',
+      label: 'Voice memo',
+      previewText: 'Ideas for Kairos privacy controls and retention defaults.',
+    },
+    {
+      id: 'src-7',
+      type: 'task',
+      label: 'Task · Backend planning',
+      previewText: 'Outline NestJS modules for memories, search, and ask.',
+    },
+    {
+      id: 'src-8',
+      type: 'photo',
+      label: 'Whiteboard photo',
+      previewText: 'Sketch of capture → OCR → memory extraction pipeline.',
+    },
+  ];
+
+  type Seed = {
+    id: string;
+    title: string;
+    summary: string;
+    daysAgo: number;
+    hour: number;
+    minute: number;
+    sourceType: Memory['sourceType'];
+    topicIds: string[];
+    projectIds: string[];
+    entityIds: string[];
+    relatedMemoryIds: string[];
+    observationIds: string[];
+    favorite?: boolean;
+    sourceId: string;
+    obsPreview: string;
+    extracted: string;
+  };
+
+  const seeds: Seed[] = [
+    {
+      id: 'mem-1',
+      title: 'Researching transformer architectures',
+      summary:
+        'Deep dive into encoder-decoder vs decoder-only designs, multi-head attention, and how positional encodings affect long-context retrieval.',
+      daysAgo: 0,
+      hour: 9,
+      minute: 42,
+      sourceType: 'screenshot',
+      topicIds: ['topic-ai', 'topic-ml', 'topic-research'],
+      projectIds: ['proj-ml'],
+      entityIds: ['ent-transformers', 'ent-embeddings'],
+      relatedMemoryIds: ['mem-2', 'mem-5', 'mem-8'],
+      observationIds: ['obs-1'],
+      favorite: true,
+      sourceId: 'src-1',
+      obsPreview: 'Screenshot of transformer architecture diagram and notes.',
+      extracted:
+        'Self-attention computes query-key-value projections… positional encodings… sparse attention variants for long sequences.',
+    },
+    {
+      id: 'mem-2',
+      title: 'Saved article about vector databases',
+      summary:
+        'Bookmarked comparison of HNSW, IVF, and hybrid keyword+vector search. Noted latency vs recall tradeoffs for personal memory retrieval.',
+      daysAgo: 0,
+      hour: 8,
+      minute: 31,
+      sourceType: 'link',
+      topicIds: ['topic-ai', 'topic-programming', 'topic-projects'],
+      projectIds: ['proj-kairos', 'proj-ml'],
+      entityIds: ['ent-pinecone', 'ent-embeddings', 'ent-rag'],
+      relatedMemoryIds: ['mem-1', 'mem-4', 'mem-6'],
+      observationIds: ['obs-2'],
+      sourceId: 'src-2',
+      obsPreview: 'Article link on vector database indexing strategies.',
+      extracted:
+        'ANN indexes approximate nearest neighbors… hybrid search combines BM25 with dense embeddings… metadata filters essential for personal corpora.',
+    },
+    {
+      id: 'mem-3',
+      title: 'Worked on Kairos API design',
+      summary:
+        'Sketched NestJS modules for observations, memories, search, and ask. Decided on soft-delete and retention policies as first-class privacy features.',
+      daysAgo: 1,
+      hour: 18,
+      minute: 12,
+      sourceType: 'note',
+      topicIds: ['topic-programming', 'topic-projects', 'topic-ai'],
+      projectIds: ['proj-kairos'],
+      entityIds: ['ent-nestjs', 'ent-clerk'],
+      relatedMemoryIds: ['mem-7', 'mem-9', 'mem-2'],
+      observationIds: ['obs-3'],
+      favorite: true,
+      sourceId: 'src-3',
+      obsPreview: 'Notes on Kairos API boundaries and privacy endpoints.',
+      extracted:
+        'POST /observations · GET /memories · POST /ask · privacy export/delete · Clerk JWT on all protected routes.',
+    },
+    {
+      id: 'mem-4',
+      title: 'RAG Evaluation Notes',
+      summary:
+        'Compiled evaluation checklist: context precision, faithfulness, answer relevance, and latency budgets for mobile ask flows.',
+      daysAgo: 1,
+      hour: 21,
+      minute: 5,
+      sourceType: 'document',
+      topicIds: ['topic-ml', 'topic-research', 'topic-ai'],
+      projectIds: ['proj-ml', 'proj-kairos'],
+      entityIds: ['ent-rag', 'ent-rerank'],
+      relatedMemoryIds: ['mem-5', 'mem-6', 'mem-2'],
+      observationIds: ['obs-4'],
+      favorite: true,
+      sourceId: 'src-4',
+      obsPreview: 'PDF notes on RAG evaluation metrics.',
+      extracted:
+        'Faithfulness measures groundedness… context precision penalizes irrelevant retrieved chunks… reranking lifts top-k quality.',
+    },
+    {
+      id: 'mem-5',
+      title: 'Vector Search Research',
+      summary:
+        'Session notes on chunking strategies, embedding model selection, and when to apply cross-encoder reranking.',
+      daysAgo: 2,
+      hour: 16,
+      minute: 40,
+      sourceType: 'conversation',
+      topicIds: ['topic-ml', 'topic-ai'],
+      projectIds: ['proj-ml'],
+      entityIds: ['ent-embeddings', 'ent-rerank', 'ent-rag'],
+      relatedMemoryIds: ['mem-4', 'mem-6', 'mem-1'],
+      observationIds: ['obs-5'],
+      sourceId: 'src-5',
+      obsPreview: 'Study conversation about retrieval quality.',
+      extracted:
+        'Prefer semantic chunking for notes… bge-small for on-device experiments… cross-encoder rerank on top 20 candidates.',
+    },
+    {
+      id: 'mem-6',
+      title: 'Embedding Models comparison',
+      summary:
+        'Compared open embedding models for short notes vs long articles. Marked tradeoffs between dimension size and mobile latency.',
+      daysAgo: 2,
+      hour: 11,
+      minute: 18,
+      sourceType: 'note',
+      topicIds: ['topic-ml', 'topic-research'],
+      projectIds: ['proj-ml'],
+      entityIds: ['ent-embeddings'],
+      relatedMemoryIds: ['mem-4', 'mem-5', 'mem-2'],
+      observationIds: ['obs-6'],
+      sourceId: 'src-3',
+      obsPreview: 'Comparison table of embedding model options.',
+      extracted:
+        'Smaller dims faster on device… multilingual models needed later… normalize vectors before cosine similarity.',
+    },
+    {
+      id: 'mem-7',
+      title: 'Kairos AI Architecture',
+      summary:
+        'Whiteboard capture of the async pipeline: capture → upload → OCR/extract → memory write → embed → index.',
+      daysAgo: 3,
+      hour: 19,
+      minute: 55,
+      sourceType: 'photo',
+      topicIds: ['topic-projects', 'topic-ai', 'topic-programming'],
+      projectIds: ['proj-kairos'],
+      entityIds: ['ent-expo', 'ent-nestjs', 'ent-rag'],
+      relatedMemoryIds: ['mem-3', 'mem-9', 'mem-10'],
+      observationIds: ['obs-7'],
+      favorite: true,
+      sourceId: 'src-8',
+      obsPreview: 'Whiteboard photo of Kairos processing stages.',
+      extracted:
+        'Observation queue · extraction worker · memory graph · vector index · ask orchestrator with evidence cards.',
+    },
+    {
+      id: 'mem-8',
+      title: 'AI Learning Session',
+      summary:
+        'Reviewed attention visualizations and residual streams. Linked concepts back to retrieval grounding for Kairos answers.',
+      daysAgo: 3,
+      hour: 14,
+      minute: 22,
+      sourceType: 'screenshot',
+      topicIds: ['topic-ai', 'topic-college'],
+      projectIds: ['proj-ml', 'proj-college'],
+      entityIds: ['ent-transformers'],
+      relatedMemoryIds: ['mem-1', 'mem-5'],
+      observationIds: ['obs-8'],
+      sourceId: 'src-1',
+      obsPreview: 'Lecture screenshot on attention maps.',
+      extracted:
+        'Attention heads specialize… residual stream accumulates features… grounding answers requires retrieved evidence.',
+    },
+    {
+      id: 'mem-9',
+      title: 'Backend Planning',
+      summary:
+        'Task breakdown for NestJS services: auth middleware, memory CRUD, search façade, and processing job status API.',
+      daysAgo: 4,
+      hour: 10,
+      minute: 5,
+      sourceType: 'task',
+      topicIds: ['topic-programming', 'topic-projects'],
+      projectIds: ['proj-kairos'],
+      entityIds: ['ent-nestjs', 'ent-clerk'],
+      relatedMemoryIds: ['mem-3', 'mem-7'],
+      observationIds: ['obs-9'],
+      sourceId: 'src-7',
+      obsPreview: 'Task list for Kairos backend milestones.',
+      extracted:
+        'Auth guard · observations module · memories module · search module · jobs websocket later.',
+    },
+    {
+      id: 'mem-10',
+      title: 'Privacy controls sketch',
+      summary:
+        'Voice memo outlining retention defaults, raw observation deletion, and export packaging for personal data.',
+      daysAgo: 4,
+      hour: 20,
+      minute: 30,
+      sourceType: 'audio',
+      topicIds: ['topic-personal', 'topic-projects', 'topic-ai'],
+      projectIds: ['proj-kairos'],
+      entityIds: ['ent-clerk'],
+      relatedMemoryIds: ['mem-3', 'mem-7'],
+      observationIds: ['obs-10'],
+      sourceId: 'src-6',
+      obsPreview: 'Voice memo about Kairos privacy defaults.',
+      extracted:
+        'Default retain 180 days… allow purge raw screenshots while keeping summaries… export as JSON + markdown.',
+    },
+    {
+      id: 'mem-11',
+      title: 'Retrieval Metrics draft',
+      summary:
+        'Drafted a small scorecard for Kairos ask quality: evidence coverage, user trust signals, and latency SLOs.',
+      daysAgo: 5,
+      hour: 15,
+      minute: 12,
+      sourceType: 'document',
+      topicIds: ['topic-research', 'topic-ml', 'topic-projects'],
+      projectIds: ['proj-kairos', 'proj-ml'],
+      entityIds: ['ent-rag', 'ent-rerank'],
+      relatedMemoryIds: ['mem-4', 'mem-5'],
+      observationIds: ['obs-11'],
+      sourceId: 'src-4',
+      obsPreview: 'Document draft of retrieval quality scorecard.',
+      extracted:
+        'Evidence coverage % · user thumbs · p95 ask latency under 2s · insufficient-evidence rate tracked.',
+    },
+    {
+      id: 'mem-12',
+      title: 'Expo navigation patterns',
+      summary:
+        'Notes on Expo Router tabs, stack headers, and keeping mobile thumb-reach primary actions near the bottom.',
+      daysAgo: 5,
+      hour: 9,
+      minute: 48,
+      sourceType: 'note',
+      topicIds: ['topic-programming', 'topic-projects'],
+      projectIds: ['proj-kairos'],
+      entityIds: ['ent-expo'],
+      relatedMemoryIds: ['mem-3', 'mem-7'],
+      observationIds: ['obs-12'],
+      sourceId: 'src-3',
+      obsPreview: 'Implementation notes for mobile navigation.',
+      extracted:
+        'File-based routes · tab icons without labels · stack for detail screens · safe area insets everywhere.',
+    },
+    {
+      id: 'mem-13',
+      title: 'College OS assignment notes',
+      summary:
+        'Lecture notes on process scheduling and memory virtualization — kept for midterm review.',
+      daysAgo: 6,
+      hour: 13,
+      minute: 20,
+      sourceType: 'document',
+      topicIds: ['topic-college', 'topic-programming'],
+      projectIds: ['proj-college'],
+      entityIds: [],
+      relatedMemoryIds: ['mem-8'],
+      observationIds: ['obs-13'],
+      sourceId: 'src-4',
+      obsPreview: 'Course PDF highlights on OS concepts.',
+      extracted:
+        'Round-robin vs multilevel feedback… TLB and page tables… context switch cost.',
+    },
+    {
+      id: 'mem-14',
+      title: 'Morning run recovery notes',
+      summary:
+        'Logged pace, perceived effort, and a reminder to stretch hip flexors after desk-heavy AI workdays.',
+      daysAgo: 6,
+      hour: 7,
+      minute: 15,
+      sourceType: 'note',
+      topicIds: ['topic-fitness', 'topic-personal'],
+      projectIds: ['proj-personal'],
+      entityIds: [],
+      relatedMemoryIds: [],
+      observationIds: ['obs-14'],
+      sourceId: 'src-3',
+      obsPreview: 'Short fitness note after morning run.',
+      extracted: '5.2 km · easy pace · hip flexor stretch tonight.',
+    },
+    {
+      id: 'mem-15',
+      title: 'Reranking experiment plan',
+      summary:
+        'Outlined an A/B plan for bi-encoder vs cross-encoder rerank on personal notes corpus.',
+      daysAgo: 7,
+      hour: 17,
+      minute: 40,
+      sourceType: 'note',
+      topicIds: ['topic-ml', 'topic-research'],
+      projectIds: ['proj-ml'],
+      entityIds: ['ent-rerank', 'ent-rag'],
+      relatedMemoryIds: ['mem-4', 'mem-5', 'mem-11'],
+      observationIds: ['obs-15'],
+      sourceId: 'src-3',
+      obsPreview: 'Experiment plan for retrieval reranking.',
+      extracted:
+        'Holdout 200 queries · measure nDCG@5 · track mobile latency impact of cross-encoder.',
+    },
+    {
+      id: 'mem-16',
+      title: 'Things related to Kairos from last week',
+      summary:
+        'Weekly synthesis: API design, architecture whiteboard, privacy memo, and Expo navigation notes all pointed at the same product spine.',
+      daysAgo: 7,
+      hour: 22,
+      minute: 10,
+      sourceType: 'conversation',
+      topicIds: ['topic-projects', 'topic-ai'],
+      projectIds: ['proj-kairos'],
+      entityIds: ['ent-nestjs', 'ent-expo'],
+      relatedMemoryIds: ['mem-3', 'mem-7', 'mem-10', 'mem-12'],
+      observationIds: ['obs-16'],
+      favorite: true,
+      sourceId: 'src-5',
+      obsPreview: 'Weekly reflection linking Kairos workstreams.',
+      extracted:
+        'Capture pipeline clarity improved… privacy as a product feature… mobile ask UX still the flagship.',
+    },
+  ];
+
+  const memories: Memory[] = seeds.map((s) => {
+    const capturedAt = isoDaysAgo(s.daysAgo, s.hour, s.minute);
+    return {
+      id: s.id,
+      title: s.title,
+      summary: s.summary,
+      capturedAt,
+      createdAt: capturedAt,
+      sourceType: s.sourceType,
+      topicIds: s.topicIds,
+      projectIds: s.projectIds,
+      entityIds: s.entityIds,
+      relatedMemoryIds: s.relatedMemoryIds,
+      observationIds: s.observationIds,
+      favorite: Boolean(s.favorite),
+      relevance: 0.72 + (s.id.charCodeAt(4) % 20) / 100,
+    };
   });
 
-  // Study — higher on weekdays, correlated with sleep
-  if (!isWeekend || rng() > 0.35) {
-    const base = isWeekend ? 70 : 110;
-    const sleepBonus = (sleepHours - 7) * 25;
-    const duration = Math.round(clamp(base + sleepBonus + (rng() - 0.5) * 40, 25, 210));
-    const productivity = clamp(
-      round(3.2 + (sleepHours - 7) * 0.5 + (weekday === 2 || weekday === 3 ? 0.4 : 0) + (rng() - 0.5) * 0.6, 1),
-      1,
-      5,
-    );
-    const studyHour = isWeekend ? 10 : 9;
-    const studyTs = isoDaysAgo(day, studyHour, Math.floor(rng() * 40));
-    events.push({
-      id: eventId(day, 1),
-      type: 'study',
-      timestamp: studyTs,
-      title: `Study · ${pick(rng, SUBJECTS)}`,
-      meta: {
-        durationMinutes: duration,
-        subject: pick(rng, SUBJECTS),
-        productivity,
-        notes: productivity >= 4 ? 'Focused session' : 'Some distraction',
-      },
-      createdAt: studyTs,
-      updatedAt: studyTs,
-    });
-  }
+  const observations: Observation[] = seeds.map((s, index) => {
+    const status: Observation['status'] =
+      index === 0 ? 'PROCESSING' : index === 14 ? 'PENDING' : 'READY';
+    return {
+      id: s.observationIds[0]!,
+      title: s.title,
+      sourceType: s.sourceType,
+      capturedAt: isoDaysAgo(s.daysAgo, s.hour, s.minute),
+      status,
+      previewText: s.obsPreview,
+      extractedText: status === 'READY' || status === 'PROCESSING' ? s.extracted : undefined,
+      summary: status === 'READY' ? s.summary : undefined,
+      linkedMemoryIds: status === 'READY' ? [s.id] : [],
+      sourceLabel: SOURCE_TYPE_LABELS[s.sourceType],
+    };
+  });
 
-  // Exercise — 4–5x / week pattern
-  if (rng() > (isWeekend ? 0.25 : 0.45)) {
-    const intensity = pick(rng, ['low', 'moderate', 'high'] as const);
-    const duration = intensity === 'high' ? 45 + Math.floor(rng() * 20) : 25 + Math.floor(rng() * 25);
-    const exTs = isoDaysAgo(day, 17, Math.floor(rng() * 50));
-    events.push({
-      id: eventId(day, 2),
-      type: 'exercise',
-      timestamp: exTs,
-      title: `Exercise · ${pick(rng, EXERCISES)}`,
-      meta: {
-        exerciseType: pick(rng, EXERCISES),
-        durationMinutes: duration,
-        intensity,
-      },
-      createdAt: exTs,
-      updatedAt: exTs,
-    });
-  }
+  // Attach source ids onto a side map via observation titles — sources already listed
+  void sources;
 
-  // Tasks
-  const taskCount = isWeekend ? 1 + Math.floor(rng() * 2) : 2 + Math.floor(rng() * 3);
-  for (let i = 0; i < taskCount; i++) {
-    const completed = rng() > (isWeekend ? 0.25 : 0.2);
-    const ts = isoDaysAgo(day, 14 + i, Math.floor(rng() * 50));
-    events.push({
-      id: eventId(day, 10 + i),
-      type: 'task',
-      timestamp: ts,
-      title: completed ? 'Task completed' : 'Task open',
-      meta: {
-        title: pick(rng, ['Review notes', 'Ship draft', 'Inbox zero', 'Plan week', 'Read paper'] as const),
-        completed,
-        category: pick(rng, TASK_CATS),
-      },
-      createdAt: ts,
-      updatedAt: ts,
-    });
-  }
-
-  // Habit
-  if (rng() > 0.3) {
-    const ts = isoDaysAgo(day, 7, 20);
-    events.push({
-      id: eventId(day, 20),
-      type: 'habit',
-      timestamp: ts,
-      title: `Habit · ${pick(rng, HABITS)}`,
-      meta: {
-        habitName: pick(rng, HABITS),
-        completed: rng() > 0.15,
-      },
-      createdAt: ts,
-      updatedAt: ts,
-    });
-  }
-
-  // Productivity score (end of day)
-  {
-    const sleepFactor = (sleepHours - 6.5) / 2;
-    const score = clamp(round(3.4 + sleepFactor + (isWeekend ? -0.2 : 0.3) + (rng() - 0.5) * 0.8, 1), 1, 5);
-    const ts = isoDaysAgo(day, 21, 30);
-    events.push({
-      id: eventId(day, 30),
-      type: 'productivity',
-      timestamp: ts,
-      title: `Productivity · ${score}/5`,
-      meta: { score, notes: score >= 4 ? 'Strong day' : 'Average day' },
-      createdAt: ts,
-      updatedAt: ts,
-    });
-  }
-
-  // Mood (sparse)
-  if (rng() > 0.55) {
-    const mood = pick(rng, MOODS);
-    const ts = isoDaysAgo(day, 20, 10);
-    events.push({
-      id: eventId(day, 40),
-      type: 'mood',
-      timestamp: ts,
-      title: `Mood · ${mood.label}`,
-      meta: { score: mood.score, label: mood.label },
-      createdAt: ts,
-      updatedAt: ts,
-    });
-  }
-
-  // Screen time
-  if (rng() > 0.4) {
-    const ts = isoDaysAgo(day, 22, 0);
-    events.push({
-      id: eventId(day, 50),
-      type: 'screen_time',
-      timestamp: ts,
-      title: 'Screen time',
-      meta: {
-        durationMinutes: Math.round(60 + rng() * 140),
-        category: pick(rng, SCREEN_CATS),
-      },
-      createdAt: ts,
-      updatedAt: ts,
-    });
-  }
-
-  // Spending (sparse)
-  if (rng() > 0.7) {
-    const ts = isoDaysAgo(day, 13, 15);
-    events.push({
-      id: eventId(day, 60),
-      type: 'spending',
-      timestamp: ts,
-      title: 'Spending',
-      meta: {
-        amount: round(8 + rng() * 40, 2),
-        currency: 'USD',
-        category: pick(rng, SPEND_CATS),
-      },
-      createdAt: ts,
-      updatedAt: ts,
-    });
-  }
-
-  // Observation (sparse)
-  if (rng() > 0.75) {
-    const ts = isoDaysAgo(day, 19, 45);
-    events.push({
-      id: eventId(day, 70),
-      type: 'observation',
-      timestamp: ts,
-      title: 'Observation',
-      meta: {
-        text: pick(rng, [
-          'Deep focus after morning walk.',
-          'Harder to concentrate after late night.',
-          'Shorter study blocks felt more consistent.',
-          'Afternoon energy dipped after long meetings.',
-        ] as const),
-      },
-      createdAt: ts,
-      updatedAt: ts,
-    });
-  }
-
-  return events;
-}
-
-/** Mutable in-memory store — deterministic seed, coherent timeline. */
-export function createMockStore() {
-  const rng = createRng(20260305);
-  const events: BehaviorEvent[] = [];
-
-  for (let day = 29; day >= 0; day--) {
-    events.push(...buildDayEvents(day, rng));
-  }
-
-  events.sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
-
-  const patterns: Pattern[] = [
+  const jobs: ProcessingJob[] = [
     {
-      id: 'pat-1',
-      title: 'Most productive hours',
-      observation:
-        'Higher productivity scores are associated with morning study blocks between 9–11.',
-      supportingMetric: 'Avg productivity 4.2 / 5 in 9–11 window',
-      observationWindow: '30 days',
-      sampleSize: 87,
-      evidenceStrength: 'moderate',
+      id: 'job-1',
+      observationId: 'obs-1',
+      title: 'Researching transformer architectures',
+      sourceType: 'screenshot',
+      stage: 'PROCESSING',
+      startedAt: isoDaysAgo(0, 9, 42),
+      updatedAt: isoDaysAgo(0, 9, 44),
+      steps: [
+        { id: 's1', label: 'Uploaded', status: 'completed' },
+        { id: 's2', label: 'OCR', status: 'completed' },
+        { id: 's3', label: 'Memory extraction', status: 'running' },
+        { id: 's4', label: 'Embedding', status: 'queued' },
+      ],
     },
     {
-      id: 'pat-2',
-      title: 'Strongest days',
-      observation:
-        'Tue and Wed show higher recorded productive study time in your data.',
-      supportingMetric: '+28 min vs weekly mean',
-      observationWindow: '30 days',
-      sampleSize: 87,
-      evidenceStrength: 'moderate',
+      id: 'job-2',
+      observationId: 'obs-15',
+      title: 'Reranking experiment plan',
+      sourceType: 'note',
+      stage: 'UPLOADING',
+      startedAt: isoDaysAgo(0, 8, 10),
+      updatedAt: isoDaysAgo(0, 8, 11),
+      steps: [
+        { id: 's1', label: 'Uploaded', status: 'running' },
+        { id: 's2', label: 'OCR', status: 'queued' },
+        { id: 's3', label: 'Memory extraction', status: 'queued' },
+        { id: 's4', label: 'Embedding', status: 'queued' },
+      ],
     },
     {
-      id: 'pat-3',
-      title: 'Study / productivity association',
-      observation:
-        'Days with 90–150 minutes of study are associated with higher end-of-day productivity scores.',
-      supportingMetric: 'r ≈ 0.41 (observational)',
-      observationWindow: '30 days',
-      sampleSize: 64,
-      evidenceStrength: 'limited',
-    },
-    {
-      id: 'pat-4',
-      title: 'Sleep / productivity association',
-      observation:
-        'Sleep duration near 7.5–8h is associated with higher next-day productivity in your recorded data.',
-      supportingMetric: '+0.6 score vs <6.5h nights',
-      observationWindow: '30 days',
-      sampleSize: 30,
-      evidenceStrength: 'limited',
-    },
-    {
-      id: 'pat-5',
-      title: 'Consistency trend',
-      observation:
-        'Task completion consistency improved over the last two weeks relative to the prior two.',
-      supportingMetric: '+12% completion rate',
-      observationWindow: '28 days',
-      sampleSize: 72,
-      evidenceStrength: 'moderate',
+      id: 'job-3',
+      observationId: 'obs-14',
+      title: 'Morning run recovery notes',
+      sourceType: 'note',
+      stage: 'READY',
+      startedAt: isoDaysAgo(6, 7, 15),
+      updatedAt: isoDaysAgo(6, 7, 16),
+      resultMemoryId: 'mem-14',
+      steps: [
+        { id: 's1', label: 'Uploaded', status: 'completed' },
+        { id: 's2', label: 'OCR', status: 'completed' },
+        { id: 's3', label: 'Memory extraction', status: 'completed' },
+        { id: 's4', label: 'Embedding', status: 'completed' },
+      ],
     },
   ];
 
-  const prediction: Prediction = {
-    id: 'pred-next-day-study',
-    title: "Tomorrow's productive study time",
-    targetLabel: 'Next-day productive study time',
-    estimatedMinutes: 144,
-    uncertaintyMinutes: 31,
-    historicalBaselineMinutes: 121,
-    modelName: 'Random Forest',
-    modelVersion: 'v1',
-    evaluationMaeMinutes: 24,
-    evaluationRmseMinutes: 31,
-    evaluationR2: 0.42,
-    observationWindowDays: 30,
-    sampleSize: 87,
-    features: [
-      'sleep',
-      'study duration',
-      'exercise',
-      'task completion',
-      'day of week',
-      'time of day',
-    ],
-    limitations: [
-      'Estimate is based on observational associations, not causal effects.',
-      'Sample size is modest; uncertainty remains material.',
-      'Unmeasured factors (meetings, illness, travel) are not included.',
-      'Past patterns may not hold if routines change.',
-    ],
-    inputs: [
-      { label: 'Last night sleep', value: '7h 42m' },
-      { label: 'Yesterday study', value: '2h 05m' },
-      { label: 'Exercise yesterday', value: '35m' },
-      { label: 'Task completion (7d)', value: '78%' },
-      { label: 'Day of week', value: 'Saturday → Sunday' },
-    ],
-    createdAt: new Date().toISOString(),
+  const notifications: AppNotification[] = [
+    {
+      id: 'ntf-1',
+      title: '3 new memories created',
+      body: 'Transformer research, vector databases, and a Kairos API note landed today.',
+      createdAt: isoDaysAgo(0, 9, 50),
+      read: false,
+      href: '/(app)/(tabs)/timeline',
+    },
+    {
+      id: 'ntf-2',
+      title: 'Kairos project update',
+      body: 'Your Kairos project now has 8 related memories across architecture and privacy.',
+      createdAt: isoDaysAgo(0, 8, 40),
+      read: false,
+      href: '/(app)/projects/proj-kairos',
+    },
+    {
+      id: 'ntf-3',
+      title: 'Processing completed',
+      body: 'Morning run recovery notes is ready to browse.',
+      createdAt: isoDaysAgo(6, 7, 16),
+      read: true,
+      href: '/(app)/memory/mem-14',
+    },
+    {
+      id: 'ntf-4',
+      title: 'Suggested question',
+      body: 'Ask Kairos: What was I learning about RAG?',
+      createdAt: isoDaysAgo(1, 12, 0),
+      read: true,
+      href: '/(app)/(tabs)/ask',
+    },
+  ];
+
+  const devices: Device[] = [
+    {
+      id: 'dev-1',
+      name: 'Pixel / current phone',
+      platform: 'android',
+      isCurrent: true,
+      lastSyncAt: isoDaysAgo(0, 9, 45),
+      captureEnabled: true,
+      connectionStatus: 'connected',
+    },
+    {
+      id: 'dev-2',
+      name: 'iPad (reading)',
+      platform: 'ios',
+      isCurrent: false,
+      lastSyncAt: isoDaysAgo(1, 21, 10),
+      captureEnabled: true,
+      connectionStatus: 'idle',
+    },
+    {
+      id: 'dev-3',
+      name: 'Laptop browser',
+      platform: 'web',
+      isCurrent: false,
+      lastSyncAt: isoDaysAgo(3, 18, 0),
+      captureEnabled: false,
+      connectionStatus: 'offline',
+    },
+  ];
+
+  const settings: AppSettings = {
+    ai: {
+      autoCapture: true,
+      suggestRelated: true,
+      allowBackgroundProcessing: true,
+      retainRawObservations: true,
+    },
+    privacy: {
+      storeScreenshots: true,
+      storeAudioTranscripts: true,
+      shareAnonymousTelemetry: false,
+      retentionDays: 180,
+    },
+    notifications: {
+      memoryCreated: true,
+      processingComplete: true,
+      weeklyDigest: false,
+    },
+    appearance: 'system',
   };
 
-  const recommendations: Recommendation[] = [
-    {
-      id: 'rec-1',
-      recommendation:
-        'Your recorded data shows higher completion consistency during shorter focused sessions.',
-      supportingEvidence:
-        'Sessions under 90 minutes are associated with higher task completion in the last 30 days.',
-      dataWindow: '30 days',
-      evidenceStrength: 'limited',
-      action: 'Try a 60–90 minute focused block tomorrow morning.',
-      feedback: null,
-    },
-    {
-      id: 'rec-2',
-      recommendation:
-        'Sleep near 7.5–8 hours is associated with higher next-day productivity scores in your data.',
-      supportingEvidence:
-        'Nights in that range show +0.6 average productivity vs nights under 6.5 hours.',
-      dataWindow: '30 days',
-      evidenceStrength: 'limited',
-      action: 'Aim for a consistent bedtime that yields ~7.5–8h.',
-      feedback: null,
-    },
-    {
-      id: 'rec-3',
-      recommendation:
-        'Tue–Wed mornings appear among your stronger productivity windows.',
-      supportingEvidence:
-        'Average productive study time is higher mid-week in the observed sample.',
-      dataWindow: '30 days',
-      evidenceStrength: 'moderate',
-      action: 'Schedule demanding study blocks for Tue or Wed morning when possible.',
-      feedback: null,
-    },
-  ];
-
-  const goals: Goal[] = [
-    {
-      id: 'goal-1',
-      title: 'Study 20 hours this week',
-      metricKey: 'study_minutes',
-      target: 1200,
-      current: 780,
-      unit: 'min',
-      deadline: isoDaysAgo(-2, 23, 59),
-      trend: 0.08,
-      createdAt: isoDaysAgo(6),
-    },
-    {
-      id: 'goal-2',
-      title: 'Complete 5 workouts',
-      metricKey: 'exercise_sessions',
-      target: 5,
-      current: 3,
-      unit: 'sessions',
-      deadline: isoDaysAgo(-2, 23, 59),
-      trend: 0.05,
-      createdAt: isoDaysAgo(6),
-    },
-    {
-      id: 'goal-3',
-      title: 'Maintain 7h average sleep',
-      metricKey: 'sleep_hours',
-      target: 7,
-      current: 7.3,
-      unit: 'hours',
-      deadline: isoDaysAgo(-2, 23, 59),
-      trend: 0.02,
-      createdAt: isoDaysAgo(13),
-    },
-  ];
-
-  const plans: SubscriptionPlanInfo[] = [
-    {
-      id: 'free',
-      name: 'Free',
-      priceLabel: '$0',
-      features: ['Tracking', 'Basic analytics', 'Limited predictions'],
-    },
-    {
-      id: 'pro',
-      name: 'Pro',
-      priceLabel: '$9.99/mo',
-      highlighted: true,
-      features: [
-        'Advanced analytics',
-        'Predictions',
-        'Scenario simulations',
-        'Evidence inspection',
-      ],
-    },
-    {
-      id: 'premium',
-      name: 'Premium',
-      priceLabel: '$19.99/mo',
-      features: [
-        'Everything in Pro',
-        'Advanced longitudinal analysis',
-        'Priority model updates',
-      ],
-    },
-  ];
+  // Recount topic/project memory counts
+  for (const topic of topics) {
+    topic.memoryCount = memories.filter((m) => m.topicIds.includes(topic.id)).length;
+  }
+  for (const project of projects) {
+    project.memoryCount = memories.filter((m) => m.projectIds.includes(project.id)).length;
+  }
 
   return {
-    events,
-    patterns,
-    prediction,
-    recommendations,
-    goals,
-    plans,
-    entitlementPlan: 'pro' as const,
+    topics,
+    projects,
+    entities,
+    sources,
+    observations,
+    memories,
+    jobs,
+    notifications,
+    devices,
+    settings,
+    recentSearches: [
+      'What was I learning about RAG?',
+      'Kairos API design',
+      'vector databases',
+      'things related to Kairos',
+    ],
+    askHistory: [],
     deleted: false,
+    forceError: false,
+    forceEmpty: false,
   };
 }
 
-export type MockStore = ReturnType<typeof createMockStore>;
-
-let store: MockStore | null = null;
-
-export function getStore(): MockStore {
-  if (!store) {
-    store = createMockStore();
-  }
+export function getStore(): Store {
+  if (!store) store = buildStore();
   return store;
 }
 
 export function resetStore(): void {
-  store = createMockStore();
+  store = buildStore();
 }
 
-export const EVENT_TYPE_LABELS: Record<EventType, string> = {
-  study: 'Study',
-  sleep: 'Sleep',
-  exercise: 'Exercise',
-  habit: 'Habit',
-  task: 'Task',
-  productivity: 'Productivity',
-  mood: 'Mood',
-  screen_time: 'Screen time',
-  spending: 'Spending',
-  observation: 'Observation',
-};
+export function getSourceForMemory(memoryId: string): Source {
+  const s = getStore();
+  const memory = s.memories.find((m) => m.id === memoryId);
+  const observation = memory
+    ? s.observations.find((o) => memory.observationIds.includes(o.id))
+    : undefined;
+  const byType = s.sources.find((src) => src.type === (memory?.sourceType ?? 'note'));
+  return (
+    byType ?? {
+      id: 'src-fallback',
+      type: observation?.sourceType ?? 'note',
+      label: observation?.sourceLabel ?? 'Note',
+      previewText: observation?.previewText,
+    }
+  );
+}

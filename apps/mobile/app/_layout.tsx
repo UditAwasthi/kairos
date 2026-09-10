@@ -3,6 +3,7 @@ import { tokenCache } from '@clerk/expo/token-cache';
 import { Slot } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 import { assertClerkPublishableKey } from '../lib/config';
 import { OnboardingProvider } from '../providers/OnboardingProvider';
@@ -14,11 +15,13 @@ export default function RootLayout() {
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <GestureHandlerRootView style={styles.root}>
-        <ThemeProvider>
-          <OnboardingProvider>
-            <Slot />
-          </OnboardingProvider>
-        </ThemeProvider>
+        <KeyboardProvider>
+          <ThemeProvider>
+            <OnboardingProvider>
+              <Slot />
+            </OnboardingProvider>
+          </ThemeProvider>
+        </KeyboardProvider>
       </GestureHandlerRootView>
     </ClerkProvider>
   );

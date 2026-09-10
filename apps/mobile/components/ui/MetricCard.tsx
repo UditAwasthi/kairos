@@ -2,7 +2,6 @@ import { StyleSheet, StyleProp, View, ViewStyle } from 'react-native';
 
 import { ThemedText } from '../ThemedText';
 import { useAppTheme } from '../../providers/ThemeProvider';
-import { EvidenceStrength } from '../../types';
 import { SurfaceCard } from './SectionHeader';
 
 type MetricCardProps = {
@@ -60,11 +59,19 @@ export function MetricCard({ label, value, hint, style }: MetricCardProps) {
 
 type BadgeProps = {
   label: string;
-  tone?: 'neutral' | 'accent';
+  tone?: 'neutral' | 'accent' | 'success';
 };
 
 export function Badge({ label, tone = 'neutral' }: BadgeProps) {
   const { colors, radius, typography, spacing } = useAppTheme();
+  const borderColor =
+    tone === 'accent'
+      ? colors.borderAccent
+      : tone === 'success'
+        ? colors.success
+        : colors.borderActive;
+  const backgroundColor = tone === 'accent' ? colors.accentGlow : 'transparent';
+  const colorKey = tone === 'accent' ? 'accent' : tone === 'success' ? 'success' : 'text';
 
   return (
     <View
@@ -73,12 +80,12 @@ export function Badge({ label, tone = 'neutral' }: BadgeProps) {
         borderRadius: radius.sm,
         paddingHorizontal: spacing['2'],
         paddingVertical: spacing['0.5'],
-        borderColor: tone === 'accent' ? colors.borderAccent : colors.borderActive,
-        backgroundColor: tone === 'accent' ? colors.accentGlow : 'transparent',
+        borderColor,
+        backgroundColor,
       }}
     >
       <ThemedText
-        colorKey={tone === 'accent' ? 'accent' : 'text'}
+        colorKey={colorKey}
         style={{
           fontFamily: 'DotGothic16_400Regular',
           fontSize: typography.overline.size,
@@ -90,12 +97,6 @@ export function Badge({ label, tone = 'neutral' }: BadgeProps) {
       </ThemedText>
     </View>
   );
-}
-
-export function evidenceLabel(strength: EvidenceStrength): string {
-  if (strength === 'strong') return 'Stronger evidence';
-  if (strength === 'moderate') return 'Moderate evidence';
-  return 'Limited evidence';
 }
 
 type ProgressBarProps = {

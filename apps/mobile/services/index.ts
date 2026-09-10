@@ -1,464 +1,704 @@
 import type {
-  AnalyticsSummary,
-  BehaviorEvent,
-  CreateEventInput,
-  CreateGoalInput,
-  DashboardSummary,
-  Evidence,
-  Goal,
-  GoalDetail,
-  Pattern,
-  Prediction,
-  Recommendation,
-  ScenarioInput,
-  ScenarioResult,
-  SubscriptionPlanInfo,
-  Entitlement,
-  TimeRange,
-  UpdateEventInput,
+  AppNotification,
+  AppSettings,
+  AskMessage,
+  AskResponse,
+  CaptureInput,
+  CaptureResult,
+  Device,
+  HomeSummary,
+  Memory,
+  MemoryDetail,
+  Observation,
+  ProcessingJob,
+  Project,
+  ProjectDetail,
+  SearchFilters,
+  SearchResponse,
+  TimelinePage,
+  Topic,
+  TopicDetail,
 } from '../types';
-import { EVENT_TYPE_LABELS, getStore } from './mock/store';
-import { delay, formatMinutes, isoDaysAgo, round, WEEKDAY_LABELS } from './utils';
+import { SOURCE_TYPE_LABELS, getSourceForMemory, getStore } from './mock/store';
+import { delay, isoDaysAgo } from './utils';
 
-function rangeDays(range: TimeRange): number {
-  if (range === '7d') return 7;
-  if (range === '30d') return 30;
-  return 90;
+function assertNotForcedError(): void {
+  if (getStore().forceError) {
+    throw new Error('Mock network error');
+  }
 }
 
-function eventsInRange(events: BehaviorEvent[], days: number): BehaviorEvent[] {
-  const cutoff = new Date(isoDaysAgo(days - 1, 0, 0)).getTime();
-  return events.filter((e) => new Date(e.timestamp).getTime() >= cutoff);
+function memoriesSorted(): Memory[] {
+  return [...getStore().memories].sort(
+    (a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime(),
+  );
 }
 
-function dayKey(iso: string): string {
-  return iso.slice(0, 10);
+function dateLabel(dateKey: string): string {
+  const today = isoDaysAgo(0).slice(0, 10);
+  const yesterday = isoDaysAgo(1).slice(0, 10);
+  if (dateKey === today) return 'Today';
+  if (dateKey === yesterday) return 'Yesterday';
+  const d = new Date(`${dateKey}T12:00:00`);
+  return d.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
-export const eventsService = {
-  async list(): Promise<BehaviorEvent[]> {
-    await delay();
-    return [...getStore().events];
+function snippetFrom(memory: Memory, query: string): string {
+  const q = query.trim().toLowerCase();
+  const hay = `${memory.title}. ${memory.summary}`;
+  if (!q) return memory.summary.slice(0, 140);
+  const idx = hay.toLowerCase().indexOf(q.split(/\s+/)[0] ?? q);
+  if (idx < 0) return memory.summary.slice(0, 140);
+  const start = Math.max(0, idx - 40);
+  return `${start > 0 ? '…' : ''}${hay.slice(start, start + 140)}…`;
+}
+
+function scoreMemory(memory: Memory, query: string): number {
+  const q = query.trim().toLowerCase();
+  if (!q) return 0;
+  const title = memory.title.toLowerCase();
+  const summary = memory.summary.toLowerCase();
+  let score = 0;
+  for (const token of q.split(/\s+/).filter(Boolean)) {
+    if (title.includes(token)) score += 3;
+    if (summary.includes(token)) score += 1;
+  }
+  if (title.includes(q)) score += 5;
+  return score + (memory.favorite ? 0.5 : 0);
+}
+
+const KNOWN_ASK: {
+  match: RegExp;
+  answer: string;
+  sourceIds: string[];
+  followUps: string[];
+  insufficient?: boolean;
+}[] = [
+  {
+    match: /last tuesday|tuesday/i,
+    answer:
+      'You spent most of Tuesday working on the Kairos retrieval pipeline — architecture notes, backend planning, and privacy controls showed up together. Supporting memories below are from your library, not external citations.',
+    sourceIds: ['mem-7', 'mem-9', 'mem-3'],
+    followUps: [
+      'What decisions did I make about NestJS modules?',
+      'Show privacy-related memories',
+      'What was I learning about RAG?',
+    ],
   },
-
-  async get(id: string): Promise<BehaviorEvent> {
-    await delay(280);
-    const event = getStore().events.find((e) => e.id === id);
-    if (!event) throw new Error('Event not found');
-    return event;
+  {
+    match: /rag|retrieval/i,
+    answer:
+      'You were studying RAG evaluation, vector search, and reranking. Your notes emphasize faithfulness, context precision, and using rerankers to lift top-k quality for personal memory ask flows.',
+    sourceIds: ['mem-4', 'mem-5', 'mem-2', 'mem-11'],
+    followUps: [
+      'Compare embedding models I saved',
+      'What metrics did I draft for Kairos ask?',
+      'Show related memories to RAG Evaluation',
+    ],
   },
+  {
+    match: /yesterday|working on/i,
+    answer:
+      'Yesterday you focused on Kairos API design — NestJS surfaces for observations, memories, search, and ask, with privacy export/delete treated as first-class endpoints.',
+    sourceIds: ['mem-3', 'mem-9', 'mem-7'],
+    followUps: [
+      'Open Kairos API design',
+      'What else is in the Kairos project?',
+      'Any processing still running?',
+    ],
+  },
+  {
+    match: /machine learning|ml|transformer/i,
+    answer:
+      'Recent ML learning centered on transformer architectures, embedding model tradeoffs, and retrieval evaluation. Several sessions link college lecture material with Kairos product needs.',
+    sourceIds: ['mem-1', 'mem-6', 'mem-8', 'mem-15'],
+    followUps: [
+      'Show my Learning ML project',
+      'What did I save about embeddings?',
+      'Open transformer research memory',
+    ],
+  },
+  {
+    match: /kairos/i,
+    answer:
+      'Across the last week, Kairos work spanned API design, the async capture pipeline, Expo navigation patterns, and privacy defaults. A weekly synthesis memory ties those threads together.',
+    sourceIds: ['mem-16', 'mem-7', 'mem-3', 'mem-10'],
+    followUps: [
+      'Open the Kairos project',
+      'What privacy controls did I sketch?',
+      'Show architecture whiteboard',
+    ],
+  },
+  {
+    match: /last week|saved last week/i,
+    answer:
+      'Last week you saved OS coursework notes, a fitness recovery log, a reranking experiment plan, and a Kairos weekly synthesis. The densest cluster is still retrieval and product architecture.',
+    sourceIds: ['mem-13', 'mem-14', 'mem-15', 'mem-16'],
+    followUps: [
+      'Filter to College topic',
+      'Show Fitness memories',
+      'What was I learning about RAG?',
+    ],
+  },
+];
 
-  async create(input: CreateEventInput): Promise<BehaviorEvent> {
-    await delay(500);
-    const now = new Date().toISOString();
-    const event: BehaviorEvent = {
-      id: `evt-user-${Date.now()}`,
-      type: input.type,
-      timestamp: input.timestamp,
-      title: input.title || EVENT_TYPE_LABELS[input.type],
-      meta: input.meta,
+function buildAskMessage(query: string): AskMessage {
+  const known = KNOWN_ASK.find((k) => k.match.test(query));
+  const store = getStore();
+  const now = new Date().toISOString();
+
+  if (!known) {
+    const ranked = memoriesSorted()
+      .map((m) => ({ m, score: scoreMemory(m, query) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+
+    if (ranked.length === 0) {
+      return {
+        id: `ask-${Date.now()}`,
+        role: 'kairos',
+        content:
+          "I couldn't find enough supporting memories for a grounded answer. Try a more specific question, or capture related notes first.",
+        createdAt: now,
+        sources: [],
+        followUps: [
+          'What was I working on yesterday?',
+          'Show me things related to Kairos',
+          'What did I learn about machine learning?',
+        ],
+        insufficientEvidence: true,
+      };
+    }
+
+    return {
+      id: `ask-${Date.now()}`,
+      role: 'kairos',
+      content: `Based on memories in your library, here's what stands out for “${query.trim()}”. These are generated from your saved items — not external web citations.`,
       createdAt: now,
-      updatedAt: now,
+      sources: ranked.map(({ m }) => ({
+        memoryId: m.id,
+        title: m.title,
+        snippet: m.summary.slice(0, 110),
+      })),
+      followUps: [
+        'Show related memories',
+        'Open the top source',
+        'What was I working on yesterday?',
+      ],
     };
-    getStore().events.unshift(event);
-    return event;
+  }
+
+  const sources = known.sourceIds
+    .map((id) => store.memories.find((m) => m.id === id))
+    .filter((m): m is Memory => Boolean(m))
+    .map((m) => ({
+      memoryId: m.id,
+      title: m.title,
+      snippet: m.summary.slice(0, 110),
+    }));
+
+  return {
+    id: `ask-${Date.now()}`,
+    role: 'kairos',
+    content: known.answer,
+    createdAt: now,
+    sources,
+    followUps: known.followUps,
+    insufficientEvidence: known.insufficient,
+  };
+}
+
+export const memoriesService = {
+  async list(): Promise<Memory[]> {
+    await delay();
+    assertNotForcedError();
+    if (getStore().forceEmpty) return [];
+    return memoriesSorted();
   },
 
-  async update(id: string, input: UpdateEventInput): Promise<BehaviorEvent> {
-    await delay(450);
+  async get(id: string): Promise<MemoryDetail> {
+    await delay(320);
+    assertNotForcedError();
     const store = getStore();
-    const index = store.events.findIndex((e) => e.id === id);
-    if (index < 0) throw new Error('Event not found');
-    const current = store.events[index]!;
-    const updated: BehaviorEvent = {
-      ...current,
-      ...input,
-      meta: (input.meta ?? current.meta) as BehaviorEvent['meta'],
-      updatedAt: new Date().toISOString(),
+    const memory = store.memories.find((m) => m.id === id);
+    if (!memory) throw new Error('Memory not found');
+
+    return {
+      ...memory,
+      topics: store.topics.filter((t) => memory.topicIds.includes(t.id)),
+      projects: store.projects.filter((p) => memory.projectIds.includes(p.id)),
+      entities: store.entities.filter((e) => memory.entityIds.includes(e.id)),
+      relatedMemories: memory.relatedMemoryIds
+        .map((rid) => store.memories.find((m) => m.id === rid))
+        .filter((m): m is Memory => Boolean(m)),
+      observations: store.observations.filter((o) => memory.observationIds.includes(o.id)),
+      source: getSourceForMemory(memory.id),
     };
-    store.events[index] = updated;
-    return updated;
+  },
+
+  async getRelated(id: string): Promise<Memory[]> {
+    await delay(300);
+    assertNotForcedError();
+    const detail = await this.get(id);
+    return detail.relatedMemories;
+  },
+
+  async toggleFavorite(id: string): Promise<Memory> {
+    await delay(250);
+    const memory = getStore().memories.find((m) => m.id === id);
+    if (!memory) throw new Error('Memory not found');
+    memory.favorite = !memory.favorite;
+    return { ...memory };
   },
 
   async remove(id: string): Promise<void> {
     await delay(350);
     const store = getStore();
-    store.events = store.events.filter((e) => e.id !== id);
+    store.memories = store.memories.filter((m) => m.id !== id);
+    store.observations = store.observations.map((o) => ({
+      ...o,
+      linkedMemoryIds: o.linkedMemoryIds.filter((mid) => mid !== id),
+    }));
   },
 };
 
-export const analyticsService = {
-  async getSummary(range: TimeRange = '30d'): Promise<AnalyticsSummary> {
-    await delay();
-    const days = rangeDays(range);
-    const events = eventsInRange(getStore().events, days);
-
-    const study = events.filter((e) => e.type === 'study');
-    const sleep = events.filter((e) => e.type === 'sleep');
-    const exercise = events.filter((e) => e.type === 'exercise');
-    const tasks = events.filter((e) => e.type === 'task');
-    const productivity = events.filter((e) => e.type === 'productivity');
-
-    const avgStudy =
-      study.length === 0
-        ? 0
-        : study.reduce((s, e) => s + (e.meta as { durationMinutes: number }).durationMinutes, 0) /
-          study.length;
-    const avgProd =
-      productivity.length === 0
-        ? 0
-        : productivity.reduce((s, e) => s + (e.meta as { score: number }).score, 0) /
-          productivity.length;
-    const avgSleep =
-      sleep.length === 0
-        ? 0
-        : sleep.reduce((s, e) => s + (e.meta as { durationMinutes: number }).durationMinutes, 0) /
-          sleep.length /
-          60;
-    const avgExercise =
-      exercise.length === 0
-        ? 0
-        : exercise.reduce((s, e) => s + (e.meta as { durationMinutes: number }).durationMinutes, 0) /
-          Math.max(days / 7, 1);
-    const taskRate =
-      tasks.length === 0
-        ? 0
-        : tasks.filter((e) => (e.meta as { completed: boolean }).completed).length / tasks.length;
-
-    const byDay = new Map<string, { study: number; sleep: number; tasksDone: number; tasksTotal: number; prod: number; prodN: number }>();
-    for (let i = days - 1; i >= 0; i--) {
-      byDay.set(isoDaysAgo(i).slice(0, 10), {
-        study: 0,
-        sleep: 0,
-        tasksDone: 0,
-        tasksTotal: 0,
-        prod: 0,
-        prodN: 0,
-      });
+export const timelineService = {
+  async getPage(cursor: string | null = null, limit = 8): Promise<TimelinePage> {
+    await delay(cursor ? 380 : 450);
+    assertNotForcedError();
+    if (getStore().forceEmpty) {
+      return { groups: [], nextCursor: null, hasMore: false };
     }
 
-    for (const e of events) {
-      const key = dayKey(e.timestamp);
-      const bucket = byDay.get(key);
-      if (!bucket) continue;
-      if (e.type === 'study') bucket.study += (e.meta as { durationMinutes: number }).durationMinutes;
-      if (e.type === 'sleep') bucket.sleep = (e.meta as { durationMinutes: number }).durationMinutes / 60;
-      if (e.type === 'task') {
-        bucket.tasksTotal += 1;
-        if ((e.meta as { completed: boolean }).completed) bucket.tasksDone += 1;
-      }
-      if (e.type === 'productivity') {
-        bucket.prod += (e.meta as { score: number }).score;
-        bucket.prodN += 1;
-      }
+    const all = memoriesSorted();
+    const start = cursor ? all.findIndex((m) => m.id === cursor) + 1 : 0;
+    const slice = all.slice(Math.max(0, start), Math.max(0, start) + limit);
+    const map = new Map<string, Memory[]>();
+    for (const memory of slice) {
+      const key = memory.capturedAt.slice(0, 10);
+      const bucket = map.get(key) ?? [];
+      bucket.push(memory);
+      map.set(key, bucket);
     }
 
-    const dates = [...byDay.keys()];
-    const productivityOverTime = dates.map((date) => {
-      const b = byDay.get(date)!;
-      return { date, value: b.prodN ? round(b.prod / b.prodN, 2) : 0 };
-    });
-    const studyDuration = dates.map((date) => ({ date, value: byDay.get(date)!.study }));
-    const sleepDuration = dates.map((date) => ({
-      date,
-      value: round(byDay.get(date)!.sleep, 2),
-    }));
-    const taskCompletion = dates.map((date) => {
-      const b = byDay.get(date)!;
-      return { date, value: b.tasksTotal ? round(b.tasksDone / b.tasksTotal, 2) : 0 };
-    });
-
-    const weekdayAcc = Array.from({ length: 7 }, () => ({ sum: 0, n: 0 }));
-    for (const point of productivityOverTime) {
-      if (point.value === 0) continue;
-      const wd = new Date(point.date).getDay();
-      weekdayAcc[wd]!.sum += point.value;
-      weekdayAcc[wd]!.n += 1;
-    }
-    const productivityByWeekday = weekdayAcc.map((a, weekday) => ({
-      weekday,
-      label: WEEKDAY_LABELS[weekday]!,
-      value: a.n ? round(a.sum / a.n, 2) : 0,
+    const groups = [...map.entries()].map(([dateKey, memories]) => ({
+      dateKey,
+      label: dateLabel(dateKey),
+      memories,
     }));
 
-    const hourAcc = Array.from({ length: 24 }, () => ({ sum: 0, n: 0 }));
-    for (const e of study) {
-      const hour = new Date(e.timestamp).getHours();
-      const prod = (e.meta as { productivity: number }).productivity;
-      hourAcc[hour]!.sum += prod;
-      hourAcc[hour]!.n += 1;
-    }
-    const productivityByHour = hourAcc.map((a, hour) => ({
-      hour,
-      value: a.n ? round(a.sum / a.n, 2) : 0,
-    }));
-
-    const expected = days * 4;
-    const recorded = events.length;
-    const completeness = clampPct(recorded / expected);
+    const last = slice[slice.length - 1];
+    const nextIndex = start + slice.length;
+    const hasMore = nextIndex < all.length;
 
     return {
-      range,
-      metrics: [
-        { key: 'study', label: 'Avg study', value: round(avgStudy), unit: 'min' },
-        { key: 'productivity', label: 'Productivity', value: round(avgProd, 1), unit: '/5' },
-        { key: 'sleep', label: 'Avg sleep', value: round(avgSleep, 1), unit: 'h' },
-        { key: 'exercise', label: 'Exercise / wk', value: round(avgExercise), unit: 'min' },
-        { key: 'tasks', label: 'Task completion', value: round(taskRate * 100), unit: '%' },
-      ],
-      productivityOverTime,
-      studyDuration,
-      sleepDuration,
-      taskCompletion,
-      productivityByWeekday,
-      productivityByHour,
-      dataCompleteness: completeness,
-      expectedObservations: expected,
-      recordedObservations: recorded,
+      groups,
+      nextCursor: hasMore && last ? last.id : null,
+      hasMore,
     };
   },
 };
 
-function clampPct(n: number): number {
-  return Math.max(0, Math.min(100, Math.round(n * 100)));
-}
+export const searchService = {
+  async search(query: string, filters: SearchFilters = {}): Promise<SearchResponse> {
+    await delay(500 + Math.floor(Math.random() * 400));
+    assertNotForcedError();
+    const store = getStore();
+    const q = query.trim();
 
-export const patternsService = {
-  async list(): Promise<Pattern[]> {
-    await delay();
-    return [...getStore().patterns];
-  },
-};
+    if (q) {
+      store.recentSearches = [q, ...store.recentSearches.filter((s) => s !== q)].slice(0, 8);
+    }
 
-export const predictionsService = {
-  async getPrimary(): Promise<Prediction> {
-    await delay();
-    return { ...getStore().prediction };
-  },
+    let pool = memoriesSorted();
+    if (filters.topicId) pool = pool.filter((m) => m.topicIds.includes(filters.topicId!));
+    if (filters.projectId) pool = pool.filter((m) => m.projectIds.includes(filters.projectId!));
+    if (filters.sourceType) pool = pool.filter((m) => m.sourceType === filters.sourceType);
 
-  async getById(id: string): Promise<Prediction> {
-    await delay(300);
-    const p = getStore().prediction;
-    if (p.id !== id) throw new Error('Prediction not found');
-    return { ...p };
-  },
-};
-
-export const scenariosService = {
-  async simulate(inputs: ScenarioInput): Promise<ScenarioResult> {
-    await delay(500);
-    const baseline = getStore().prediction.estimatedMinutes;
-    // Deterministic mock response surface — not a real model
-    const sleepDelta = (inputs.sleepHours - 7.5) * 12;
-    const studyDelta = (inputs.studyHours - 2) * 8;
-    const exerciseDelta = (inputs.exerciseMinutes - 30) * 0.15;
-    const taskDelta = (inputs.taskCompletionRate - 0.75) * 20;
-    const scenario = Math.round(
-      Math.max(30, baseline + sleepDelta + studyDelta + exerciseDelta + taskDelta),
-    );
+    const results =
+      q.length === 0
+        ? []
+        : pool
+            .map((memory) => ({
+              memory,
+              snippet: snippetFrom(memory, q),
+              score: scoreMemory(memory, q),
+              matchedTopics: store.topics
+                .filter((t) => memory.topicIds.includes(t.id))
+                .map((t) => t.name),
+            }))
+            .filter((r) => r.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 20);
 
     return {
-      currentEstimateMinutes: baseline,
-      scenarioEstimateMinutes: scenario,
-      differenceMinutes: scenario - baseline,
-      inputs,
-      disclaimer: 'This is an estimate, not a causal guarantee.',
-    };
-  },
-};
-
-export const evidenceService = {
-  async get(): Promise<Evidence> {
-    await delay();
-    const p = getStore().prediction;
-    return {
-      observationWindowDays: p.observationWindowDays,
-      sampleSize: p.sampleSize,
-      features: [...p.features],
-      baseline: 'Historical mean',
-      candidateModel: `${p.modelName} ${p.modelVersion}`,
-      evaluation: {
-        mae: p.evaluationMaeMinutes,
-        rmse: p.evaluationRmseMinutes,
-        r2: p.evaluationR2,
-      },
-      uncertaintyMinutes: p.uncertaintyMinutes,
-      limitations: [...p.limitations],
-      calculationNotes: [
-        'Features are aggregated from the last observation window.',
-        'Baseline is the mean productive study time over the same window.',
-        'Candidate model is evaluated with chronological holdout (mock metrics).',
-        'Uncertainty band reflects residual error from evaluation (mock).',
+      query: q,
+      results,
+      total: results.length,
+      recentSearches: [...store.recentSearches],
+      suggestedSearches: [
+        'What was I learning about RAG?',
+        'Kairos API design',
+        'transformer architectures',
+        'vector databases',
+        'privacy controls',
+        'things related to Kairos',
       ],
     };
   },
-};
 
-export const recommendationsService = {
-  async list(): Promise<Recommendation[]> {
-    await delay();
-    return getStore().recommendations.map((r) => ({ ...r }));
-  },
-
-  async feedback(id: string, value: 'helpful' | 'not_helpful'): Promise<Recommendation> {
-    await delay(300);
-    const rec = getStore().recommendations.find((r) => r.id === id);
-    if (!rec) throw new Error('Recommendation not found');
-    rec.feedback = value;
-    return { ...rec };
+  async suggestions(): Promise<{ recent: string[]; suggested: string[] }> {
+    await delay(200);
+    const res = await this.search('');
+    return { recent: res.recentSearches, suggested: res.suggestedSearches };
   },
 };
 
-export const goalsService = {
-  async list(): Promise<Goal[]> {
-    await delay();
-    return getStore().goals.map((g) => ({ ...g }));
-  },
+export const askService = {
+  async ask(query: string, conversationId?: string): Promise<AskResponse> {
+    const latency = 500 + Math.floor(Math.random() * 700);
+    await delay(latency);
+    assertNotForcedError();
 
-  async get(id: string): Promise<GoalDetail> {
-    await delay(320);
-    const goal = getStore().goals.find((g) => g.id === id);
-    if (!goal) throw new Error('Goal not found');
-
-    const history = Array.from({ length: 14 }, (_, i) => {
-      const day = 13 - i;
-      const progress = goal.current * ((i + 1) / 14) * (0.85 + (i % 3) * 0.05);
-      return { date: isoDaysAgo(day).slice(0, 10), value: round(progress, 1) };
-    });
-
-    const related = getStore()
-      .events.filter((e) => {
-        if (goal.metricKey === 'study_minutes') return e.type === 'study';
-        if (goal.metricKey === 'exercise_sessions') return e.type === 'exercise';
-        if (goal.metricKey === 'sleep_hours') return e.type === 'sleep';
-        return false;
-      })
-      .slice(0, 8)
-      .map((e) => e.id);
-
-    return {
-      ...goal,
-      history,
-      relatedEventIds: related,
-      trajectory:
-        goal.current / goal.target >= 0.85
-          ? 'On track relative to the deadline, based on recent pace.'
-          : 'Slightly behind recent pace; additional sessions may help close the gap.',
-    };
-  },
-
-  async create(input: CreateGoalInput): Promise<Goal> {
-    await delay(450);
-    const goal: Goal = {
-      id: `goal-${Date.now()}`,
-      title: input.title,
-      metricKey: input.metricKey,
-      target: input.target,
-      current: 0,
-      unit: input.unit,
-      deadline: input.deadline,
-      trend: 0,
+    const userMsg = {
+      role: 'user' as const,
+      content: query.trim(),
       createdAt: new Date().toISOString(),
     };
-    getStore().goals.unshift(goal);
-    return goal;
+    getStore().askHistory.push(userMsg);
+
+    const message = buildAskMessage(query);
+    getStore().askHistory.push({
+      role: 'kairos',
+      content: message.content,
+      createdAt: message.createdAt,
+    });
+
+    return {
+      message,
+      conversationId: conversationId ?? `conv-${Date.now()}`,
+    };
+  },
+
+  async history(): Promise<AskMessage[]> {
+    await delay(250);
+    return getStore().askHistory.map((m, i) => ({
+      id: `hist-${i}`,
+      role: m.role,
+      content: m.content,
+      createdAt: m.createdAt,
+    }));
   },
 };
 
-export const subscriptionsService = {
-  async getEntitlement(): Promise<Entitlement> {
+export const topicsService = {
+  async list(): Promise<Topic[]> {
+    await delay();
+    assertNotForcedError();
+    if (getStore().forceEmpty) return [];
+    return [...getStore().topics].sort(
+      (a, b) => new Date(b.recentActivityAt).getTime() - new Date(a.recentActivityAt).getTime(),
+    );
+  },
+
+  async get(id: string): Promise<TopicDetail> {
+    await delay(300);
+    assertNotForcedError();
+    const store = getStore();
+    const topic = store.topics.find((t) => t.id === id);
+    if (!topic) throw new Error('Topic not found');
+    const memories = memoriesSorted().filter((m) => m.topicIds.includes(id));
+    const relatedProjectIds = [
+      ...new Set(memories.flatMap((m) => m.projectIds)),
+    ];
+    return { ...topic, memories, relatedProjectIds };
+  },
+};
+
+export const projectsService = {
+  async list(): Promise<Project[]> {
+    await delay();
+    assertNotForcedError();
+    if (getStore().forceEmpty) return [];
+    return [...getStore().projects].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
+  },
+
+  async get(id: string): Promise<ProjectDetail> {
+    await delay(320);
+    assertNotForcedError();
+    const store = getStore();
+    const project = store.projects.find((p) => p.id === id);
+    if (!project) throw new Error('Project not found');
+    const memories = memoriesSorted().filter((m) => m.projectIds.includes(id));
+    const topics = store.topics.filter((t) => project.topicIds.includes(t.id));
+    const recentActivity = store.notifications
+      .filter((n) => n.body.toLowerCase().includes(project.name.toLowerCase()) || n.href?.includes(id))
+      .slice(0, 4);
+    return { ...project, memories, topics, recentActivity };
+  },
+};
+
+export const observationsService = {
+  async get(id: string): Promise<Observation> {
+    await delay(280);
+    assertNotForcedError();
+    const observation = getStore().observations.find((o) => o.id === id);
+    if (!observation) throw new Error('Observation not found');
+    return { ...observation };
+  },
+
+  async list(): Promise<Observation[]> {
+    await delay();
+    return [...getStore().observations].sort(
+      (a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime(),
+    );
+  },
+};
+
+export const captureService = {
+  async capture(input: CaptureInput): Promise<CaptureResult> {
+    await delay(400);
+    assertNotForcedError();
+    const store = getStore();
+    const now = new Date().toISOString();
+    const idSuffix = String(Date.now());
+    const title =
+      input.title?.trim() ||
+      input.text?.trim()?.slice(0, 60) ||
+      `Captured ${SOURCE_TYPE_LABELS[input.sourceType].toLowerCase()}`;
+
+    const observation: Observation = {
+      id: `obs-${idSuffix}`,
+      title,
+      sourceType: input.sourceType,
+      capturedAt: now,
+      status: 'PENDING',
+      previewText: input.text?.trim() || input.url || `${SOURCE_TYPE_LABELS[input.sourceType]} capture`,
+      linkedMemoryIds: [],
+      sourceLabel: SOURCE_TYPE_LABELS[input.sourceType],
+    };
+
+    const job: ProcessingJob = {
+      id: `job-${idSuffix}`,
+      observationId: observation.id,
+      title,
+      sourceType: input.sourceType,
+      stage: 'CAPTURED',
+      startedAt: now,
+      updatedAt: now,
+      steps: [
+        { id: 's1', label: 'Uploaded', status: 'queued' },
+        { id: 's2', label: 'OCR', status: 'queued' },
+        { id: 's3', label: 'Memory extraction', status: 'queued' },
+        { id: 's4', label: 'Embedding', status: 'queued' },
+      ],
+    };
+
+    store.observations.unshift(observation);
+    store.jobs.unshift(job);
+
+    return { observation, job };
+  },
+
+  async advanceJob(jobId: string): Promise<ProcessingJob> {
+    await delay(550);
+    const store = getStore();
+    const job = store.jobs.find((j) => j.id === jobId);
+    if (!job) throw new Error('Job not found');
+    const observation = store.observations.find((o) => o.id === job.observationId);
+    if (!observation) throw new Error('Observation not found');
+
+    const pipeline: ProcessingJob['stage'][] = [
+      'CAPTURED',
+      'UPLOADING',
+      'PROCESSING',
+      'READY',
+    ];
+    const idx = pipeline.indexOf(job.stage);
+    const next = pipeline[Math.min(idx + 1, pipeline.length - 1)]!;
+    job.stage = next;
+    job.updatedAt = new Date().toISOString();
+
+    if (next === 'UPLOADING') {
+      job.steps = job.steps.map((s) =>
+        s.label === 'Uploaded' ? { ...s, status: 'running' } : s,
+      );
+      observation.status = 'PROCESSING';
+    } else if (next === 'PROCESSING') {
+      job.steps = job.steps.map((s) => {
+        if (s.label === 'Uploaded') return { ...s, status: 'completed' };
+        if (s.label === 'OCR') return { ...s, status: 'completed' };
+        if (s.label === 'Memory extraction') return { ...s, status: 'running' };
+        return s;
+      });
+      observation.status = 'PROCESSING';
+      observation.extractedText =
+        observation.extractedText ??
+        `Extracted text from ${observation.sourceLabel.toLowerCase()}: ${observation.previewText}`;
+    } else if (next === 'READY') {
+      job.steps = job.steps.map((s) => ({ ...s, status: 'completed' }));
+      observation.status = 'READY';
+      observation.summary =
+        observation.summary ??
+        `Kairos created a memory from your ${observation.sourceLabel.toLowerCase()} capture.`;
+
+      const memory: Memory = {
+        id: `mem-${Date.now()}`,
+        title: observation.title,
+        summary: observation.summary,
+        capturedAt: observation.capturedAt,
+        createdAt: new Date().toISOString(),
+        sourceType: observation.sourceType,
+        topicIds: ['topic-projects', 'topic-personal'],
+        projectIds: ['proj-kairos'],
+        entityIds: [],
+        relatedMemoryIds: store.memories.slice(0, 3).map((m) => m.id),
+        observationIds: [observation.id],
+        favorite: false,
+        relevance: 0.8,
+      };
+      store.memories.unshift(memory);
+      observation.linkedMemoryIds = [memory.id];
+      job.resultMemoryId = memory.id;
+
+      store.notifications.unshift({
+        id: `ntf-${Date.now()}`,
+        title: 'Memory created',
+        body: `“${memory.title}” is ready.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        href: `/(app)/memory/${memory.id}`,
+      });
+
+      for (const topic of store.topics) {
+        topic.memoryCount = store.memories.filter((m) => m.topicIds.includes(topic.id)).length;
+      }
+      for (const project of store.projects) {
+        project.memoryCount = store.memories.filter((m) => m.projectIds.includes(project.id)).length;
+      }
+    }
+
+    return {
+      ...job,
+      steps: job.steps.map((s) => ({ ...s })),
+    };
+  },
+};
+
+export const processingService = {
+  async listJobs(): Promise<ProcessingJob[]> {
+    await delay();
+    assertNotForcedError();
+    return getStore().jobs.map((j) => ({
+      ...j,
+      steps: j.steps.map((s) => ({ ...s })),
+    }));
+  },
+
+  async getJob(id: string): Promise<ProcessingJob> {
     await delay(250);
-    const plan = getStore().entitlementPlan;
-    const features =
-      getStore().plans.find((p) => p.id === plan)?.features ?? [];
-    return {
-      plan,
-      features,
-      isActive: true,
-      renewsAt: isoDaysAgo(-20),
+    const job = getStore().jobs.find((j) => j.id === id);
+    if (!job) throw new Error('Job not found');
+    return { ...job, steps: job.steps.map((s) => ({ ...s })) };
+  },
+};
+
+export const notificationsService = {
+  async list(): Promise<AppNotification[]> {
+    await delay(300);
+    assertNotForcedError();
+    if (getStore().forceEmpty) return [];
+    return [...getStore().notifications];
+  },
+
+  async markRead(id: string): Promise<void> {
+    await delay(150);
+    const n = getStore().notifications.find((x) => x.id === id);
+    if (n) n.read = true;
+  },
+};
+
+export const devicesService = {
+  async list(): Promise<Device[]> {
+    await delay(280);
+    assertNotForcedError();
+    return getStore().devices.map((d) => ({ ...d }));
+  },
+};
+
+export const settingsService = {
+  async get(): Promise<AppSettings> {
+    await delay(220);
+    return structuredClone(getStore().settings);
+  },
+
+  async update(patch: Partial<AppSettings>): Promise<AppSettings> {
+    await delay(300);
+    const store = getStore();
+    store.settings = {
+      ...store.settings,
+      ...patch,
+      ai: { ...store.settings.ai, ...(patch.ai ?? {}) },
+      privacy: { ...store.settings.privacy, ...(patch.privacy ?? {}) },
+      notifications: {
+        ...store.settings.notifications,
+        ...(patch.notifications ?? {}),
+      },
     };
-  },
-
-  async listPlans(): Promise<SubscriptionPlanInfo[]> {
-    await delay(200);
-    return getStore().plans.map((p) => ({ ...p }));
-  },
-
-  async restorePurchases(): Promise<{ restored: boolean; message: string }> {
-    await delay(600);
-    return {
-      restored: false,
-      message:
-        'No purchases to restore. Payment processing will be available when RevenueCat is connected.',
-    };
-  },
-
-  hasFeature(plan: Entitlement['plan'], feature: 'predictions' | 'scenarios' | 'evidence' | 'advanced_analytics'): boolean {
-    if (plan === 'premium' || plan === 'pro') return true;
-    if (feature === 'predictions') return false;
-    return false;
+    return structuredClone(store.settings);
   },
 };
 
 export const dashboardService = {
-  async getSummary(): Promise<DashboardSummary> {
+  async getSummary(): Promise<HomeSummary> {
     await delay();
-    const analytics = await analyticsService.getSummary('7d');
-    const events = getStore().events.slice(0, 6);
-    const patterns = getStore().patterns.slice(0, 3);
-    const prediction = getStore().prediction;
-    const scenario = await scenariosService.simulate({
-      sleepHours: 8,
-      studyHours: 2.5,
-      exerciseMinutes: 40,
-      taskCompletionRate: 0.8,
-    });
+    assertNotForcedError();
+    const store = getStore();
+    if (store.forceEmpty) {
+      return {
+        greetingName: 'there',
+        memoriesCreatedToday: 0,
+        recentMemories: [],
+        importantMemories: [],
+        recentActivity: [],
+        suggestedQuestions: [
+          'What was I working on yesterday?',
+          'What did I learn about machine learning?',
+          'Show me things related to Kairos',
+          'What did I save last week?',
+        ],
+        processingJobs: [],
+        topics: [],
+        projects: [],
+      };
+    }
+
+    const today = isoDaysAgo(0).slice(0, 10);
+    const all = memoriesSorted();
+    const memoriesCreatedToday = all.filter((m) => m.capturedAt.startsWith(today)).length;
 
     return {
-      metrics: [
-        {
-          key: 'study',
-          label: 'Study',
-          value: analytics.metrics.find((m) => m.key === 'study')?.value ?? 0,
-          unit: 'min avg',
-        },
-        {
-          key: 'productivity',
-          label: 'Productivity',
-          value: analytics.metrics.find((m) => m.key === 'productivity')?.value ?? 0,
-          unit: '/5',
-        },
-        {
-          key: 'sleep',
-          label: 'Sleep',
-          value: analytics.metrics.find((m) => m.key === 'sleep')?.value ?? 0,
-          unit: 'h avg',
-        },
-        {
-          key: 'exercise',
-          label: 'Exercise',
-          value: analytics.metrics.find((m) => m.key === 'exercise')?.value ?? 0,
-          unit: 'min/wk',
-        },
-        {
-          key: 'tasks',
-          label: 'Tasks',
-          value: analytics.metrics.find((m) => m.key === 'tasks')?.value ?? 0,
-          unit: '%',
-        },
+      greetingName: 'Udit',
+      memoriesCreatedToday,
+      recentMemories: all.slice(0, 5),
+      importantMemories: all.filter((m) => m.favorite).slice(0, 4),
+      recentActivity: store.notifications.slice(0, 4),
+      suggestedQuestions: [
+        'What was I working on yesterday?',
+        'What did I learn about machine learning?',
+        'Show me things related to Kairos',
+        'What did I save last week?',
       ],
-      recentEvents: events,
-      recentPatterns: patterns,
-      predictionPreview: prediction,
-      scenarioPreview: {
-        label: 'What if sleep + study increase slightly?',
-        currentMinutes: scenario.currentEstimateMinutes,
-        scenarioMinutes: scenario.scenarioEstimateMinutes,
-      },
-      evidencePreview: {
-        sampleSize: prediction.sampleSize,
-        completeness: analytics.dataCompleteness,
-      },
+      processingJobs: store.jobs.filter((j) => j.stage !== 'READY').slice(0, 3),
+      topics: store.topics.slice(0, 6),
+      projects: store.projects.filter((p) => p.status === 'active'),
     };
   },
 };
@@ -468,7 +708,7 @@ export const privacyService = {
     await delay(700);
     return {
       message:
-        'Export is prepared in the mock layer. A downloadable archive will be available when the backend is connected.',
+        'Export prepared in the mock layer. A downloadable archive of memories and observations will be available when the privacy API is connected.',
     };
   },
 
@@ -477,11 +717,17 @@ export const privacyService = {
     getStore().deleted = true;
     return {
       message:
-        'Deletion request recorded locally for this demo. Server-side deletion will be enforced when the backend privacy API is available.',
+        'Deletion request recorded locally for this demo. Server-side erasure will be enforced when the backend privacy API is available.',
+    };
+  },
+
+  async requestAccountDeletion(): Promise<{ message: string }> {
+    await delay(800);
+    return {
+      message:
+        'Account deletion request recorded in the mock layer. Clerk + backend account teardown will run when connected.',
     };
   },
 };
 
-export function formatPredictionMinutes(minutes: number): string {
-  return formatMinutes(minutes);
-}
+export { SOURCE_TYPE_LABELS };

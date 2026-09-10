@@ -1,20 +1,23 @@
 /** Domain types for Kairos. Mock services today; NestJS API later. */
 
-export type EventType =
-  | 'study'
-  | 'sleep'
-  | 'exercise'
-  | 'habit'
-  | 'task'
-  | 'productivity'
-  | 'mood'
-  | 'screen_time'
-  | 'spending'
-  | 'observation';
+export type SourceType =
+  | 'screenshot'
+  | 'photo'
+  | 'document'
+  | 'note'
+  | 'link'
+  | 'audio'
+  | 'conversation'
+  | 'task';
 
-export type EvidenceStrength = 'limited' | 'moderate' | 'strong';
+export type ProcessingStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED';
 
-export type SubscriptionPlan = 'free' | 'pro' | 'premium';
+export type CaptureStage =
+  | 'CAPTURED'
+  | 'UPLOADING'
+  | 'PROCESSING'
+  | 'READY'
+  | 'FAILED';
 
 export type User = {
   id: string;
@@ -24,262 +27,230 @@ export type User = {
   createdAt: string;
 };
 
-export type StudyEventMeta = {
-  durationMinutes: number;
-  subject: string;
-  productivity: number;
-  notes?: string;
-};
-
-export type SleepEventMeta = {
-  sleepTime: string;
-  wakeTime: string;
-  quality: number;
-  durationMinutes: number;
-};
-
-export type ExerciseEventMeta = {
-  exerciseType: string;
-  durationMinutes: number;
-  intensity: 'low' | 'moderate' | 'high';
-};
-
-export type HabitEventMeta = {
-  habitName: string;
-  completed: boolean;
-};
-
-export type TaskEventMeta = {
-  title: string;
-  completed: boolean;
-  category: string;
-};
-
-export type ProductivityEventMeta = {
-  score: number;
-  notes?: string;
-};
-
-export type MoodEventMeta = {
-  score: number;
-  label: string;
-  notes?: string;
-};
-
-export type ScreenTimeEventMeta = {
-  durationMinutes: number;
-  category: string;
-};
-
-export type SpendingEventMeta = {
-  amount: number;
-  currency: string;
-  category: string;
-  notes?: string;
-};
-
-export type ObservationEventMeta = {
-  text: string;
-};
-
-export type EventMetaMap = {
-  study: StudyEventMeta;
-  sleep: SleepEventMeta;
-  exercise: ExerciseEventMeta;
-  habit: HabitEventMeta;
-  task: TaskEventMeta;
-  productivity: ProductivityEventMeta;
-  mood: MoodEventMeta;
-  screen_time: ScreenTimeEventMeta;
-  spending: SpendingEventMeta;
-  observation: ObservationEventMeta;
-};
-
-export type BehaviorEvent<T extends EventType = EventType> = {
+export type Entity = {
   id: string;
-  type: T;
-  timestamp: string;
-  title: string;
-  meta: EventMetaMap[T];
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type CreateEventInput = {
-  type: EventType;
-  timestamp: string;
-  title: string;
-  meta: EventMetaMap[EventType];
-};
-
-export type UpdateEventInput = Partial<CreateEventInput>;
-
-export type TimeRange = '7d' | '30d' | '90d';
-
-export type MetricSummary = {
-  key: string;
-  label: string;
-  value: number;
-  unit: string;
-  trend?: number;
-};
-
-export type TimeSeriesPoint = {
-  date: string;
-  value: number;
-};
-
-export type HourlyPoint = {
-  hour: number;
-  value: number;
-};
-
-export type WeekdayPoint = {
-  weekday: number;
-  label: string;
-  value: number;
-};
-
-export type AnalyticsSummary = {
-  range: TimeRange;
-  metrics: MetricSummary[];
-  productivityOverTime: TimeSeriesPoint[];
-  studyDuration: TimeSeriesPoint[];
-  sleepDuration: TimeSeriesPoint[];
-  taskCompletion: TimeSeriesPoint[];
-  productivityByWeekday: WeekdayPoint[];
-  productivityByHour: HourlyPoint[];
-  dataCompleteness: number;
-  expectedObservations: number;
-  recordedObservations: number;
-};
-
-export type Pattern = {
-  id: string;
-  title: string;
-  observation: string;
-  supportingMetric: string;
-  observationWindow: string;
-  sampleSize: number;
-  evidenceStrength: EvidenceStrength;
-};
-
-export type Prediction = {
-  id: string;
-  title: string;
-  targetLabel: string;
-  estimatedMinutes: number;
-  uncertaintyMinutes: number;
-  historicalBaselineMinutes: number;
-  modelName: string;
-  modelVersion: string;
-  evaluationMaeMinutes: number;
-  evaluationRmseMinutes: number;
-  evaluationR2: number;
-  observationWindowDays: number;
-  sampleSize: number;
-  features: string[];
-  limitations: string[];
-  inputs: { label: string; value: string }[];
-  createdAt: string;
-};
-
-export type ScenarioInput = {
-  sleepHours: number;
-  studyHours: number;
-  exerciseMinutes: number;
-  taskCompletionRate: number;
-};
-
-export type ScenarioResult = {
-  currentEstimateMinutes: number;
-  scenarioEstimateMinutes: number;
-  differenceMinutes: number;
-  inputs: ScenarioInput;
-  disclaimer: string;
-};
-
-export type Evidence = {
-  observationWindowDays: number;
-  sampleSize: number;
-  features: string[];
-  baseline: string;
-  candidateModel: string;
-  evaluation: {
-    mae: number;
-    rmse: number;
-    r2: number;
-  };
-  uncertaintyMinutes: number;
-  limitations: string[];
-  calculationNotes: string[];
-};
-
-export type Recommendation = {
-  id: string;
-  recommendation: string;
-  supportingEvidence: string;
-  dataWindow: string;
-  evidenceStrength: EvidenceStrength;
-  action: string;
-  feedback?: 'helpful' | 'not_helpful' | null;
-};
-
-export type Goal = {
-  id: string;
-  title: string;
-  metricKey: string;
-  target: number;
-  current: number;
-  unit: string;
-  deadline: string;
-  trend: number;
-  createdAt: string;
-};
-
-export type GoalDetail = Goal & {
-  history: TimeSeriesPoint[];
-  relatedEventIds: string[];
-  trajectory: string;
-};
-
-export type CreateGoalInput = {
-  title: string;
-  metricKey: string;
-  target: number;
-  unit: string;
-  deadline: string;
-};
-
-export type Entitlement = {
-  plan: SubscriptionPlan;
-  features: string[];
-  renewsAt?: string;
-  isActive: boolean;
-};
-
-export type SubscriptionPlanInfo = {
-  id: SubscriptionPlan;
   name: string;
-  priceLabel: string;
-  features: string[];
-  highlighted?: boolean;
+  type: 'person' | 'place' | 'concept' | 'tool' | 'org';
 };
 
-export type DashboardSummary = {
-  metrics: MetricSummary[];
-  recentEvents: BehaviorEvent[];
-  recentPatterns: Pattern[];
-  predictionPreview: Prediction | null;
-  scenarioPreview: {
-    label: string;
-    currentMinutes: number;
-    scenarioMinutes: number;
-  } | null;
-  evidencePreview: {
-    sampleSize: number;
-    completeness: number;
-  };
+export type Topic = {
+  id: string;
+  name: string;
+  description: string;
+  memoryCount: number;
+  recentActivityAt: string;
+  colorHint?: string;
+};
+
+export type Project = {
+  id: string;
+  name: string;
+  description: string;
+  memoryCount: number;
+  topicIds: string[];
+  updatedAt: string;
+  status: 'active' | 'paused' | 'archived';
+};
+
+export type Source = {
+  id: string;
+  type: SourceType;
+  label: string;
+  url?: string;
+  previewText?: string;
+};
+
+export type Observation = {
+  id: string;
+  title: string;
+  sourceType: SourceType;
+  capturedAt: string;
+  status: ProcessingStatus;
+  previewText: string;
+  extractedText?: string;
+  summary?: string;
+  linkedMemoryIds: string[];
+  sourceLabel: string;
+};
+
+export type Memory = {
+  id: string;
+  title: string;
+  summary: string;
+  capturedAt: string;
+  createdAt: string;
+  sourceType: SourceType;
+  topicIds: string[];
+  projectIds: string[];
+  entityIds: string[];
+  relatedMemoryIds: string[];
+  observationIds: string[];
+  favorite: boolean;
+  relevance?: number;
+};
+
+export type MemoryDetail = Memory & {
+  topics: Topic[];
+  projects: Project[];
+  entities: Entity[];
+  relatedMemories: Memory[];
+  observations: Observation[];
+  source: Source;
+};
+
+export type TimelineGroup = {
+  dateKey: string;
+  label: string;
+  memories: Memory[];
+};
+
+export type TimelinePage = {
+  groups: TimelineGroup[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type SearchFilters = {
+  topicId?: string;
+  projectId?: string;
+  sourceType?: SourceType;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export type SearchResult = {
+  memory: Memory;
+  snippet: string;
+  score: number;
+  matchedTopics: string[];
+};
+
+export type SearchResponse = {
+  query: string;
+  results: SearchResult[];
+  total: number;
+  recentSearches: string[];
+  suggestedSearches: string[];
+};
+
+export type AskSource = {
+  memoryId: string;
+  title: string;
+  snippet: string;
+};
+
+export type AskMessage = {
+  id: string;
+  role: 'user' | 'kairos';
+  content: string;
+  createdAt: string;
+  sources?: AskSource[];
+  followUps?: string[];
+  insufficientEvidence?: boolean;
+};
+
+export type AskResponse = {
+  message: AskMessage;
+  conversationId: string;
+};
+
+export type ProcessingStep = {
+  id: string;
+  label: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+};
+
+export type ProcessingJob = {
+  id: string;
+  observationId: string;
+  title: string;
+  sourceType: SourceType;
+  stage: CaptureStage;
+  steps: ProcessingStep[];
+  startedAt: string;
+  updatedAt: string;
+  resultMemoryId?: string;
+};
+
+export type CaptureInput = {
+  sourceType: SourceType;
+  title?: string;
+  text?: string;
+  url?: string;
+};
+
+export type CaptureResult = {
+  observation: Observation;
+  job: ProcessingJob;
+};
+
+export type AppNotification = {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  read: boolean;
+  href?: string;
+};
+
+export type Device = {
+  id: string;
+  name: string;
+  platform: 'ios' | 'android' | 'web';
+  isCurrent: boolean;
+  lastSyncAt: string;
+  captureEnabled: boolean;
+  connectionStatus: 'connected' | 'idle' | 'offline';
+};
+
+export type AiSettings = {
+  autoCapture: boolean;
+  suggestRelated: boolean;
+  allowBackgroundProcessing: boolean;
+  retainRawObservations: boolean;
+};
+
+export type PrivacySettings = {
+  storeScreenshots: boolean;
+  storeAudioTranscripts: boolean;
+  shareAnonymousTelemetry: boolean;
+  retentionDays: number;
+};
+
+export type NotificationSettings = {
+  memoryCreated: boolean;
+  processingComplete: boolean;
+  weeklyDigest: boolean;
+};
+
+export type AppSettings = {
+  ai: AiSettings;
+  privacy: PrivacySettings;
+  notifications: NotificationSettings;
+  appearance: 'system' | 'light' | 'dark';
+};
+
+export type HomeSummary = {
+  greetingName: string;
+  memoriesCreatedToday: number;
+  recentMemories: Memory[];
+  importantMemories: Memory[];
+  recentActivity: AppNotification[];
+  suggestedQuestions: string[];
+  processingJobs: ProcessingJob[];
+  topics: Topic[];
+  projects: Project[];
+};
+
+export type TopicDetail = Topic & {
+  memories: Memory[];
+  relatedProjectIds: string[];
+};
+
+export type ProjectDetail = Project & {
+  memories: Memory[];
+  topics: Topic[];
+  recentActivity: AppNotification[];
 };
 
 export type AsyncState<T> =

@@ -11,10 +11,10 @@
     "splash": {
       "image": "./assets/logo-light.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF",
+      "backgroundColor": "#EEF2F7",
       "dark": {
         "image": "./assets/logo-dark.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#0B0D10"
       }
     },
     "ios": {
@@ -23,6 +23,7 @@
     },
     "android": {
       "package": "com.kairos.mobile",
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

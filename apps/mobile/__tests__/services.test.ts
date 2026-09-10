@@ -1,50 +1,53 @@
 import {
-  analyticsService,
-  eventsService,
-  predictionsService,
-  scenariosService,
-  subscriptionsService,
+  askService,
+  captureService,
+  memoriesService,
+  searchService,
+  timelineService,
 } from '../services';
 import { resetStore } from '../services/mock/store';
 
-describe('mock services', () => {
+describe('mock memory services', () => {
   beforeEach(() => {
     resetStore();
   });
 
-  it('lists coherent timeline events', async () => {
-    const events = await eventsService.list();
-    expect(events.length).toBeGreaterThan(50);
-    expect(events[0]?.timestamp >= events[events.length - 1]!.timestamp).toBe(true);
+  it('lists memories for the timeline', async () => {
+    const page = await timelineService.getPage(null, 6);
+    expect(page.groups.length).toBeGreaterThan(0);
+    expect(page.groups[0]?.memories.length).toBeGreaterThan(0);
   });
 
-  it('returns analytics for ranges', async () => {
-    const summary = await analyticsService.getSummary('7d');
-    expect(summary.metrics.length).toBe(5);
-    expect(summary.dataCompleteness).toBeGreaterThan(0);
+  it('returns memory detail with related items', async () => {
+    const memory = await memoriesService.get('mem-4');
+    expect(memory.title).toContain('RAG');
+    expect(memory.relatedMemories.length).toBeGreaterThan(0);
+    expect(memory.topics.length).toBeGreaterThan(0);
   });
 
-  it('returns a primary prediction with baseline distinct from estimate', async () => {
-    const prediction = await predictionsService.getPrimary();
-    expect(prediction.estimatedMinutes).not.toBe(prediction.historicalBaselineMinutes);
-    expect(prediction.sampleSize).toBeGreaterThan(0);
+  it('searches memories with realistic results', async () => {
+    const response = await searchService.search('RAG');
+    expect(response.results.length).toBeGreaterThan(0);
+    expect(response.results.some((r) => /rag|vector|retrieval/i.test(r.memory.title))).toBe(true);
   });
 
-  it('simulates scenarios without claiming causality', async () => {
-    const result = await scenariosService.simulate({
-      sleepHours: 8,
-      studyHours: 2.5,
-      exerciseMinutes: 40,
-      taskCompletionRate: 0.85,
+  it('answers ask queries with supporting memories', async () => {
+    const result = await askService.ask('What was I learning about RAG?');
+    expect(result.message.role).toBe('kairos');
+    expect(result.message.sources?.length).toBeGreaterThan(0);
+    expect(result.message.content.toLowerCase()).not.toContain('lorem');
+  });
+
+  it('simulates capture processing through READY', async () => {
+    const created = await captureService.capture({
+      sourceType: 'note',
+      text: 'Notes on Kairos privacy defaults',
     });
-    expect(result.disclaimer.toLowerCase()).toContain('not a causal');
-    expect(typeof result.scenarioEstimateMinutes).toBe('number');
-  });
-
-  it('exposes subscription plans and restore messaging', async () => {
-    const plans = await subscriptionsService.listPlans();
-    const restore = await subscriptionsService.restorePurchases();
-    expect(plans.map((p) => p.id)).toEqual(['free', 'pro', 'premium']);
-    expect(restore.restored).toBe(false);
+    let job = created.job;
+    job = await captureService.advanceJob(job.id);
+    job = await captureService.advanceJob(job.id);
+    job = await captureService.advanceJob(job.id);
+    expect(job.stage).toBe('READY');
+    expect(job.resultMemoryId).toBeTruthy();
   });
 });

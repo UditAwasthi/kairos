@@ -17,7 +17,7 @@ type ThemedButtonProps = {
   label: string;
   onPress: () => void;
   disabled?: boolean;
-  /** `text` = accent red text-only action (no border / fill). */
+  /** `text` = accent text-only action (no border / fill). */
   variant?: 'primary' | 'outline' | 'text';
   style?: ViewStyle;
 };
@@ -38,19 +38,13 @@ export function ThemedButton({
 
   const isPrimary = variant === 'primary';
 
-  const restingBg = isPrimary ? colors.text : colors.buttonFill;
-  const restingBorder = isPrimary ? colors.text : colors.border;
+  const restingBg = isPrimary ? colors.accent : colors.surface;
+  const restingBorder = isPrimary ? colors.accent : colors.border;
   const restingText = isPrimary ? colors.inverseText : colors.buttonText;
 
-  const pressedBg = isPrimary
-    ? colors.textSecondary
-    : colors.buttonPressedFill;
-  const pressedBorder = isPrimary
-    ? colors.textSecondary
-    : colors.buttonPressedFill;
-  const pressedText = isPrimary
-    ? colors.inverseText
-    : colors.buttonPressedText;
+  const pressedBg = isPrimary ? colors.borderActive : colors.accentGlow;
+  const pressedBorder = isPrimary ? colors.borderActive : colors.borderAccent;
+  const pressedText = isPrimary ? colors.inverseText : colors.text;
 
   const currentBg = disabled ? colors.buttonDisabledFill : restingBg;
   const currentBorder = disabled ? colors.border : restingBorder;
@@ -61,7 +55,7 @@ export function ThemedButton({
   const targetText = disabled ? colors.buttonDisabledText : pressedText;
 
   const buttonStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(press.value, [0, 1], [1, 0.96]) }],
+    transform: [{ scale: interpolate(press.value, [0, 1], [1, 0.97]) }],
     backgroundColor: interpolateColor(press.value, [0, 1], [currentBg, targetBg]),
     borderColor: interpolateColor(press.value, [0, 1], [currentBorder, targetBorder]),
   }));
@@ -79,18 +73,19 @@ export function ThemedButton({
       }}
       onPressIn={() => {
         if (!disabled) {
-          press.value = withSpring(1, { damping: 12, stiffness: 320 });
+          press.value = withSpring(1, { damping: 14, stiffness: 280 });
         }
       }}
       onPressOut={() => {
-        press.value = withSpring(0, { damping: 12, stiffness: 280 });
+        press.value = withSpring(0, { damping: 14, stiffness: 240 });
       }}
       style={[
         styles.button,
         {
-          borderRadius: radius.md,
+          borderRadius: radius.full,
           borderWidth: isPrimary ? 0 : 1,
           opacity: disabled ? 0.5 : 1,
+          ...(!isPrimary && !disabled ? colors.shadow : null),
         },
         buttonStyle,
         style,
@@ -102,12 +97,12 @@ export function ThemedButton({
           {
             fontSize: typography.bodySmall.size,
             lineHeight: typography.bodySmall.lineHeight,
-            letterSpacing: 1.5,
+            letterSpacing: 0.2,
           },
           textStyle,
         ]}
       >
-        {label.toUpperCase()}
+        {label}
       </Animated.Text>
     </AnimatedPressable>
   );
@@ -115,13 +110,13 @@ export function ThemedButton({
 
 const styles = StyleSheet.create({
   button: {
-    height: 56,
+    height: 52,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
+    paddingHorizontal: 18,
   },
   label: {
     fontFamily: 'Inter_600SemiBold',
-    textTransform: 'uppercase',
   },
 });

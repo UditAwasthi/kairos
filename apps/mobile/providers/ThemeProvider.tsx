@@ -31,10 +31,12 @@ import { useThemeTransition } from '../hooks/useThemeTransition';
 import {
   AppTheme,
   darkTheme,
+  getThemeGradients,
   lightTheme,
   radius,
   shadows,
   spacing,
+  ThemeGradients,
   typography,
   TypographyScale,
 } from '../theme';
@@ -44,6 +46,7 @@ SplashScreen.preventAutoHideAsync();
 type ThemeContextValue = {
   /** Resolved semantic palette — edit theme.ts light/dark to restyle the app. */
   colors: AppTheme;
+  gradients: ThemeGradients;
   typography: TypographyScale;
   spacing: typeof spacing;
   radius: typeof radius;
@@ -77,6 +80,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const logoFloat = useSharedValue(0);
 
   const colors = isLight ? lightTheme : darkTheme;
+  const gradients = getThemeGradients(isLight);
 
   const updateThemeUi = useCallback((nextIsLight: boolean) => {
     setIsLight(nextIsLight);
@@ -119,6 +123,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       colors,
+      gradients,
       typography,
       spacing,
       radius,
@@ -130,7 +135,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       dotPhase,
       logoFloat,
     }),
-    [colors, dotPhase, fontsLoaded, isLight, logoFloat, themeProgress, toggleTheme],
+    [colors, gradients, dotPhase, fontsLoaded, isLight, logoFloat, themeProgress, toggleTheme],
   );
 
   if (!fontsLoaded) {

@@ -64,6 +64,16 @@ type ErrorStateProps = {
   onRetry?: () => void;
 };
 
+export function OfflineState({ onRetry }: { onRetry?: () => void }) {
+  return (
+    <ErrorState
+      title="You're offline"
+      message="Kairos needs a connection to load memories. Changes will sync when you are back online."
+      onRetry={onRetry}
+    />
+  );
+}
+
 export function ErrorState({
   title = 'Something went wrong',
   message = 'Unable to load this view. Please try again.',

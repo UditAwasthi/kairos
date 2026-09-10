@@ -10,15 +10,16 @@ import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader
 import { ThemedText } from '../../../components/ThemedText';
 import { useOnboarding } from '../../../providers/OnboardingProvider';
 import { useAppTheme } from '../../../providers/ThemeProvider';
-import { useAsync } from '../../../hooks/useAsync';
-import { subscriptionsService } from '../../../services';
 
 const LINKS = [
   { label: 'Settings', href: '/(app)/settings' },
+  { label: 'Notifications', href: '/(app)/notifications' },
+  { label: 'Connected devices', href: '/(app)/devices' },
   { label: 'Privacy', href: '/(app)/privacy' },
-  { label: 'Data', href: '/(app)/data' },
-  { label: 'Subscription', href: '/(app)/subscription' },
-  { label: 'Goals', href: '/(app)/goals' },
+  { label: 'Data controls', href: '/(app)/data' },
+  { label: 'Topics', href: '/(app)/topics' },
+  { label: 'Projects', href: '/(app)/projects' },
+  { label: 'Processing activity', href: '/(app)/activity' },
   { label: 'About', href: '/(app)/about' },
 ] as const;
 
@@ -30,7 +31,6 @@ export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const entitlement = useAsync(() => subscriptionsService.getEntitlement(), []);
 
   const name = user?.fullName || user?.firstName || 'Kairos user';
   const email = user?.primaryEmailAddress?.emailAddress ?? 'No email';
@@ -47,7 +47,7 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 108 }]}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
@@ -79,11 +79,11 @@ export default function ProfileScreen() {
           Authenticated with Clerk
         </ThemedText>
         <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.meta}>
-          Plan: {entitlement.data?.plan.toUpperCase() ?? '…'}
+          Personal AI memory · mock services active
         </ThemedText>
       </SurfaceCard>
 
-      <SectionHeader title="Navigate" />
+      <SectionHeader title="Manage" />
       <SurfaceCard style={styles.linkCard}>
         {LINKS.map((link) => (
           <Pressable
