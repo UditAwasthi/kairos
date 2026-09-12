@@ -1,7 +1,7 @@
 import { useAuth } from '@clerk/expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback } from 'react';
-import { Pressable, ScrollView, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useRef } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../../components/ThemedText';
@@ -10,12 +10,21 @@ import { Badge } from '../../../components/ui/MetricCard';
 import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { useAsync } from '../../../hooks/useAsync';
-import { ApiError, fetchObservation, type ApiObservation } from '../../../lib/api';
+import {
+  ApiError,
+  fetchObservation,
+  observationStatusLabel,
+  type ApiObservation,
+} from '../../../lib/api';
 import { SOURCE_TYPE_LABELS, observationsService } from '../../../services';
 import type { Observation, ProcessingStatus, SourceType } from '../../../types';
 
 function mapApiObservation(api: ApiObservation): Observation {
   const sourceType = mapType(api.type);
+  const analysisNote =
+    typeof api.sourceMetadata?.analysisNote === 'string'
+      ? api.sourceMetadata.analysisNote
+      : null;
   return {
     id: api.id,
     title: api.filename,
@@ -23,11 +32,22 @@ function mapApiObservation(api: ApiObservation): Observation {
     capturedAt: api.capturedAt,
     status: api.status as ProcessingStatus,
     previewText:
+      api.summary?.slice(0, 180) ||
       api.extractedText?.slice(0, 180) ||
       `${api.type} · ${api.mimeType}`,
     extractedText: api.extractedText ?? undefined,
+    summary: api.summary ?? undefined,
     linkedMemoryIds: [],
     sourceLabel: api.filename,
+    topics: api.topics.map((t) => ({ id: t.id, name: t.name })),
+    entities: api.entities.map((e) => ({
+      id: e.id,
+      name: e.name,
+      type: e.type,
+    })),
+    metadata: api.metadata,
+    processingError: api.processingError,
+    analysisNote,
   };
 }
 
@@ -55,8 +75,17 @@ function statusTone(
 
 function extractedTextMessage(data: Observation): string {
   if (data.extractedText) return data.extractedText;
-  if (data.status === 'PENDING') return 'Extraction has not started yet.';
-  if (data.status === 'PROCESSING') return 'Extraction in progress…';
+  if (data.status === 'PENDING' || data.status === 'EXTRACTING') {
+    return 'Extraction has not finished yet.';
+  }
+  if (
+    data.status === 'PROCESSING' ||
+    data.status === 'NORMALIZING' ||
+    data.status === 'CHUNKING' ||
+    data.status === 'ANALYZING'
+  ) {
+    return 'Extraction in progress…';
+  }
   if (data.status === 'FAILED') {
     return 'Processing failed. Extracted text is unavailable.';
   }
@@ -67,10 +96,20 @@ function extractedTextMessage(data: Observation): string {
 }
 
 export default function ObservationDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, highlight } = useLocalSearchParams<{
+    id: string;
+    highlight?: string;
+  }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const matchedSnippet =
+    typeof highlight === 'string' && highlight.trim().length > 0
+      ? highlight.trim()
+      : Array.isArray(highlight) && typeof highlight[0] === 'string'
+        ? highlight[0].trim()
+        : null;
 
   const load = useCallback(async () => {
     const observationId = String(id);
@@ -92,7 +131,26 @@ export default function ObservationDetailScreen() {
 
   const { data, error, loading, reload } = useAsync(load, [id]);
 
-  if (loading) return <LoadingSkeleton rows={8} />;
+  useEffect(() => {
+    const terminal =
+      data?.status === 'COMPLETED' ||
+      data?.status === 'FAILED' ||
+      data?.status === 'READY';
+    if (!data || terminal) {
+      if (pollRef.current) clearInterval(pollRef.current);
+      return;
+    }
+
+    pollRef.current = setInterval(() => {
+      void reload();
+    }, 1500);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [data, reload]);
+
+  if (loading && !data) return <LoadingSkeleton rows={8} />;
   if (error || !data) {
     return (
       <ErrorState title="Observation unavailable" message={error ?? undefined} onRetry={reload} />
@@ -117,11 +175,72 @@ export default function ObservationDetailScreen() {
         {SOURCE_TYPE_LABELS[data.sourceType]} · {captured}
       </ThemedText>
 
-      <SectionHeader title="Preview" />
+      {matchedSnippet ? (
+        <>
+          <SectionHeader title="Matched snippet" />
+          <SurfaceCard>
+            <ThemedText colorKey="textSecondary" style={styles.body}>
+              {matchedSnippet}
+            </ThemedText>
+          </SurfaceCard>
+        </>
+      ) : null}
+
+      <SectionHeader title="Processing status" />
       <SurfaceCard>
         <ThemedText colorKey="textSecondary" style={styles.body}>
-          {data.previewText}
+          {observationStatusLabel(data.status as ApiObservation['status'])}
+          {data.processingError ? `\n${data.processingError}` : ''}
         </ThemedText>
+      </SurfaceCard>
+
+      <SectionHeader title="Summary" />
+      <SurfaceCard>
+        <ThemedText colorKey="textSecondary" style={styles.body}>
+          {data.summary
+            ? data.summary
+            : data.analysisNote
+              ? data.analysisNote
+              : data.status === 'ANALYZING'
+                ? 'Analyzing content…'
+                : data.status === 'COMPLETED'
+                  ? 'No summary available for this observation.'
+                  : 'Summary appears when analysis completes.'}
+        </ThemedText>
+      </SurfaceCard>
+
+      <SectionHeader title="Topics" />
+      <SurfaceCard>
+        {data.topics && data.topics.length > 0 ? (
+          <View style={styles.chipRow}>
+            {data.topics.map((topic) => (
+              <View key={topic.id} style={styles.chip}>
+                <ThemedText colorKey="text" style={styles.chipText}>
+                  {topic.name}
+                </ThemedText>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <ThemedText colorKey="textMuted" style={styles.meta}>
+            No topics extracted yet.
+          </ThemedText>
+        )}
+      </SurfaceCard>
+
+      <SectionHeader title="Entities" />
+      <SurfaceCard>
+        {data.entities && data.entities.length > 0 ? (
+          data.entities.map((entity) => (
+            <ThemedText key={entity.id} colorKey="textSecondary" style={styles.body}>
+              {entity.name} · {entity.type}
+            </ThemedText>
+          ))
+        ) : (
+          <ThemedText colorKey="textMuted" style={styles.meta}>
+            No entities extracted yet.
+          </ThemedText>
+        )}
       </SurfaceCard>
 
       <SectionHeader title="Source" />
@@ -130,20 +249,16 @@ export default function ObservationDetailScreen() {
           {data.sourceLabel}
         </ThemedText>
         <ThemedText colorKey="textMuted" style={styles.meta}>
-          Captured {captured}
-        </ThemedText>
-      </SurfaceCard>
-
-      <SectionHeader title="Processing status" />
-      <SurfaceCard>
-        <ThemedText colorKey="textSecondary" style={styles.body}>
-          {data.status === 'COMPLETED' || data.status === 'READY'
-            ? 'Processing finished. Extracted content is shown below when available.'
-            : data.status === 'FAILED'
-              ? 'Processing failed. You can retry by capturing the file again.'
-              : data.status === 'PROCESSING' || data.status === 'PENDING'
-                ? 'Kairos is extracting content from your file.'
-                : data.status}
+          {data.metadata?.mimeType ?? ''}
+          {data.metadata?.fileSizeBytes
+            ? ` · ${Math.round(data.metadata.fileSizeBytes / 1024)} KB`
+            : ''}
+          {data.metadata?.chunkCount != null
+            ? ` · ${data.metadata.chunkCount} chunks`
+            : ''}
+          {data.metadata?.wordCount != null
+            ? ` · ${data.metadata.wordCount} words`
+            : ''}
         </ThemedText>
       </SurfaceCard>
 
@@ -154,22 +269,11 @@ export default function ObservationDetailScreen() {
         </ThemedText>
       </SurfaceCard>
 
-      {data.summary ? (
-        <>
-          <SectionHeader title="Generated summary" />
-          <SurfaceCard>
-            <ThemedText colorKey="textSecondary" style={styles.body}>
-              {data.summary}
-            </ThemedText>
-          </SurfaceCard>
-        </>
-      ) : null}
-
       <SectionHeader title="Linked memories" />
       {data.linkedMemoryIds.length === 0 ? (
         <SurfaceCard>
           <ThemedText colorKey="textMuted" style={styles.meta}>
-            No linked memories yet. Memory creation is not part of this upload slice.
+            No linked memories yet.
           </ThemedText>
         </SurfaceCard>
       ) : (
@@ -178,9 +282,6 @@ export default function ObservationDetailScreen() {
             <SurfaceCard>
               <ThemedText colorKey="text" style={styles.cardTitle}>
                 Open linked memory
-              </ThemedText>
-              <ThemedText colorKey="textMuted" style={styles.meta}>
-                {memoryId}
               </ThemedText>
             </SurfaceCard>
           </Pressable>
@@ -202,4 +303,13 @@ const styles = StyleSheet.create({
   meta: { fontFamily: 'Inter_400Regular', fontSize: 12 },
   body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21 },
   cardTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    borderWidth: 1,
+    borderColor: 'rgba(127,127,127,0.35)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  chipText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
 });

@@ -7,7 +7,11 @@ import {
 import { ProcessingStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { STORAGE_SERVICE, type StorageService } from '../storage/storage.types';
+import {
+  STORAGE_SERVICE,
+  type SignedDownload,
+  type StorageService,
+} from '../storage/storage.types';
 import { UsersService } from '../users/users.service';
 import { validateUpload } from './file-validation';
 import {
@@ -15,6 +19,12 @@ import {
   type ObservationResponse,
 } from './observation.mapper';
 import { ObservationProcessor } from './observation.processor';
+
+const observationInclude = {
+  observationTopics: { include: { topic: true } },
+  observationEntities: { include: { entity: true } },
+  _count: { select: { chunks: true } },
+} as const;
 
 @Injectable()
 export class ObservationsService {
@@ -75,9 +85,9 @@ export class ObservationsService {
           clientMimeType: params.file.mimetype ?? null,
         },
       },
+      include: observationInclude,
     });
 
-    // Fire-and-forget: upload succeeds even if processing later fails.
     setImmediate(() => {
       void this.processor.process(observation.id);
     });
@@ -90,6 +100,7 @@ export class ObservationsService {
     const observations = await this.prisma.observation.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
+      include: observationInclude,
     });
     return observations.map(toObservationResponse);
   }
@@ -98,12 +109,79 @@ export class ObservationsService {
     clerkUserId: string,
     observationId: string,
   ): Promise<ObservationResponse> {
+    const observation = await this.findOwned(clerkUserId, observationId);
+    return toObservationResponse(observation);
+  }
+
+  async getFileForClerkUser(
+    clerkUserId: string,
+    observationId: string,
+  ): Promise<{ buffer: Buffer; mimeType: string; filename: string }> {
+    const observation = await this.findOwned(clerkUserId, observationId);
+    const exists = await this.storage.exists(observation.storageKey);
+    if (!exists) {
+      throw new NotFoundException({
+        error: {
+          code: 'FILE_NOT_FOUND',
+          message: 'The original file could not be found in storage.',
+        },
+      });
+    }
+    const buffer = await this.storage.get(observation.storageKey);
+    return {
+      buffer,
+      mimeType: observation.mimeType,
+      filename: observation.originalFilename,
+    };
+  }
+
+  async getDownloadUrlForClerkUser(
+    clerkUserId: string,
+    observationId: string,
+  ): Promise<SignedDownload & { mode: 'signed' | 'stream' }> {
+    const observation = await this.findOwned(clerkUserId, observationId);
+    try {
+      const signed = await this.storage.getSignedDownloadUrl(
+        observation.storageKey,
+        300,
+      );
+      return { ...signed, mode: 'signed' };
+    } catch {
+      return {
+        url: `/observations/${observation.id}/file`,
+        expiresAt: new Date(Date.now() + 300_000).toISOString(),
+        mode: 'stream',
+      };
+    }
+  }
+
+  async reprocessForClerkUser(
+    clerkUserId: string,
+    observationId: string,
+  ): Promise<ObservationResponse> {
+    const observation = await this.findOwned(clerkUserId, observationId);
+    await this.prisma.observation.update({
+      where: { id: observation.id },
+      data: {
+        processingStatus: ProcessingStatus.PENDING,
+        processingError: null,
+      },
+    });
+    setImmediate(() => {
+      void this.processor.process(observation.id);
+    });
+    const refreshed = await this.findOwned(clerkUserId, observationId);
+    return toObservationResponse(refreshed);
+  }
+
+  private async findOwned(clerkUserId: string, observationId: string) {
     const user = await this.users.findOrCreateByClerkId(clerkUserId);
     const observation = await this.prisma.observation.findFirst({
       where: {
         id: observationId,
         userId: user.id,
       },
+      include: observationInclude,
     });
 
     if (!observation) {
@@ -115,7 +193,7 @@ export class ObservationsService {
       });
     }
 
-    return toObservationResponse(observation);
+    return observation;
   }
 }
 

@@ -181,6 +181,8 @@ function buildAskMessage(query: string): AskMessage {
       content: `Based on memories in your library, here's what stands out for “${query.trim()}”. These are generated from your saved items — not external web citations.`,
       createdAt: now,
       sources: ranked.map(({ m }) => ({
+        observationId: m.id,
+        chunkId: `${m.id}-chunk`,
         memoryId: m.id,
         title: m.title,
         snippet: m.summary.slice(0, 110),
@@ -197,6 +199,8 @@ function buildAskMessage(query: string): AskMessage {
     .map((id) => store.memories.find((m) => m.id === id))
     .filter((m): m is Memory => Boolean(m))
     .map((m) => ({
+      observationId: m.id,
+      chunkId: `${m.id}-chunk`,
       memoryId: m.id,
       title: m.title,
       snippet: m.summary.slice(0, 110),
@@ -360,7 +364,7 @@ export const searchService = {
 };
 
 export const askService = {
-  async ask(query: string, conversationId?: string): Promise<AskResponse> {
+  async ask(query: string, _conversationId?: string): Promise<AskResponse> {
     const latency = 500 + Math.floor(Math.random() * 700);
     await delay(latency);
     assertNotForcedError();
@@ -379,10 +383,7 @@ export const askService = {
       createdAt: message.createdAt,
     });
 
-    return {
-      message,
-      conversationId: conversationId ?? `conv-${Date.now()}`,
-    };
+    return { message };
   },
 
   async history(): Promise<AskMessage[]> {

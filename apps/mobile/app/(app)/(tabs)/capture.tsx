@@ -20,6 +20,7 @@ import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { ThemedInput } from '../../../components/ui/ThemedInput';
 import {
   ApiError,
+  observationStatusLabel,
   pollObservationUntilSettled,
   uploadObservation,
   type ApiObservation,
@@ -40,19 +41,8 @@ const CAPTURE_TYPES: { type: SourceType; label: string; hint: string }[] = [
 const FILE_CAPTURE_TYPES: SourceType[] = ['document', 'photo', 'screenshot'];
 
 function statusLabel(status: ApiObservation['status'] | 'UPLOADING'): string {
-  switch (status) {
-    case 'UPLOADING':
-      return 'Uploading document…';
-    case 'PENDING':
-    case 'PROCESSING':
-      return 'Understanding your document…';
-    case 'COMPLETED':
-      return 'Saved to Kairos';
-    case 'FAILED':
-      return 'Processing failed';
-    default:
-      return 'Working…';
-  }
+  if (status === 'UPLOADING') return 'Uploading document…';
+  return observationStatusLabel(status);
 }
 
 function guessMimeType(name: string, fallback?: string | null): string {

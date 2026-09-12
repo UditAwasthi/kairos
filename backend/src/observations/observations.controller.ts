@@ -1,13 +1,17 @@
 import {
   Controller,
   Get,
+  Header,
   Param,
   Post,
+  Res,
+  StreamableFile,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { memoryStorage } from 'multer';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/auth-user.decorator';
@@ -53,6 +57,45 @@ export class ObservationsController {
     @Param('id') id: string,
   ): Promise<{ data: ObservationResponse }> {
     const observation = await this.observations.getForClerkUser(user.id, id);
+    return { data: observation };
+  }
+
+  @Get(':id/download-url')
+  async downloadUrl(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    const result = await this.observations.getDownloadUrlForClerkUser(
+      user.id,
+      id,
+    );
+    return { data: result };
+  }
+
+  @Get(':id/file')
+  @Header('Cache-Control', 'private, no-store')
+  async file(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const file = await this.observations.getFileForClerkUser(user.id, id);
+    res.set({
+      'Content-Type': file.mimeType,
+      'Content-Disposition': `attachment; filename="${file.filename.replace(/"/g, '')}"`,
+    });
+    return new StreamableFile(file.buffer);
+  }
+
+  @Post(':id/reprocess')
+  async reprocess(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<{ data: ObservationResponse }> {
+    const observation = await this.observations.reprocessForClerkUser(
+      user.id,
+      id,
+    );
     return { data: observation };
   }
 }

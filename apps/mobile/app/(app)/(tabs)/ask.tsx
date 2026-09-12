@@ -1,3 +1,4 @@
+import { useAuth } from '@clerk/expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -23,14 +24,14 @@ import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
 import { AccentGradient, GlassPanel, ScreenGradient } from '../../../components/ui/Glass';
 import { AskBubble, EvidenceCard } from '../../../components/ui/MemoryCards';
 import { useAppTheme } from '../../../providers/ThemeProvider';
-import { askService } from '../../../services';
+import { ApiError, askKairos } from '../../../lib/api';
 import type { AskMessage } from '../../../types';
 
 const STARTERS = [
-  'What was I working on yesterday?',
-  'What did I learn about machine learning?',
-  'Show me things related to Kairos',
-  'What did I save last week?',
+  'What did I learn about Redis?',
+  'What was I working on recently?',
+  'Show me things related to databases',
+  'What did I save about mobile development?',
 ];
 
 const INPUT_MIN = 22;
@@ -61,6 +62,7 @@ export default function AskScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, radius, isLight } = useAppTheme();
+  const { getToken } = useAuth();
   const params = useLocalSearchParams<{ q?: string }>();
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
@@ -70,7 +72,6 @@ export default function AskScreen() {
   const [input, setInput] = useState('');
   const [inputHeight, setInputHeight] = useState(INPUT_MIN);
   const [messages, setMessages] = useState<AskMessage[]>([]);
-  const [conversationId, setConversationId] = useState<string | undefined>();
   const [typing, setTyping] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,11 +111,38 @@ export default function AskScreen() {
     scrollToEnd();
 
     try {
-      const result = await askService.ask(query, conversationId);
-      setConversationId(result.conversationId);
-      setMessages((prev) => [...prev, result.message]);
-    } catch {
-      setError('Kairos could not answer right now. Try again.');
+      const token = await getToken();
+      if (!token) {
+        throw new ApiError('You must be signed in to ask Kairos.', 401);
+      }
+
+      const result = await askKairos({
+        token,
+        question: query,
+        limit: 6,
+      });
+
+      const kairosMessage: AskMessage = {
+        id: `kairos-${Date.now()}`,
+        role: 'kairos',
+        content: result.answer,
+        createdAt: new Date().toISOString(),
+        sources: result.citations.map((citation) => ({
+          observationId: citation.observationId,
+          chunkId: citation.chunkId,
+          title: citation.title,
+          snippet: citation.snippet,
+          createdAt: citation.createdAt,
+        })),
+        insufficientEvidence: result.insufficientEvidence,
+      };
+      setMessages((prev) => [...prev, kairosMessage]);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : 'Kairos could not answer right now. Try again.';
+      setError(message);
     } finally {
       setTyping(false);
       scrollToEnd();
@@ -186,27 +214,18 @@ export default function AskScreen() {
                     </ThemedText>
                     {message.sources.map((source) => (
                       <EvidenceCard
-                        key={source.memoryId}
+                        key={`${source.observationId}:${source.chunkId}`}
                         source={source}
-                        onPress={() => router.push(`/(app)/memory/${source.memoryId}`)}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/(app)/observation/[id]',
+                            params: {
+                              id: source.observationId,
+                              highlight: source.snippet.slice(0, 240),
+                            },
+                          })
+                        }
                       />
-                    ))}
-                  </View>
-                ) : null}
-                {message.role === 'kairos' && message.followUps ? (
-                  <View style={styles.followUps}>
-                    {message.followUps.map((follow) => (
-                      <Pressable key={follow} onPress={() => void send(follow)}>
-                        <GlassPanel
-                          padded={false}
-                          contentStyle={styles.followInner}
-                          style={styles.followChip}
-                        >
-                          <ThemedText colorKey="textSecondary" style={styles.followLabel}>
-                            {follow}
-                          </ThemedText>
-                        </GlassPanel>
-                      </Pressable>
                     ))}
                   </View>
                 ) : null}
@@ -217,7 +236,7 @@ export default function AskScreen() {
               <View style={styles.typingBlock}>
                 <ActivityIndicator color={colors.accent} size="small" />
                 <ThemedText colorKey="textMuted" style={styles.typingLabel}>
-                  Thinking…
+                  Looking through your memories…
                 </ThemedText>
               </View>
             ) : null}
@@ -266,7 +285,7 @@ export default function AskScreen() {
               ref={inputRef}
               value={input}
               onChangeText={setInput}
-              placeholder="Message Kairos…"
+              placeholder="Ask about what you saved…"
               placeholderTextColor={colors.inputPlaceholder}
               accessibilityLabel="Ask Kairos"
               multiline
@@ -306,7 +325,6 @@ export default function AskScreen() {
           </View>
         </View>
 
-        {/* Keyboard spacer when open; floating tab clearance when closed */}
         {keyboardVisible ? (
           <Animated.View style={keyboardSpacerStyle} />
         ) : (
@@ -363,15 +381,6 @@ const styles = StyleSheet.create({
   thread: { gap: 20 },
   messageBlock: { gap: 10 },
   sources: { gap: 8 },
-  followUps: { gap: 8, marginTop: 2 },
-  followChip: { borderRadius: 999 },
-  followInner: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  followLabel: { fontFamily: 'Inter_400Regular', fontSize: 13 },
   typingBlock: {
     flexDirection: 'row',
     alignItems: 'center',

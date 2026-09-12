@@ -22,11 +22,16 @@ describe('LocalStorageService', () => {
     await storage.upload(key, Buffer.from('hello'), 'text/plain');
     const data = await storage.get(key);
     expect(data.toString('utf8')).toBe('hello');
+    await expect(storage.exists(key)).resolves.toBe(true);
   });
 
   it('rejects path traversal keys', async () => {
     await expect(
       storage.upload('../escape.txt', Buffer.from('x'), 'text/plain'),
     ).rejects.toThrow('Invalid storage key');
+  });
+
+  it('reports missing objects via exists()', async () => {
+    await expect(storage.exists('missing/file.txt')).resolves.toBe(false);
   });
 });

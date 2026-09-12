@@ -1,5 +1,5 @@
-// Kairos — minimal schema for the observation upload vertical slice.
-// Full future model lives in docs/DATA_MODEL.md; do not expand here yet.
+// Kairos — observation understanding vertical slice.
+// Full future model: docs/DATA_MODEL.md
 
 generator client {
   provider = "prisma-client-js"
@@ -13,11 +13,13 @@ datasource db {
 }
 
 model User {
-  id           String         @id @default(cuid())
-  clerkUserId  String         @unique
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id           String        @id @default(cuid())
+  clerkUserId  String        @unique
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   observations Observation[]
+  topics       Topic[]
+  entities     Entity[]
 
   @@map("users")
 }
@@ -32,28 +34,126 @@ enum ObservationType {
 enum ProcessingStatus {
   PENDING
   PROCESSING
+  EXTRACTING
+  NORMALIZING
+  CHUNKING
+  ANALYZING
+  EMBEDDING
   COMPLETED
   FAILED
 }
 
+enum EntityType {
+  PERSON
+  ORGANIZATION
+  TECHNOLOGY
+  PRODUCT
+  LOCATION
+  CONCEPT
+}
+
 model Observation {
-  id               String           @id @default(cuid())
+  id               String                @id @default(cuid())
   userId           String
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   type             ObservationType
   originalFilename String
   mimeType         String
   storageKey       String
   fileSizeBytes    Int
-  processingStatus ProcessingStatus @default(PENDING)
+  processingStatus ProcessingStatus      @default(PENDING)
   extractedText    String?
+  summary          String?
   processingError  String?
   sourceMetadata   Json?
-  capturedAt       DateTime         @default(now())
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  pageCount        Int?
+  characterCount   Int?
+  wordCount        Int?
+  chunkCount       Int?
+  capturedAt       DateTime              @default(now())
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  chunks           ObservationChunk[]
+  observationTopics ObservationTopic[]
+  observationEntities ObservationEntity[]
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, processingStatus])
   @@map("observations")
+}
+
+model ObservationChunk {
+  id             String                      @id @default(cuid())
+  observationId  String
+  observation    Observation                 @relation(fields: [observationId], references: [id], onDelete: Cascade)
+  content        String
+  chunkIndex     Int
+  startOffset    Int?
+  endOffset      Int?
+  /// pgvector column; written/queried via raw SQL. Dimension must match EMBEDDING_DIMENSIONS.
+  embedding      Unsupported("vector")?
+  embeddingModel String?
+  embeddedAt     DateTime?
+  createdAt      DateTime                    @default(now())
+
+  @@unique([observationId, chunkIndex])
+  @@index([observationId])
+  @@map("observation_chunks")
+}
+
+model Topic {
+  id                String             @id @default(cuid())
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  normalizedName    String
+  description       String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  observationTopics ObservationTopic[]
+
+  @@unique([userId, normalizedName])
+  @@index([userId])
+  @@map("topics")
+}
+
+model Entity {
+  id                  String              @id @default(cuid())
+  userId              String
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                String
+  normalizedName      String
+  type                EntityType
+  metadata            Json?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  observationEntities ObservationEntity[]
+
+  @@unique([userId, normalizedName, type])
+  @@index([userId])
+  @@map("entities")
+}
+
+model ObservationTopic {
+  observationId String
+  topicId       String
+  confidence    Float?
+  createdAt     DateTime    @default(now())
+  observation   Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
+  topic         Topic       @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([observationId, topicId])
+  @@map("observation_topics")
+}
+
+model ObservationEntity {
+  observationId String
+  entityId      String
+  confidence    Float?
+  createdAt     DateTime    @default(now())
+  observation   Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
+  entity        Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@id([observationId, entityId])
+  @@map("observation_entities")
 }

@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import type { StorageService, StoredObject } from './storage.types';
+import type {
+  SignedDownload,
+  StorageService,
+  StoredObject,
+} from './storage.types';
 
 @Injectable()
 export class LocalStorageService implements StorageService {
@@ -43,6 +47,28 @@ export class LocalStorageService implements StorageService {
         throw error;
       }
     }
+  }
+
+  async exists(key: string): Promise<boolean> {
+    try {
+      await fs.access(this.resolveSafePath(key));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Local storage cannot mint cloud signed URLs.
+   * Callers should stream via the authenticated API instead.
+   */
+  getSignedDownloadUrl(
+    key: string,
+    expiresInSeconds = 300,
+  ): Promise<SignedDownload> {
+    void key;
+    void expiresInSeconds;
+    return Promise.reject(new Error('LOCAL_SIGNED_URL_UNSUPPORTED'));
   }
 
   private resolveSafePath(key: string): string {

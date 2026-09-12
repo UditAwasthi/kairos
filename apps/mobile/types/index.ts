@@ -13,6 +13,11 @@ export type SourceType =
 export type ProcessingStatus =
   | 'PENDING'
   | 'PROCESSING'
+  | 'EXTRACTING'
+  | 'NORMALIZING'
+  | 'CHUNKING'
+  | 'ANALYZING'
+  | 'EMBEDDING'
   | 'COMPLETED'
   | 'READY'
   | 'FAILED';
@@ -76,6 +81,18 @@ export type Observation = {
   summary?: string;
   linkedMemoryIds: string[];
   sourceLabel: string;
+  topics?: { id: string; name: string }[];
+  entities?: { id: string; name: string; type: string }[];
+  metadata?: {
+    mimeType?: string;
+    fileSizeBytes?: number;
+    pageCount?: number | null;
+    characterCount?: number | null;
+    wordCount?: number | null;
+    chunkCount?: number | null;
+  };
+  processingError?: string | null;
+  analysisNote?: string | null;
 };
 
 export type Memory = {
@@ -139,9 +156,13 @@ export type SearchResponse = {
 };
 
 export type AskSource = {
-  memoryId: string;
+  observationId: string;
+  chunkId: string;
   title: string;
   snippet: string;
+  createdAt?: string;
+  /** @deprecated use observationId — kept for older mock payloads */
+  memoryId?: string;
 };
 
 export type AskMessage = {
@@ -156,7 +177,6 @@ export type AskMessage = {
 
 export type AskResponse = {
   message: AskMessage;
-  conversationId: string;
 };
 
 export type ProcessingStep = {
