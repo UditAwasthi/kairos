@@ -1,0 +1,59 @@
+// Kairos — minimal schema for the observation upload vertical slice.
+// Full future model lives in docs/DATA_MODEL.md; do not expand here yet.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Neon: use the non-pooled connection for migrations
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String         @id @default(cuid())
+  clerkUserId  String         @unique
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  observations Observation[]
+
+  @@map("users")
+}
+
+enum ObservationType {
+  DOCUMENT
+  PDF
+  IMAGE
+  TEXT
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Observation {
+  id               String           @id @default(cuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type             ObservationType
+  originalFilename String
+  mimeType         String
+  storageKey       String
+  fileSizeBytes    Int
+  processingStatus ProcessingStatus @default(PENDING)
+  extractedText    String?
+  processingError  String?
+  sourceMetadata   Json?
+  capturedAt       DateTime         @default(now())
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, processingStatus])
+  @@map("observations")
+}

@@ -10,7 +10,12 @@ export type SourceType =
   | 'conversation'
   | 'task';
 
-export type ProcessingStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED';
+export type ProcessingStatus =
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'COMPLETED'
+  | 'READY'
+  | 'FAILED';
 
 export type CaptureStage =
   | 'CAPTURED'

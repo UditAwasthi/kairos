@@ -46,6 +46,9 @@ lerna-debug.log*
 .temp
 .tmp
 
+# local object storage (dev)
+/storage
+
 # Runtime data
 pids
 *.pid

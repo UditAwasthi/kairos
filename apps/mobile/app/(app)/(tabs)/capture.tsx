@@ -1,3 +1,6 @@
+import { useAuth } from '@clerk/expo';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -9,13 +12,18 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '../../../components/ThemedText';
 import { ProcessingIndicator } from '../../../components/ui/MemoryCards';
 import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { ThemedInput } from '../../../components/ui/ThemedInput';
+import {
+  ApiError,
+  pollObservationUntilSettled,
+  uploadObservation,
+  type ApiObservation,
+} from '../../../lib/api';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import { captureService } from '../../../services';
 import type { CaptureStage, ProcessingJob, SourceType } from '../../../types';
@@ -29,10 +37,40 @@ const CAPTURE_TYPES: { type: SourceType; label: string; hint: string }[] = [
   { type: 'audio', label: 'Audio', hint: 'Voice memo (mock)' },
 ];
 
+const FILE_CAPTURE_TYPES: SourceType[] = ['document', 'photo', 'screenshot'];
+
+function statusLabel(status: ApiObservation['status'] | 'UPLOADING'): string {
+  switch (status) {
+    case 'UPLOADING':
+      return 'Uploading document…';
+    case 'PENDING':
+    case 'PROCESSING':
+      return 'Understanding your document…';
+    case 'COMPLETED':
+      return 'Saved to Kairos';
+    case 'FAILED':
+      return 'Processing failed';
+    default:
+      return 'Working…';
+  }
+}
+
+function guessMimeType(name: string, fallback?: string | null): string {
+  const lower = name.toLowerCase();
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.txt') || lower.endsWith('.md')) return 'text/plain';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.gif')) return 'image/gif';
+  return fallback || 'application/octet-stream';
+}
+
 export default function CaptureScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
+  const { getToken } = useAuth();
   const [selected, setSelected] = useState<SourceType | null>(null);
   const [note, setNote] = useState('');
   const [url, setUrl] = useState('');
@@ -40,12 +78,14 @@ export default function CaptureScreen() {
   const [stageLabel, setStageLabel] = useState<string | null>(null);
   const [job, setJob] = useState<ProcessingJob | null>(null);
   const [memoryId, setMemoryId] = useState<string | null>(null);
+  const [observationId, setObservationId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const runPipeline = async (type: SourceType) => {
+  const runMockPipeline = async (type: SourceType) => {
     setBusy(true);
     setError(null);
     setMemoryId(null);
+    setObservationId(null);
     setStageLabel('Capture confirmed…');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -57,6 +97,7 @@ export default function CaptureScreen() {
         title: note.trim() ? note.trim().slice(0, 60) : undefined,
       });
       setJob(result.job);
+      setObservationId(result.observation.id);
       setStageLabel('Processing observation…');
 
       const stages: CaptureStage[] = ['UPLOADING', 'PROCESSING', 'READY'];
@@ -79,16 +120,87 @@ export default function CaptureScreen() {
     }
   };
 
+  const runFileUpload = async (type: SourceType) => {
+    setBusy(true);
+    setError(null);
+    setMemoryId(null);
+    setObservationId(null);
+    setJob(null);
+    setStageLabel('Choose a file…');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({
+        type:
+          type === 'document'
+            ? ['application/pdf', 'text/plain', 'text/markdown']
+            : ['image/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (picked.canceled || !picked.assets?.[0]) {
+        setStageLabel(null);
+        return;
+      }
+
+      const asset = picked.assets[0];
+      const token = await getToken();
+      if (!token) {
+        throw new ApiError('You must be signed in to upload.', 401);
+      }
+
+      setStageLabel(statusLabel('UPLOADING'));
+      const uploaded = await uploadObservation({
+        token,
+        uri: asset.uri,
+        name: asset.name || `capture-${Date.now()}`,
+        mimeType: guessMimeType(asset.name || '', asset.mimeType),
+      });
+      setObservationId(uploaded.id);
+      setStageLabel(statusLabel(uploaded.status));
+
+      const settled = await pollObservationUntilSettled({
+        token,
+        id: uploaded.id,
+        onUpdate: (obs) => setStageLabel(statusLabel(obs.status)),
+      });
+
+      setStageLabel(statusLabel(settled.status));
+      if (settled.status === 'FAILED') {
+        setError(
+          settled.processingError ||
+            'Kairos could not process this file. Try another PDF or text file.',
+        );
+      }
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Upload failed. Check your connection and try again.';
+      setError(message);
+      setStageLabel(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onSelect = (type: SourceType) => {
     setSelected(type);
+    const isFile = FILE_CAPTURE_TYPES.includes(type);
     Alert.alert(
       `Capture ${CAPTURE_TYPES.find((c) => c.type === type)?.label}?`,
-      'This simulates capture only — no real OCR or upload runs.',
+      isFile
+        ? 'Pick a file to upload to Kairos. Text will be extracted for PDFs and TXT files.'
+        : 'This simulates capture only — no real OCR or upload runs.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Capture',
-          onPress: () => void runPipeline(type),
+          text: isFile ? 'Choose file' : 'Capture',
+          onPress: () =>
+            void (isFile ? runFileUpload(type) : runMockPipeline(type)),
         },
       ],
     );
@@ -105,8 +217,8 @@ export default function CaptureScreen() {
       />
       <SurfaceCard>
         <ThemedText colorKey="textSecondary" style={styles.body}>
-          Choose a source. Kairos will simulate upload → processing → memory creation so you can
-          feel the future async pipeline.
+          Documents, photos, and screenshots upload to the Kairos backend. Notes,
+          links, and audio still use the local mock pipeline.
         </ThemedText>
       </SurfaceCard>
 
@@ -172,18 +284,19 @@ export default function CaptureScreen() {
         </SurfaceCard>
       ) : null}
 
+      {observationId ? (
+        <ThemedButton
+          label="View observation"
+          onPress={() => router.push(`/(app)/observation/${observationId}`)}
+        />
+      ) : null}
+
       {memoryId ? (
-        <>
-          <ThemedButton
-            label="Open memory"
-            onPress={() => router.push(`/(app)/memory/${memoryId}`)}
-          />
-          <ThemedButton
-            label="View observation"
-            variant="outline"
-            onPress={() => job && router.push(`/(app)/observation/${job.observationId}`)}
-          />
-        </>
+        <ThemedButton
+          label="Open memory"
+          variant="outline"
+          onPress={() => router.push(`/(app)/memory/${memoryId}`)}
+        />
       ) : null}
 
       <ThemedButton
