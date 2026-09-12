@@ -58,6 +58,8 @@ export class LexicalSearchService {
     params.push(userId);
     idx += 1;
 
+    where.push(`o."processingStatus" = 'COMPLETED'`);
+
     let ftsParam: number | null = null;
     const matchClauses: string[] = [];
 

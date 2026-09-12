@@ -22,6 +22,8 @@ import type {
 import { SOURCE_TYPE_LABELS, getSourceForMemory, getStore } from './mock/store';
 import { delay, isoDaysAgo } from './utils';
 
+export { SOURCE_TYPE_LABELS };
+
 function assertNotForcedError(): void {
   if (getStore().forceError) {
     throw new Error('Mock network error');
@@ -730,5 +732,3 @@ export const privacyService = {
     };
   },
 };
-
-export { SOURCE_TYPE_LABELS };

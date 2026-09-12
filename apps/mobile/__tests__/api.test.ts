@@ -1,6 +1,8 @@
 import {
   ApiError,
   askKairos,
+  createNoteObservation,
+  deleteObservation,
   fetchAuthMe,
   fetchObservation,
   isProcessingObservationStatus,
@@ -237,6 +239,66 @@ describe('observations API client', () => {
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringMatching(/\/ask$/),
       expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('creates a note and deletes an observation via API client', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({
+          data: {
+            id: 'obs_note',
+            filename: 'hello.txt',
+            mimeType: 'text/plain',
+            type: 'TEXT',
+            status: 'PENDING',
+            createdAt: '2026-09-12T00:00:00.000Z',
+            updatedAt: '2026-09-12T00:00:00.000Z',
+            capturedAt: '2026-09-12T00:00:00.000Z',
+            extractedText: null,
+            summary: null,
+            processingError: null,
+            sourceMetadata: null,
+            metadata: {
+              filename: 'hello.txt',
+              mimeType: 'text/plain',
+              fileSizeBytes: 12,
+              pageCount: null,
+              characterCount: null,
+              wordCount: null,
+              chunkCount: null,
+            },
+            topics: [],
+            entities: [],
+            projects: [],
+            chunkCount: 0,
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+      }) as typeof fetch;
+
+    const note = await createNoteObservation({
+      token: 'tok',
+      text: 'Hello Kairos',
+      title: 'Hello',
+    });
+    expect(note.id).toBe('obs_note');
+    await expect(deleteObservation('tok', 'obs_note')).resolves.toBeUndefined();
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      expect.stringMatching(/\/observations\/from-text$/),
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      expect.stringMatching(/\/observations\/obs_note$/),
+      expect.objectContaining({ method: 'DELETE' }),
     );
   });
 });

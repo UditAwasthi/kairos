@@ -160,6 +160,119 @@ export async function uploadObservation(params: {
   return body.data;
 }
 
+/** Upload a plain-text note/link as a .txt observation via the existing upload API. */
+export async function uploadTextObservation(params: {
+  token: string;
+  text: string;
+  filename?: string;
+}): Promise<ApiObservation> {
+  const FileSystem = await import('expo-file-system/legacy');
+  const name = params.filename || `note-${Date.now()}.txt`;
+  const base = FileSystem.cacheDirectory;
+  if (!base) {
+    throw new ApiError('Local file cache is unavailable on this device.', 500);
+  }
+  const uri = `${base}${name}`;
+  await FileSystem.writeAsStringAsync(uri, params.text, {
+    encoding: FileSystem.EncodingType.UTF8,
+  });
+  try {
+    return await uploadObservation({
+      token: params.token,
+      uri,
+      name,
+      mimeType: 'text/plain',
+    });
+  } finally {
+    await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => undefined);
+  }
+}
+
+export async function createNoteObservation(params: {
+  token: string;
+  text: string;
+  title?: string;
+}): Promise<ApiObservation> {
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/observations/from-text`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: params.text,
+        title: params.title,
+      }),
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: ApiObservation };
+  return body.data;
+}
+
+export async function createUrlObservation(params: {
+  token: string;
+  url: string;
+}): Promise<ApiObservation> {
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/observations/from-url`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url: params.url }),
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: ApiObservation };
+  return body.data;
+}
+
+export async function deleteObservation(
+  token: string,
+  id: string,
+): Promise<void> {
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/observations/${encodeURIComponent(id)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok && response.status !== 204) {
+    throw await parseError(response);
+  }
+}
+
+export async function deleteMyData(token: string): Promise<{
+  deletedObservations: number;
+}> {
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/users/me/data`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as {
+    data: { deletedObservations: number };
+  };
+  return body.data;
+}
+
 export async function fetchObservation(
   token: string,
   id: string,

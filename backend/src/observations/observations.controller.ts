@@ -1,7 +1,10 @@
 import {
+  Body,
   Controller,
+  Delete,
   Get,
   Header,
+  HttpCode,
   Param,
   Post,
   Query,
@@ -40,6 +43,31 @@ export class ObservationsController {
     const observation = await this.observations.upload({
       clerkUserId: user.id,
       file,
+    });
+    return { data: observation };
+  }
+
+  @Post('from-text')
+  async fromText(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { text?: string; title?: string },
+  ): Promise<{ data: ObservationResponse }> {
+    const observation = await this.observations.createFromText({
+      clerkUserId: user.id,
+      text: body?.text ?? '',
+      title: body?.title,
+    });
+    return { data: observation };
+  }
+
+  @Post('from-url')
+  async fromUrl(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { url?: string },
+  ): Promise<{ data: ObservationResponse }> {
+    const observation = await this.observations.createFromUrl({
+      clerkUserId: user.id,
+      url: body?.url ?? '',
     });
     return { data: observation };
   }
@@ -109,5 +137,14 @@ export class ObservationsController {
       id,
     );
     return { data: observation };
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  async remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<void> {
+    await this.observations.deleteForClerkUser(user.id, id);
   }
 }

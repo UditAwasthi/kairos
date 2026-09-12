@@ -1,3 +1,5 @@
+import { useAuth } from '@clerk/expo';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -5,65 +7,49 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SectionHeader, SurfaceCard } from '../../components/ui/SectionHeader';
 import { ThemedButton } from '../../components/ui/ThemedButton';
 import { ThemedText } from '../../components/ThemedText';
+import { ApiError, deleteMyData } from '../../lib/api';
 import { useAppTheme } from '../../providers/ThemeProvider';
-import { privacyService } from '../../services';
+import { useOnboarding } from '../../providers/OnboardingProvider';
 
 export default function DataScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { themeProgress } = useAppTheme();
-  const [message, setMessage] = useState<string | null>(null);
+  const { getToken, signOut } = useAuth();
+  const { resetOnboarding } = useOnboarding();
   const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
-  const onExport = async () => {
-    setBusy(true);
-    try {
-      const result = await privacyService.exportData();
-      setMessage(result.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onDelete = () => {
+  const onDeleteMyData = () => {
     Alert.alert(
-      'Delete data?',
-      'This demo records a deletion request locally. Server-side deletion is not available yet.',
+      'Delete all Kairos data?',
+      'This permanently deletes your observations, chunks, embeddings, projects, conversations, topics, entities, and uploaded files from Kairos. Your Clerk login is not deleted.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Confirm delete request',
+          text: 'Delete my data',
           style: 'destructive',
           onPress: () => {
             void (async () => {
-              setBusy(true);
               try {
-                const result = await privacyService.requestDeletion();
-                setMessage(result.message);
-              } finally {
-                setBusy(false);
-              }
-            })();
-          },
-        },
-      ],
-    );
-  };
-
-  const onDeleteAccount = () => {
-    Alert.alert(
-      'Delete account?',
-      'Records a mock account deletion request. Clerk teardown requires the real backend.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Request deletion',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              setBusy(true);
-              try {
-                const result = await privacyService.requestAccountDeletion();
-                setMessage(result.message);
+                setBusy(true);
+                setMessage(null);
+                const token = await getToken();
+                if (!token) throw new ApiError('Sign in required.', 401);
+                const result = await deleteMyData(token);
+                setMessage(
+                  `Deleted ${result.deletedObservations} observation${
+                    result.deletedObservations === 1 ? '' : 's'
+                  } and related Kairos data.`,
+                );
+                await signOut();
+                await resetOnboarding();
+                router.replace('/');
+              } catch (err) {
+                Alert.alert(
+                  'Unable to delete data',
+                  err instanceof ApiError ? err.message : 'Try again.',
+                );
               } finally {
                 setBusy(false);
               }
@@ -79,39 +65,30 @@ export default function DataScreen() {
       <SectionHeader title="Export" />
       <SurfaceCard>
         <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
-          Request an export of memories, observations, and organization data. Download delivery
-          requires the backend privacy API.
+          Data export is not available yet.
+        </ThemedText>
+      </SurfaceCard>
+
+      <SectionHeader title="Delete my Kairos data" />
+      <SurfaceCard>
+        <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
+          Permanently erase observations, derived records, conversations, projects,
+          and uploaded media owned by your account. This cannot be undone.
         </ThemedText>
       </SurfaceCard>
       <ThemedButton
-        label={busy ? 'Working…' : 'Export data'}
+        label={busy ? 'Deleting…' : 'Delete my data'}
         disabled={busy}
-        variant="outline"
-        onPress={() => void onExport()}
+        onPress={onDeleteMyData}
       />
 
-      <SectionHeader title="Delete library data" />
+      <SectionHeader title="Clerk account" />
       <SurfaceCard>
         <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
-          Deletion requires confirmation. This frontend demo does not permanently erase cloud data
-          because the privacy backend is not connected yet.
+          Deleting Kairos data does not close your Clerk identity. Use Clerk
+          account settings if you also need to remove the login itself.
         </ThemedText>
       </SurfaceCard>
-      <ThemedButton label="Delete data" disabled={busy} onPress={onDelete} />
-
-      <SectionHeader title="Delete account" />
-      <SurfaceCard>
-        <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
-          Account deletion will remove identity and personal memory data once Clerk and the NestJS
-          privacy APIs are wired together.
-        </ThemedText>
-      </SurfaceCard>
-      <ThemedButton
-        label="Delete account"
-        variant="outline"
-        disabled={busy}
-        onPress={onDeleteAccount}
-      />
 
       {message ? (
         <SurfaceCard>

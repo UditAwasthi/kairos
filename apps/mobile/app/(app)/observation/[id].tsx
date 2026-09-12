@@ -1,7 +1,7 @@
 import { useAuth } from '@clerk/expo';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../../components/ThemedText';
@@ -9,8 +9,10 @@ import { ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
 import { Badge } from '../../../components/ui/MetricCard';
 import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
+import { SOURCE_TYPE_LABELS } from '../../../constants/source-labels';
 import {
   ApiError,
+  deleteObservation,
   fetchObservation,
   formatObservationReadyTime,
   isProcessingObservationStatus,
@@ -20,7 +22,6 @@ import {
   reprocessObservation,
   type ApiObservation,
 } from '../../../lib/api';
-import { SOURCE_TYPE_LABELS, observationsService } from '../../../services';
 import type { Observation, ProcessingStatus, SourceType } from '../../../types';
 
 const POLL_MS = 2000;
@@ -111,6 +112,7 @@ export default function ObservationDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const matchedSnippet =
     typeof highlight === 'string' && highlight.trim().length > 0
       ? highlight.trim()
@@ -122,8 +124,8 @@ export default function ObservationDetailScreen() {
     const observationId = String(id);
     const token = await getToken();
     if (!token) {
-      const mock = await observationsService.get(observationId);
-      setData(mock);
+      setError('Sign in to view this observation.');
+      setData(null);
       setApiObs(null);
       return;
     }
@@ -135,12 +137,14 @@ export default function ObservationDetailScreen() {
       setError(null);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        const mock = await observationsService.get(observationId);
-        setData(mock);
-        setApiObs(null);
-        return;
+        setError('Observation not found.');
+      } else if (err instanceof ApiError && err.status === 401) {
+        setError('Your session expired. Sign in again.');
+      } else {
+        setError('Unable to load observation.');
       }
-      setError('Unable to load observation.');
+      setData(null);
+      setApiObs(null);
     }
   }, [getToken, id]);
 
@@ -212,6 +216,38 @@ export default function ObservationDetailScreen() {
     } finally {
       setRetrying(false);
     }
+  };
+
+  const onDelete = () => {
+    Alert.alert(
+      'Delete observation?',
+      'This permanently deletes the observation, its chunks, embeddings, and cloud file. Projects stay; only membership is removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                setDeleting(true);
+                const token = await getToken();
+                if (!token) throw new ApiError('Sign in required.', 401);
+                await deleteObservation(token, String(id));
+                router.replace('/(app)/(tabs)/timeline');
+              } catch (err) {
+                Alert.alert(
+                  'Unable to delete',
+                  err instanceof ApiError ? err.message : 'Try again.',
+                );
+              } finally {
+                setDeleting(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
   };
 
   if (loading && !data) return <LoadingSkeleton rows={8} />;
@@ -426,32 +462,16 @@ export default function ObservationDetailScreen() {
         </ThemedText>
       </SurfaceCard>
 
-      <SectionHeader title="Linked memories" />
-      {data.linkedMemoryIds.length === 0 ? (
-        <SurfaceCard>
-          <ThemedText colorKey="textMuted" style={styles.meta}>
-            No linked memories yet.
-          </ThemedText>
-        </SurfaceCard>
-      ) : (
-        data.linkedMemoryIds.map((memoryId) => (
-          <Pressable
-            key={memoryId}
-            onPress={() => router.push(`/(app)/memory/${memoryId}`)}
-          >
-            <SurfaceCard>
-              <ThemedText colorKey="text" style={styles.cardTitle}>
-                Open linked memory
-              </ThemedText>
-            </SurfaceCard>
-          </Pressable>
-        ))
-      )}
-
       <ThemedButton
         label="Processing activity"
         variant="outline"
         onPress={() => router.push('/(app)/activity')}
+      />
+      <ThemedButton
+        label={deleting ? 'Deleting…' : 'Delete observation'}
+        variant="outline"
+        disabled={deleting || retrying}
+        onPress={onDelete}
       />
     </ScrollView>
   );

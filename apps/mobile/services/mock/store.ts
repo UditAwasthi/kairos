@@ -1,3 +1,4 @@
+import { SOURCE_TYPE_LABELS } from '../../constants/source-labels';
 import type {
   AppNotification,
   AppSettings,
@@ -12,16 +13,7 @@ import type {
 } from '../../types';
 import { isoDaysAgo } from '../utils';
 
-export const SOURCE_TYPE_LABELS = {
-  screenshot: 'Screenshot',
-  photo: 'Photo',
-  document: 'Document',
-  note: 'Note',
-  link: 'Link',
-  audio: 'Audio',
-  conversation: 'Conversation',
-  task: 'Task',
-} as const;
+export { SOURCE_TYPE_LABELS };
 
 type Store = {
   topics: Topic[];

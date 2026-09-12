@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ProcessingStatus } from '@prisma/client';
+import { ObservationType, Prisma, ProcessingStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -24,6 +24,7 @@ import {
   resolveProjectFilter,
   resolveTopicFilter,
 } from '../metadata/resolve-filters';
+import { fetchUrlContent } from './url-ingest';
 
 const observationInclude = {
   observationTopics: { include: { topic: true } },
@@ -31,6 +32,8 @@ const observationInclude = {
   projectObservations: { include: { project: true } },
   _count: { select: { chunks: true } },
 } as const;
+
+const MAX_NOTE_CHARS = 100_000;
 
 @Injectable()
 export class ObservationsService {
@@ -90,6 +93,125 @@ export class ObservationsService {
         sourceMetadata: {
           clientMimeType: params.file.mimetype ?? null,
         },
+      },
+      include: observationInclude,
+    });
+
+    setImmediate(() => {
+      void this.processor.process(observation.id);
+    });
+
+    return toObservationResponse(observation);
+  }
+
+  async createFromText(params: {
+    clerkUserId: string;
+    text: string;
+    title?: string;
+  }): Promise<ObservationResponse> {
+    const text = params.text?.trim() ?? '';
+    if (!text) {
+      throw new BadRequestException({
+        error: {
+          code: 'MISSING_TEXT',
+          message: 'Note text is required.',
+        },
+      });
+    }
+    if (text.length > MAX_NOTE_CHARS) {
+      throw new BadRequestException({
+        error: {
+          code: 'TEXT_TOO_LARGE',
+          message: 'Note text is too long.',
+        },
+      });
+    }
+
+    const title = (params.title?.trim() || text.slice(0, 48)).slice(0, 80);
+    const safeFilename = `${slugFilename(title)}.txt`;
+    const buffer = Buffer.from(text, 'utf8');
+    return this.createStoredObservation({
+      clerkUserId: params.clerkUserId,
+      buffer,
+      mimeType: 'text/plain',
+      observationType: ObservationType.TEXT,
+      safeFilename,
+      sourceMetadata: {
+        captureKind: 'note',
+        title,
+      },
+    });
+  }
+
+  async createFromUrl(params: {
+    clerkUserId: string;
+    url: string;
+  }): Promise<ObservationResponse> {
+    const fetched = await fetchUrlContent(params.url);
+    const body = `${fetched.title}\nSource: ${fetched.url}\n\n${fetched.text}`;
+    const buffer = Buffer.from(body, 'utf8');
+    const safeFilename = `${slugFilename(fetched.title)}.txt`;
+    return this.createStoredObservation({
+      clerkUserId: params.clerkUserId,
+      buffer,
+      mimeType: 'text/plain',
+      observationType: ObservationType.TEXT,
+      safeFilename,
+      sourceMetadata: {
+        captureKind: 'url',
+        sourceUrl: fetched.url,
+        title: fetched.title,
+        fetchedContentType: fetched.contentType,
+      },
+    });
+  }
+
+  async deleteForClerkUser(
+    clerkUserId: string,
+    observationId: string,
+  ): Promise<void> {
+    const observation = await this.findOwned(clerkUserId, observationId);
+    const storageKey = observation.storageKey;
+    await this.prisma.observation.delete({ where: { id: observation.id } });
+    try {
+      await this.storage.delete(storageKey);
+    } catch {
+      // DB row is gone; storage cleanup is best-effort.
+    }
+  }
+
+  private async createStoredObservation(params: {
+    clerkUserId: string;
+    buffer: Buffer;
+    mimeType: string;
+    observationType: ObservationType;
+    safeFilename: string;
+    sourceMetadata: Prisma.InputJsonValue;
+  }): Promise<ObservationResponse> {
+    const user = await this.users.findOrCreateByClerkId(params.clerkUserId);
+    const storageKey = buildStorageKey(user.id, params.safeFilename);
+
+    try {
+      await this.storage.upload(storageKey, params.buffer, params.mimeType);
+    } catch {
+      throw new BadRequestException({
+        error: {
+          code: 'STORAGE_FAILURE',
+          message: 'Failed to store the observation.',
+        },
+      });
+    }
+
+    const observation = await this.prisma.observation.create({
+      data: {
+        userId: user.id,
+        type: params.observationType,
+        originalFilename: params.safeFilename,
+        mimeType: params.mimeType,
+        storageKey,
+        fileSizeBytes: params.buffer.byteLength,
+        processingStatus: ProcessingStatus.PENDING,
+        sourceMetadata: params.sourceMetadata,
       },
       include: observationInclude,
     });
@@ -238,4 +360,13 @@ export class ObservationsService {
 function buildStorageKey(userId: string, safeFilename: string): string {
   const stamp = new Date().toISOString().slice(0, 10);
   return `observations/${userId}/${stamp}/${randomUUID()}-${safeFilename}`;
+}
+
+function slugFilename(value: string): string {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+  return slug || 'note';
 }

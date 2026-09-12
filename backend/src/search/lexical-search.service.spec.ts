@@ -14,6 +14,7 @@ describe('LexicalSearchService', () => {
     expect(queryRaw).toHaveBeenCalled();
     const [sql, ...params] = queryRaw.mock.calls[0] as [string, ...unknown[]];
     expect(sql).toContain('o."userId" = $1');
+    expect(sql).toContain(`o."processingStatus" = 'COMPLETED'`);
     expect(sql).toContain('project_observations');
     expect(params[0]).toBe('user_a');
     expect(params).toContain('proj_1');
@@ -30,5 +31,6 @@ describe('LexicalSearchService', () => {
     expect(sql).toContain('plainto_tsquery');
     expect(sql).toContain('originalFilename');
     expect(sql).toContain('ILIKE');
+    expect(sql).toContain(`o."processingStatus" = 'COMPLETED'`);
   });
 });

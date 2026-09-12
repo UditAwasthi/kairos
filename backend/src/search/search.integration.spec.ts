@@ -98,7 +98,7 @@ const shouldRun = process.env.RUN_PGVECTOR_IT === '1';
           mimeType: 'text/plain',
           storageKey: `test/${fixture.userId}/${fixture.filename}`,
           fileSizeBytes: fixture.content.length,
-          processingStatus: 'CHUNKING',
+          processingStatus: 'COMPLETED',
           chunks: {
             create: {
               content: fixture.content,

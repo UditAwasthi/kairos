@@ -47,7 +47,7 @@ const shouldRun = process.env.RUN_PGVECTOR_IT === '1';
         mimeType: 'text/plain',
         storageKey: `test/${userA.id}/pg.txt`,
         fileSizeBytes: 100,
-        processingStatus: 'CHUNKING',
+        processingStatus: 'COMPLETED',
         chunks: {
           create: {
             content:
@@ -67,7 +67,7 @@ const shouldRun = process.env.RUN_PGVECTOR_IT === '1';
         mimeType: 'text/plain',
         storageKey: `test/${userB.id}/rn.txt`,
         fileSizeBytes: 100,
-        processingStatus: 'CHUNKING',
+        processingStatus: 'COMPLETED',
         chunks: {
           create: {
             content:
@@ -118,7 +118,7 @@ const shouldRun = process.env.RUN_PGVECTOR_IT === '1';
         mimeType: 'text/plain',
         storageKey: `test/${userA.id}/rn-shared.txt`,
         fileSizeBytes: 80,
-        processingStatus: 'CHUNKING',
+        processingStatus: 'COMPLETED',
         chunks: {
           create: {
             content:

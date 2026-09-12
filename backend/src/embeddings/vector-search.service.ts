@@ -71,6 +71,7 @@ export class VectorSearchService {
     let idx = 4;
     const where: string[] = [
       'o."userId" = $2',
+      `o."processingStatus" = 'COMPLETED'`,
       'c.embedding IS NOT NULL',
       'c."embeddingModel" = $3',
     ];

@@ -12,6 +12,7 @@ describe('ObservationsService', () => {
       findMany: jest.Mock;
       findFirst: jest.Mock;
       update: jest.Mock;
+      delete: jest.Mock;
     };
   };
   let storage: {
@@ -63,6 +64,7 @@ describe('ObservationsService', () => {
         findMany: jest.fn(),
         findFirst: jest.fn(),
         update: jest.fn(),
+        delete: jest.fn(),
       },
     };
     storage = {
@@ -251,5 +253,49 @@ describe('ObservationsService', () => {
     expect(result.projects).toEqual([{ id: 'proj_1', name: 'Alpha' }]);
     await new Promise((r) => setImmediate(r));
     expect(processor.process).toHaveBeenCalledWith('obs_1');
+  });
+
+  it('creates a note observation from text without a multipart file', async () => {
+    prisma.observation.create.mockResolvedValue(
+      baseObservation({
+        originalFilename: 'hello-kairos.txt',
+        type: ObservationType.TEXT,
+      }),
+    );
+
+    const result = await service.createFromText({
+      clerkUserId,
+      title: 'Hello Kairos',
+      text: 'Hello Kairos memory capture from a note.',
+    });
+
+    expect(storage.upload).toHaveBeenCalled();
+    expect(result.status).toBe(ProcessingStatus.PENDING);
+    await new Promise((r) => setImmediate(r));
+    expect(processor.process).toHaveBeenCalledWith('obs_1');
+  });
+
+  it('deletes an owned observation and its storage object', async () => {
+    prisma.observation.findFirst.mockResolvedValue(baseObservation());
+    prisma.observation.delete.mockResolvedValue(baseObservation());
+
+    await service.deleteForClerkUser(clerkUserId, 'obs_1');
+
+    expect(prisma.observation.delete).toHaveBeenCalledWith({
+      where: { id: 'obs_1' },
+    });
+    expect(storage.delete).toHaveBeenCalledWith(
+      'observations/user_a/x/notes.txt',
+    );
+  });
+
+  it('does not delete another user observation', async () => {
+    prisma.observation.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.deleteForClerkUser(clerkUserId, 'obs_other'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.observation.delete).not.toHaveBeenCalled();
+    expect(storage.delete).not.toHaveBeenCalled();
   });
 });

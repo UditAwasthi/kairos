@@ -20,7 +20,7 @@ export default function AboutScreen() {
           what you saved, and ask Kairos questions grounded in your own memories.
         </ThemedText>
         <ThemedText themeProgress={themeProgress} colorKey="textMuted" style={styles.meta}>
-          Version 1.0.0 · Frontend mock services
+          Version 1.0.0 · Connected to Kairos backend
         </ThemedText>
       </SurfaceCard>
     </ScrollView>

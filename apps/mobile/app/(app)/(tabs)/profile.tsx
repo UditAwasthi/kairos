@@ -79,7 +79,7 @@ export default function ProfileScreen() {
           Authenticated with Clerk
         </ThemedText>
         <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.meta}>
-          Personal AI memory · mock services active
+          Personal AI memory · connected to Kairos API
         </ThemedText>
       </SurfaceCard>
 
