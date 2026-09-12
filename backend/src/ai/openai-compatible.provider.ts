@@ -171,7 +171,20 @@ Rules:
         throw new Error('AI rate limit exceeded');
       }
       if (!response.ok) {
-        throw new Error(`AI request failed with status ${response.status}`);
+        let detail = '';
+        try {
+          const errBody = (await response.json()) as {
+            error?: { message?: string };
+          };
+          if (errBody.error?.message) {
+            detail = `: ${errBody.error.message}`;
+          }
+        } catch {
+          // ignore body parse errors
+        }
+        throw new Error(
+          `AI request failed with status ${response.status} (model=${this.model})${detail}`,
+        );
       }
 
       const body = (await response.json()) as {
