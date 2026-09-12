@@ -68,6 +68,9 @@ describe('AskController', () => {
         },
       ],
       insufficientEvidence: false,
+      conversationId: 'conv_1',
+      userMessageId: 'u1',
+      assistantMessageId: 'a1',
     });
 
     const res = await request(app.getHttpServer())

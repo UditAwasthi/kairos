@@ -156,6 +156,9 @@ describe('observations API client', () => {
             },
           ],
           insufficientEvidence: false,
+          conversationId: 'conv_1',
+          userMessageId: 'u1',
+          assistantMessageId: 'a1',
         },
       }),
     }) as typeof fetch;
@@ -166,6 +169,7 @@ describe('observations API client', () => {
       limit: 6,
     });
     expect(result.answer).toContain('Redis');
+    expect(result.conversationId).toBe('conv_1');
     expect(result.citations).toHaveLength(1);
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringMatching(/\/ask$/),

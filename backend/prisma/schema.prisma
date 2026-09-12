@@ -13,13 +13,14 @@ datasource db {
 }
 
 model User {
-  id           String        @id @default(cuid())
-  clerkUserId  String        @unique
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  observations Observation[]
-  topics       Topic[]
-  entities     Entity[]
+  id            String         @id @default(cuid())
+  clerkUserId   String         @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  observations  Observation[]
+  topics        Topic[]
+  entities      Entity[]
+  conversations Conversation[]
 
   @@map("users")
 }
@@ -156,4 +157,46 @@ model ObservationEntity {
 
   @@id([observationId, entityId])
   @@map("observation_entities")
+}
+
+enum ConversationMessageRole {
+  USER
+  ASSISTANT
+}
+
+enum ConversationMessageStatus {
+  COMPLETED
+  FAILED
+}
+
+model Conversation {
+  id        String                @id @default(cuid())
+  userId    String
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  messages  ConversationMessage[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("conversations")
+}
+
+model ConversationMessage {
+  id                    String                     @id @default(cuid())
+  conversationId        String
+  conversation          Conversation               @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role                  ConversationMessageRole
+  content               String
+  status                ConversationMessageStatus  @default(COMPLETED)
+  /// Validated citations only: [{observationId, chunkId, title, snippet, createdAt}]
+  citations             Json?
+  insufficientEvidence  Boolean?
+  /// Client-supplied idempotency key for USER turns (unique per conversation when set).
+  clientRequestId       String?
+  createdAt             DateTime                   @default(now())
+
+  @@unique([conversationId, clientRequestId])
+  @@index([conversationId, createdAt])
+  @@map("conversation_messages")
 }

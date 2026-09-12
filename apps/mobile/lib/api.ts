@@ -315,15 +315,46 @@ export type ApiAskResponse = {
   answer: string;
   citations: ApiAskCitation[];
   insufficientEvidence: boolean;
+  conversationId: string;
+  userMessageId: string;
+  assistantMessageId: string;
+};
+
+export type ApiConversationSummary = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+};
+
+export type ApiConversationMessage = {
+  id: string;
+  role: 'USER' | 'ASSISTANT';
+  content: string;
+  status: 'COMPLETED' | 'FAILED';
+  citations: ApiAskCitation[];
+  insufficientEvidence: boolean | null;
+  createdAt: string;
+};
+
+export type ApiConversationDetail = ApiConversationSummary & {
+  messages: ApiConversationMessage[];
+  nextCursor: string | null;
 };
 
 export async function askKairos(params: {
   token: string;
   question: string;
   limit?: number;
+  conversationId?: string;
+  clientRequestId?: string;
   filters?: ApiSemanticSearchFilters;
 }): Promise<ApiAskResponse> {
-  const response = await fetch(`${normalizeBaseUrl(apiBaseUrl)}/ask`, {
+  const path = params.conversationId
+    ? `/conversations/${encodeURIComponent(params.conversationId)}/ask`
+    : '/ask';
+  const response = await fetch(`${normalizeBaseUrl(apiBaseUrl)}${path}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${params.token}`,
@@ -333,7 +364,11 @@ export async function askKairos(params: {
     body: JSON.stringify({
       question: params.question,
       limit: params.limit,
+      clientRequestId: params.clientRequestId,
       filters: params.filters,
+      ...(params.conversationId
+        ? {}
+        : { conversationId: params.conversationId }),
     }),
   });
 
@@ -343,4 +378,72 @@ export async function askKairos(params: {
 
   const body = (await response.json()) as { data: ApiAskResponse };
   return body.data;
+}
+
+export async function listConversations(params: {
+  token: string;
+  limit?: number;
+  cursor?: string;
+}): Promise<{ items: ApiConversationSummary[]; nextCursor: string | null }> {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.cursor) qs.set('cursor', params.cursor);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/conversations${suffix}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as {
+    data: { items: ApiConversationSummary[]; nextCursor: string | null };
+  };
+  return body.data;
+}
+
+export async function fetchConversation(params: {
+  token: string;
+  id: string;
+  limit?: number;
+}): Promise<ApiConversationDetail> {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/conversations/${encodeURIComponent(params.id)}${suffix}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: ApiConversationDetail };
+  return body.data;
+}
+
+export async function deleteConversation(params: {
+  token: string;
+  id: string;
+}): Promise<void> {
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/conversations/${encodeURIComponent(params.id)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok && response.status !== 204) {
+    throw await parseError(response);
+  }
 }

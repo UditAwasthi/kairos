@@ -2,12 +2,6 @@ import { AskService } from './ask.service';
 import { RagContextBuilder } from './rag-context.builder';
 import type { SemanticSearchResult } from '../search/search.service';
 
-/**
- * Isolation test: AskService only receives SearchService hits.
- * SearchService is already user-scoped; we assert Ask never passes foreign hits
- * to the LLM even if a buggy search were to be mocked incorrectly — and that
- * Ask calls search with the authenticated Clerk id only.
- */
 describe('AskService user isolation', () => {
   it('scopes retrieval to the authenticated clerk user and never mixes users', async () => {
     const userAHit: SemanticSearchResult = {
@@ -60,9 +54,27 @@ describe('AskService user isolation', () => {
         }),
     };
 
+    const users = {
+      findOrCreateByClerkId: jest.fn().mockResolvedValue({
+        id: 'user_a',
+        clerkUserId: 'clerk_user_a',
+      }),
+    };
+
+    const conversations = {
+      ensureOwned: jest.fn(),
+      createWithTitle: jest.fn().mockResolvedValue({ id: 'conv_a' }),
+      findIdempotentTurn: jest.fn().mockResolvedValue(null),
+      persistUserMessage: jest.fn().mockResolvedValue({ id: 'u1' }),
+      persistAssistantMessage: jest.fn().mockResolvedValue({ id: 'a1' }),
+      loadRecentHistory: jest.fn().mockResolvedValue([]),
+    };
+
     const service = new AskService(
       search as never,
       new RagContextBuilder(),
+      conversations as never,
+      users as never,
       ai as never,
     );
 

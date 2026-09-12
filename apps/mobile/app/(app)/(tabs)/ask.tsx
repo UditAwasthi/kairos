@@ -1,6 +1,6 @@
 import { useAuth } from '@clerk/expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -24,7 +24,14 @@ import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
 import { AccentGradient, GlassPanel, ScreenGradient } from '../../../components/ui/Glass';
 import { AskBubble, EvidenceCard } from '../../../components/ui/MemoryCards';
 import { useAppTheme } from '../../../providers/ThemeProvider';
-import { ApiError, askKairos } from '../../../lib/api';
+import {
+  ApiError,
+  askKairos,
+  deleteConversation,
+  fetchConversation,
+  listConversations,
+  type ApiConversationSummary,
+} from '../../../lib/api';
 import type { AskMessage } from '../../../types';
 
 const STARTERS = [
@@ -37,10 +44,8 @@ const STARTERS = [
 const INPUT_MIN = 22;
 const INPUT_MAX = 120;
 
-/** Tracks keyboard height without forcing Android adjustResize (we use pan + spacer). */
 function useGradualKeyboardHeight() {
   const height = useSharedValue(0);
-
   useGenericKeyboardHandler(
     {
       onMove: (event) => {
@@ -54,8 +59,33 @@ function useGradualKeyboardHeight() {
     },
     [],
   );
-
   return height;
+}
+
+function toUiMessages(
+  rows: Array<{
+    id: string;
+    role: 'USER' | 'ASSISTANT';
+    content: string;
+    createdAt: string;
+    citations?: AskMessage['sources'];
+    insufficientEvidence?: boolean | null;
+  }>,
+): AskMessage[] {
+  return rows.map((row) => ({
+    id: row.id,
+    role: row.role === 'USER' ? 'user' : 'kairos',
+    content: row.content,
+    createdAt: row.createdAt,
+    sources: row.citations?.map((c) => ({
+      observationId: c.observationId,
+      chunkId: c.chunkId,
+      title: c.title,
+      snippet: c.snippet,
+      createdAt: c.createdAt,
+    })),
+    insufficientEvidence: row.insufficientEvidence ?? undefined,
+  }));
 }
 
 export default function AskScreen() {
@@ -69,14 +99,23 @@ export default function AskScreen() {
   const keyboardHeight = useGradualKeyboardHeight();
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
 
+  const [view, setView] = useState<'list' | 'thread'>('list');
+  const [conversations, setConversations] = useState<ApiConversationSummary[]>(
+    [],
+  );
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversationTitle, setConversationTitle] = useState('Ask Kairos');
   const [input, setInput] = useState('');
   const [inputHeight, setInputHeight] = useState(INPUT_MIN);
   const [messages, setMessages] = useState<AskMessage[]>([]);
   const [typing, setTyping] = useState(false);
+  const [loadingList, setLoadingList] = useState(false);
+  const [loadingThread, setLoadingThread] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusLabel, setStatusLabel] = useState('Looking through your memories…');
 
   const canSend = input.trim().length > 0 && !typing;
-  const empty = messages.length === 0 && !typing;
+  const emptyThread = messages.length === 0 && !typing;
 
   const keyboardSpacerStyle = useAnimatedStyle(() => ({
     height: Math.abs(keyboardHeight.value),
@@ -92,51 +131,130 @@ export default function AskScreen() {
     if (keyboardVisible) scrollToEnd();
   }, [keyboardVisible]);
 
+  const refreshList = useCallback(async () => {
+    setLoadingList(true);
+    try {
+      const token = await getToken();
+      if (!token) throw new ApiError('You must be signed in.', 401);
+      const data = await listConversations({ token, limit: 30 });
+      setConversations(data.items);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : 'Could not load conversations.',
+      );
+    } finally {
+      setLoadingList(false);
+    }
+  }, [getToken]);
+
+  useEffect(() => {
+    if (view === 'list') void refreshList();
+  }, [view, refreshList]);
+
+  const openConversation = async (id: string) => {
+    setLoadingThread(true);
+    setError(null);
+    try {
+      const token = await getToken();
+      if (!token) throw new ApiError('You must be signed in.', 401);
+      const detail = await fetchConversation({ token, id, limit: 50 });
+      setConversationId(detail.id);
+      setConversationTitle(detail.title);
+      setMessages(
+        toUiMessages(
+          detail.messages.map((m) => ({
+            ...m,
+            citations: m.citations,
+          })),
+        ),
+      );
+      setView('thread');
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : 'Could not open conversation.',
+      );
+    } finally {
+      setLoadingThread(false);
+    }
+  };
+
+  const startNewConversation = () => {
+    setConversationId(null);
+    setConversationTitle('New conversation');
+    setMessages([]);
+    setError(null);
+    setView('thread');
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
   const send = async (text: string) => {
     const query = text.trim();
     if (!query || typing) return;
 
-    const userMessage: AskMessage = {
-      id: `user-${Date.now()}`,
+    const clientRequestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const optimisticUser: AskMessage = {
+      id: `local-user-${Date.now()}`,
       role: 'user',
       content: query,
       createdAt: new Date().toISOString(),
     };
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [...prev, optimisticUser]);
     setInput('');
     setInputHeight(INPUT_MIN);
     setTyping(true);
     setError(null);
+    setStatusLabel('Searching memories…');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     scrollToEnd();
 
     try {
       const token = await getToken();
-      if (!token) {
-        throw new ApiError('You must be signed in to ask Kairos.', 401);
-      }
+      if (!token) throw new ApiError('You must be signed in to ask Kairos.', 401);
 
+      setStatusLabel('Thinking…');
       const result = await askKairos({
         token,
         question: query,
         limit: 6,
+        conversationId: conversationId ?? undefined,
+        clientRequestId,
       });
 
-      const kairosMessage: AskMessage = {
-        id: `kairos-${Date.now()}`,
-        role: 'kairos',
-        content: result.answer,
-        createdAt: new Date().toISOString(),
-        sources: result.citations.map((citation) => ({
-          observationId: citation.observationId,
-          chunkId: citation.chunkId,
-          title: citation.title,
-          snippet: citation.snippet,
-          createdAt: citation.createdAt,
-        })),
-        insufficientEvidence: result.insufficientEvidence,
-      };
-      setMessages((prev) => [...prev, kairosMessage]);
+      setConversationId(result.conversationId);
+      if (!conversationId) {
+        setConversationTitle(query.slice(0, 80));
+      }
+
+      setMessages((prev) => {
+        const withoutOptimistic = prev.filter((m) => m.id !== optimisticUser.id);
+        return [
+          ...withoutOptimistic,
+          {
+            id: result.userMessageId,
+            role: 'user',
+            content: query,
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: result.assistantMessageId,
+            role: 'kairos',
+            content: result.answer,
+            createdAt: new Date().toISOString(),
+            sources: result.citations.map((citation) => ({
+              observationId: citation.observationId,
+              chunkId: citation.chunkId,
+              title: citation.title,
+              snippet: citation.snippet,
+              createdAt: citation.createdAt,
+            })),
+            insufficientEvidence: result.insufficientEvidence,
+          },
+        ];
+      });
     } catch (err) {
       const message =
         err instanceof ApiError
@@ -150,47 +268,138 @@ export default function AskScreen() {
   };
 
   useEffect(() => {
-    if (typeof params.q === 'string' && params.q.length > 0 && messages.length === 0) {
+    if (typeof params.q === 'string' && params.q.length > 0 && view === 'list') {
+      startNewConversation();
       void send(params.q);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.q]);
 
+  if (view === 'list') {
+    return (
+      <ScreenGradient>
+        <View style={[styles.flex, { paddingBottom: FLOATING_TAB_BAR_CONTENT + insets.bottom }]}>
+          <View style={styles.listHeader}>
+            <ThemedText colorKey="text" style={styles.emptyTitle}>
+              Ask Kairos
+            </ThemedText>
+            <ThemedText colorKey="textMuted" style={styles.emptyHint}>
+              Grounded conversations over your memories
+            </ThemedText>
+            <Pressable onPress={startNewConversation} accessibilityRole="button">
+              <GlassPanel contentStyle={styles.starterInner} padded={false}>
+                <Feather name="plus" size={16} color={colors.accent} />
+                <ThemedText colorKey="text" style={styles.starter}>
+                  New conversation
+                </ThemedText>
+              </GlassPanel>
+            </Pressable>
+          </View>
+
+          {loadingList ? (
+            <View style={styles.typingBlock}>
+              <ActivityIndicator color={colors.accent} />
+            </View>
+          ) : null}
+
+          <ScrollView contentContainerStyle={styles.listContent}>
+            {conversations.length === 0 && !loadingList ? (
+              <ThemedText colorKey="textMuted" style={styles.emptyHint}>
+                No conversations yet. Ask a question to start one.
+              </ThemedText>
+            ) : null}
+            {conversations.map((item) => (
+              <Pressable
+                key={item.id}
+                onPress={() => void openConversation(item.id)}
+                onLongPress={async () => {
+                  try {
+                    const token = await getToken();
+                    if (!token) return;
+                    await deleteConversation({ token, id: item.id });
+                    await refreshList();
+                  } catch {
+                    setError('Could not delete conversation.');
+                  }
+                }}
+              >
+                <GlassPanel contentStyle={styles.conversationRow} padded={false}>
+                  <View style={styles.flex}>
+                    <ThemedText colorKey="text" style={styles.conversationTitle} numberOfLines={1}>
+                      {item.title}
+                    </ThemedText>
+                    <ThemedText colorKey="textMuted" style={styles.meta}>
+                      {item.messageCount} messages ·{' '}
+                      {new Date(item.updatedAt).toLocaleDateString()}
+                    </ThemedText>
+                  </View>
+                  <Feather name="chevron-right" size={16} color={colors.textMuted} />
+                </GlassPanel>
+              </Pressable>
+            ))}
+            {error ? (
+              <ThemedText colorKey="error" style={styles.body}>
+                {error}
+              </ThemedText>
+            ) : null}
+          </ScrollView>
+        </View>
+      </ScreenGradient>
+    );
+  }
+
   return (
     <ScreenGradient>
       <View style={styles.flex}>
+        <View style={styles.threadHeader}>
+          <Pressable
+            onPress={() => {
+              setView('list');
+              void refreshList();
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Back to conversations"
+          >
+            <Feather name="chevron-left" size={22} color={colors.text} />
+          </Pressable>
+          <ThemedText colorKey="text" style={styles.threadTitle} numberOfLines={1}>
+            {conversationTitle}
+          </ThemedText>
+          <Pressable onPress={startNewConversation} hitSlop={8} accessibilityRole="button">
+            <Feather name="edit" size={18} color={colors.accent} />
+          </Pressable>
+        </View>
+
         <ScrollView
           ref={scrollRef}
           style={styles.flex}
           contentContainerStyle={[
             styles.content,
-            empty && styles.contentEmpty,
+            emptyThread && styles.contentEmpty,
             { paddingBottom: 16 },
           ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => {
-            if (!empty) scrollToEnd(false);
+            if (!emptyThread) scrollToEnd(false);
           }}
         >
-          {empty ? (
-            <Pressable style={styles.empty} onPress={() => inputRef.current?.focus()}>
-              <ThemedText colorKey="text" style={styles.emptyTitle}>
-                Ask Kairos
-              </ThemedText>
-              <ThemedText colorKey="textMuted" style={styles.emptyHint}>
-                Grounded in what you saved
-              </ThemedText>
+          {loadingThread ? (
+            <View style={styles.typingBlock}>
+              <ActivityIndicator color={colors.accent} />
+            </View>
+          ) : null}
 
+          {emptyThread && !loadingThread ? (
+            <Pressable style={styles.empty} onPress={() => inputRef.current?.focus()}>
+              <ThemedText colorKey="textMuted" style={styles.emptyHint}>
+                Ask a follow-up anytime. Answers stay grounded in your saved memories.
+              </ThemedText>
               <View style={styles.starters}>
                 {STARTERS.map((q) => (
-                  <Pressable
-                    key={q}
-                    onPress={() => void send(q)}
-                    accessibilityRole="button"
-                    accessibilityLabel={q}
-                  >
+                  <Pressable key={q} onPress={() => void send(q)} accessibilityRole="button">
                     <GlassPanel contentStyle={styles.starterInner} padded={false}>
                       <Feather name="arrow-up-right" size={14} color={colors.accent} />
                       <ThemedText colorKey="text" style={styles.starter} numberOfLines={2}>
@@ -236,7 +445,7 @@ export default function AskScreen() {
               <View style={styles.typingBlock}>
                 <ActivityIndicator color={colors.accent} size="small" />
                 <ThemedText colorKey="textMuted" style={styles.typingLabel}>
-                  Looking through your memories…
+                  {statusLabel}
                 </ThemedText>
               </View>
             ) : null}
@@ -344,6 +553,33 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   contentEmpty: { justifyContent: 'center' },
+  listHeader: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
+  listContent: { padding: 16, gap: 10 },
+  conversationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  conversationTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 15,
+  },
+  meta: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 2 },
+  threadHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  threadTitle: {
+    flex: 1,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 16,
+  },
   empty: { gap: 10, paddingBottom: 24 },
   emptyTitle: {
     fontFamily: 'Inter_600SemiBold',
@@ -355,7 +591,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 18,
+    marginBottom: 8,
   },
   starters: { gap: 10 },
   starterInner: {

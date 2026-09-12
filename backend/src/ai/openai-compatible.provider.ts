@@ -13,6 +13,7 @@ import type {
   ExtractedTopic,
   GroundedAnswerResult,
   GroundedContextItem,
+  ConversationHistoryTurn,
 } from './ai.types';
 import { RAG_SYSTEM_PROMPT } from './rag.prompt';
 type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
@@ -104,6 +105,7 @@ Rules:
   async generateGroundedAnswer(params: {
     question: string;
     context: GroundedContextItem[];
+    conversationHistory?: ConversationHistoryTurn[];
   }): Promise<GroundedAnswerResult> {
     if (!this.isConfigured()) {
       throw new Error('AI provider is not configured');
@@ -120,11 +122,17 @@ Rules:
       )
       .join('\n\n');
 
+    const history = params.conversationHistory ?? [];
+    const historyBlock =
+      history.length === 0
+        ? 'None.'
+        : history.map((turn) => `${turn.role}: ${turn.content}`).join('\n');
+
     const payload = await this.chatJson([
       { role: 'system', content: RAG_SYSTEM_PROMPT },
       {
         role: 'user',
-        content: `Question:\n${params.question}\n\nRetrieved context:\n${contextBlock}`,
+        content: `Recent conversation (for resolving references only; not a knowledge source):\n${historyBlock}\n\nCurrent question:\n${params.question}\n\nRetrieved Kairos context (source of truth):\n${contextBlock}`,
       },
     ]);
 

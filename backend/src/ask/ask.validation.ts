@@ -4,11 +4,14 @@ import type { ObservationType } from '@prisma/client';
 export const MAX_ASK_QUESTION_LENGTH = 500;
 export const MAX_ASK_LIMIT = 10;
 export const DEFAULT_ASK_LIMIT = 6;
+export const MAX_CLIENT_REQUEST_ID_LENGTH = 120;
 
 export type AskRequestBody = {
   question?: unknown;
   query?: unknown;
   limit?: unknown;
+  conversationId?: unknown;
+  clientRequestId?: unknown;
   filters?: {
     from?: unknown;
     to?: unknown;
@@ -21,6 +24,8 @@ export type AskRequestBody = {
 export type ValidatedAskRequest = {
   question: string;
   limit: number;
+  conversationId?: string;
+  clientRequestId?: string;
   filters: {
     from?: Date;
     to?: Date;
@@ -69,6 +74,30 @@ export function validateAskRequest(body: AskRequestBody): ValidatedAskRequest {
     }
   }
 
+  let conversationId: string | undefined;
+  if (body.conversationId !== undefined && body.conversationId !== null) {
+    if (
+      typeof body.conversationId !== 'string' ||
+      !body.conversationId.trim()
+    ) {
+      throw badRequest('INVALID_CONVERSATION', 'Invalid conversationId.');
+    }
+    conversationId = body.conversationId.trim();
+  }
+
+  let clientRequestId: string | undefined;
+  if (body.clientRequestId !== undefined && body.clientRequestId !== null) {
+    if (
+      typeof body.clientRequestId !== 'string' ||
+      !body.clientRequestId.trim()
+    ) {
+      throw badRequest('INVALID_REQUEST_ID', 'Invalid clientRequestId.');
+    }
+    clientRequestId = body.clientRequestId
+      .trim()
+      .slice(0, MAX_CLIENT_REQUEST_ID_LENGTH);
+  }
+
   const filters = body.filters ?? {};
   const from = parseOptionalDate(filters.from, 'from');
   const to = parseOptionalDate(filters.to, 'to');
@@ -109,6 +138,8 @@ export function validateAskRequest(body: AskRequestBody): ValidatedAskRequest {
   return {
     question,
     limit,
+    conversationId,
+    clientRequestId,
     filters: {
       from,
       to,

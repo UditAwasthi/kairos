@@ -41,6 +41,11 @@ export type GroundedAnswerResult = {
   model: string;
 };
 
+export type ConversationHistoryTurn = {
+  role: 'USER' | 'ASSISTANT';
+  content: string;
+};
+
 export const AI_PROVIDER = Symbol('AI_PROVIDER');
 
 export interface AIProvider {
@@ -53,5 +58,6 @@ export interface AIProvider {
   generateGroundedAnswer(params: {
     question: string;
     context: GroundedContextItem[];
+    conversationHistory?: ConversationHistoryTurn[];
   }): Promise<GroundedAnswerResult>;
 }
