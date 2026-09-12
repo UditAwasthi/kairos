@@ -6,6 +6,7 @@ import {
   readEmbeddingConfig,
   type EmbeddingProvider,
 } from './embedding.types';
+import { GeminiEmbeddingProvider } from './gemini-embedding.provider';
 import { LocalDeterministicEmbeddingProvider } from './local-deterministic-embedding.provider';
 import { OpenAICompatibleEmbeddingProvider } from './openai-compatible-embedding.provider';
 import { VectorSearchService } from './vector-search.service';
@@ -21,6 +22,20 @@ function createEmbeddingProvider(): EmbeddingProvider {
     return new LocalDeterministicEmbeddingProvider();
   }
 
+  if (config.provider === 'gemini') {
+    const gemini = new GeminiEmbeddingProvider();
+    if (!gemini.isConfigured()) {
+      logger.warn(
+        'Gemini embedding API key missing. Set EMBEDDING_API_KEY for EMBEDDING_PROVIDER=gemini.',
+      );
+    } else {
+      logger.log(
+        `Using Gemini embeddings (model=${gemini.model}, dimensions=${gemini.dimensions}).`,
+      );
+    }
+    return gemini;
+  }
+
   const openai = new OpenAICompatibleEmbeddingProvider();
   if (!openai.isConfigured()) {
     logger.warn(
@@ -34,6 +49,7 @@ function createEmbeddingProvider(): EmbeddingProvider {
   imports: [PrismaModule],
   providers: [
     OpenAICompatibleEmbeddingProvider,
+    GeminiEmbeddingProvider,
     LocalDeterministicEmbeddingProvider,
     {
       provide: EMBEDDING_PROVIDER,
@@ -47,6 +63,7 @@ function createEmbeddingProvider(): EmbeddingProvider {
     ChunkEmbeddingService,
     VectorSearchService,
     OpenAICompatibleEmbeddingProvider,
+    GeminiEmbeddingProvider,
     LocalDeterministicEmbeddingProvider,
   ],
 })
