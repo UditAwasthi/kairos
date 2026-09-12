@@ -214,11 +214,15 @@ export default function ObservationDetailScreen() {
         {data.topics && data.topics.length > 0 ? (
           <View style={styles.chipRow}>
             {data.topics.map((topic) => (
-              <View key={topic.id} style={styles.chip}>
+              <Pressable
+                key={topic.id}
+                onPress={() => router.push(`/(app)/topics/${topic.id}`)}
+                style={styles.chip}
+              >
                 <ThemedText colorKey="text" style={styles.chipText}>
                   {topic.name}
                 </ThemedText>
-              </View>
+              </Pressable>
             ))}
           </View>
         ) : (
@@ -231,11 +235,19 @@ export default function ObservationDetailScreen() {
       <SectionHeader title="Entities" />
       <SurfaceCard>
         {data.entities && data.entities.length > 0 ? (
-          data.entities.map((entity) => (
-            <ThemedText key={entity.id} colorKey="textSecondary" style={styles.body}>
-              {entity.name} · {entity.type}
-            </ThemedText>
-          ))
+          <View style={styles.chipRow}>
+            {data.entities.map((entity) => (
+              <Pressable
+                key={entity.id}
+                onPress={() => router.push(`/(app)/entities/${entity.id}`)}
+                style={styles.chip}
+              >
+                <ThemedText colorKey="text" style={styles.chipText}>
+                  {entity.name}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
         ) : (
           <ThemedText colorKey="textMuted" style={styles.meta}>
             No entities extracted yet.

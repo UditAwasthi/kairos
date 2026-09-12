@@ -19,6 +19,10 @@ import {
   type ObservationResponse,
 } from './observation.mapper';
 import { ObservationProcessor } from './observation.processor';
+import {
+  resolveEntityFilter,
+  resolveTopicFilter,
+} from '../metadata/resolve-filters';
 
 const observationInclude = {
   observationTopics: { include: { topic: true } },
@@ -95,10 +99,35 @@ export class ObservationsService {
     return toObservationResponse(observation);
   }
 
-  async listForClerkUser(clerkUserId: string): Promise<ObservationResponse[]> {
+  async listForClerkUser(
+    clerkUserId: string,
+    filters?: {
+      topicId?: string;
+      entityId?: string;
+      topic?: string;
+      entity?: string;
+    },
+  ): Promise<ObservationResponse[]> {
     const user = await this.users.findOrCreateByClerkId(clerkUserId);
+    const topicId = await resolveTopicFilter({
+      prisma: this.prisma,
+      userId: user.id,
+      topicId: filters?.topicId,
+      topic: filters?.topic,
+    });
+    const entityId = await resolveEntityFilter({
+      prisma: this.prisma,
+      userId: user.id,
+      entityId: filters?.entityId,
+      entity: filters?.entity,
+    });
+
     const observations = await this.prisma.observation.findMany({
-      where: { userId: user.id },
+      where: {
+        userId: user.id,
+        ...(topicId ? { observationTopics: { some: { topicId } } } : {}),
+        ...(entityId ? { observationEntities: { some: { entityId } } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       include: observationInclude,
     });

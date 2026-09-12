@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { ObservationType } from '@prisma/client';
+import { parseOptionalStringId } from '../metadata/resolve-filters';
 
 export const MAX_ASK_QUESTION_LENGTH = 500;
 export const MAX_ASK_LIMIT = 10;
@@ -18,7 +19,12 @@ export type AskRequestBody = {
     observationType?: unknown;
     mimeType?: unknown;
     topicId?: unknown;
+    entityId?: unknown;
+    topic?: unknown;
+    entity?: unknown;
   };
+  topic?: unknown;
+  entity?: unknown;
 };
 
 export type ValidatedAskRequest = {
@@ -32,6 +38,9 @@ export type ValidatedAskRequest = {
     observationType?: ObservationType;
     mimeType?: string;
     topicId?: string;
+    entityId?: string;
+    topic?: string;
+    entity?: string;
   };
 };
 
@@ -127,13 +136,12 @@ export function validateAskRequest(body: AskRequestBody): ValidatedAskRequest {
     mimeType = filters.mimeType.trim().slice(0, 120);
   }
 
-  let topicId: string | undefined;
-  if (filters.topicId !== undefined && filters.topicId !== null) {
-    if (typeof filters.topicId !== 'string' || !filters.topicId.trim()) {
-      throw badRequest('INVALID_FILTER', 'Invalid topicId filter.');
-    }
-    topicId = filters.topicId.trim();
-  }
+  const topicId = parseOptionalStringId(filters.topicId, 'topicId');
+  const entityId = parseOptionalStringId(filters.entityId, 'entityId');
+  const topic =
+    parseOptionalStringId(filters.topic ?? body.topic, 'topic') ?? undefined;
+  const entity =
+    parseOptionalStringId(filters.entity ?? body.entity, 'entity') ?? undefined;
 
   return {
     question,
@@ -146,6 +154,9 @@ export function validateAskRequest(body: AskRequestBody): ValidatedAskRequest {
       observationType,
       mimeType,
       topicId,
+      entityId,
+      topic,
+      entity,
     },
   };
 }

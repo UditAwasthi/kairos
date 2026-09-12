@@ -112,6 +112,9 @@ export class AskService {
           observationType: request.filters.observationType,
           mimeType: request.filters.mimeType,
           topicId: request.filters.topicId,
+          entityId: request.filters.entityId,
+          topic: request.filters.topic,
+          entity: request.filters.entity,
         },
       });
       const retrievalMs = Date.now() - retrievalStarted;

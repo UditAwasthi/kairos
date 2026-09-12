@@ -93,7 +93,12 @@ export default function AskScreen() {
   const insets = useSafeAreaInsets();
   const { colors, radius, isLight } = useAppTheme();
   const { getToken } = useAuth();
-  const params = useLocalSearchParams<{ q?: string }>();
+  const params = useLocalSearchParams<{
+    q?: string;
+    scopeType?: string;
+    scopeId?: string;
+    scopeName?: string;
+  }>();
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const keyboardHeight = useGradualKeyboardHeight();
@@ -105,6 +110,17 @@ export default function AskScreen() {
   );
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationTitle, setConversationTitle] = useState('Ask Kairos');
+  const [scopeType, setScopeType] = useState<'topic' | 'entity' | null>(
+    params.scopeType === 'topic' || params.scopeType === 'entity'
+      ? params.scopeType
+      : null,
+  );
+  const [scopeId, setScopeId] = useState<string | null>(
+    typeof params.scopeId === 'string' ? params.scopeId : null,
+  );
+  const [scopeName, setScopeName] = useState<string | null>(
+    typeof params.scopeName === 'string' ? params.scopeName : null,
+  );
   const [input, setInput] = useState('');
   const [inputHeight, setInputHeight] = useState(INPUT_MIN);
   const [messages, setMessages] = useState<AskMessage[]>([]);
@@ -191,6 +207,13 @@ export default function AskScreen() {
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
+  useEffect(() => {
+    if (scopeId && scopeName) {
+      setView('thread');
+      setConversationTitle(`Ask · ${scopeName}`);
+    }
+  }, [scopeId, scopeName]);
+
   const send = async (text: string) => {
     const query = text.trim();
     if (!query || typing) return;
@@ -222,6 +245,10 @@ export default function AskScreen() {
         limit: 6,
         conversationId: conversationId ?? undefined,
         clientRequestId,
+        filters: {
+          topicId: scopeType === 'topic' ? scopeId ?? undefined : undefined,
+          entityId: scopeType === 'entity' ? scopeId ?? undefined : undefined,
+        },
       });
 
       setConversationId(result.conversationId);
@@ -370,6 +397,28 @@ export default function AskScreen() {
             <Feather name="edit" size={18} color={colors.accent} />
           </Pressable>
         </View>
+
+        {scopeName ? (
+          <View style={styles.scopeRow}>
+            <GlassPanel contentStyle={styles.scopeChip} padded={false}>
+              <ThemedText colorKey="text" style={styles.scopeLabel}>
+                {scopeName}
+              </ThemedText>
+              <Pressable
+                onPress={() => {
+                  setScopeType(null);
+                  setScopeId(null);
+                  setScopeName(null);
+                }}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Clear scope"
+              >
+                <Feather name="x" size={14} color={colors.textMuted} />
+              </Pressable>
+            </GlassPanel>
+          </View>
+        ) : null}
 
         <ScrollView
           ref={scrollRef}
@@ -579,6 +628,22 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 16,
+  },
+  scopeRow: {
+    paddingHorizontal: 12,
+    paddingBottom: 4,
+  },
+  scopeChip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  scopeLabel: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
   },
   empty: { gap: 10, paddingBottom: 24 },
   emptyTitle: {

@@ -304,6 +304,7 @@ export default function HomeScreen() {
             { icon: 'clock' as const, label: 'Timeline', href: '/(app)/(tabs)/timeline' },
             { icon: 'layers' as const, label: 'Activity', href: '/(app)/activity' },
             { icon: 'hash' as const, label: 'Topics', href: '/(app)/topics' },
+            { icon: 'tag' as const, label: 'Entities', href: '/(app)/entities' },
             { icon: 'folder' as const, label: 'Projects', href: '/(app)/projects' },
           ] as const
         ).map((item) => (

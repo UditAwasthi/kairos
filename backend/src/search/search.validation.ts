@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { ObservationType } from '@prisma/client';
+import { parseOptionalStringId } from '../metadata/resolve-filters';
 
 export const MAX_SEARCH_QUERY_LENGTH = 500;
 export const MAX_SEARCH_LIMIT = 20;
@@ -8,12 +9,18 @@ export const DEFAULT_SEARCH_LIMIT = 10;
 export type SearchRequestBody = {
   query?: unknown;
   limit?: unknown;
+  /** Optional convenience aliases for filters.topic / filters.entity */
+  topic?: unknown;
+  entity?: unknown;
   filters?: {
     from?: unknown;
     to?: unknown;
     observationType?: unknown;
     mimeType?: unknown;
     topicId?: unknown;
+    entityId?: unknown;
+    topic?: unknown;
+    entity?: unknown;
   };
 };
 
@@ -26,6 +33,9 @@ export type ValidatedSearchRequest = {
     observationType?: ObservationType;
     mimeType?: string;
     topicId?: string;
+    entityId?: string;
+    topic?: string;
+    entity?: string;
   };
 };
 
@@ -92,13 +102,12 @@ export function validateSearchRequest(
     mimeType = filters.mimeType.trim().slice(0, 120);
   }
 
-  let topicId: string | undefined;
-  if (filters.topicId !== undefined && filters.topicId !== null) {
-    if (typeof filters.topicId !== 'string' || !filters.topicId.trim()) {
-      throw badRequest('INVALID_FILTER', 'Invalid topicId filter.');
-    }
-    topicId = filters.topicId.trim();
-  }
+  const topicId = parseOptionalStringId(filters.topicId, 'topicId');
+  const entityId = parseOptionalStringId(filters.entityId, 'entityId');
+  const topic =
+    parseOptionalStringId(filters.topic ?? body.topic, 'topic') ?? undefined;
+  const entity =
+    parseOptionalStringId(filters.entity ?? body.entity, 'entity') ?? undefined;
 
   return {
     query,
@@ -109,6 +118,9 @@ export function validateSearchRequest(
       observationType,
       mimeType,
       topicId,
+      entityId,
+      topic,
+      entity,
     },
   };
 }

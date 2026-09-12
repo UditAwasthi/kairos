@@ -11,6 +11,10 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import {
+  resolveEntityFilter,
+  resolveTopicFilter,
+} from '../metadata/resolve-filters';
+import {
   type SearchRequestBody,
   validateSearchRequest,
 } from './search.validation';
@@ -69,6 +73,18 @@ export class SearchService {
     }
 
     const user = await this.users.findOrCreateByClerkId(clerkUserId);
+    const topicId = await resolveTopicFilter({
+      prisma: this.prisma,
+      userId: user.id,
+      topicId: request.filters.topicId,
+      topic: request.filters.topic,
+    });
+    const entityId = await resolveEntityFilter({
+      prisma: this.prisma,
+      userId: user.id,
+      entityId: request.filters.entityId,
+      entity: request.filters.entity,
+    });
 
     const embedStarted = Date.now();
     const embedded = await this.embeddings.embedText(request.query);
@@ -88,7 +104,8 @@ export class SearchService {
         mimeType: request.filters.mimeType,
         from: request.filters.from,
         to: request.filters.to,
-        topicId: request.filters.topicId,
+        topicId,
+        entityId,
       },
     });
     const searchMs = Date.now() - searchStarted;

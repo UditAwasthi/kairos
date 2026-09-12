@@ -8,22 +8,22 @@ import { EmptyState, ErrorState, LoadingSkeleton } from '../../../components/ui/
 import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { useAsync } from '../../../hooks/useAsync';
-import { fetchTopic } from '../../../lib/api';
+import { fetchEntity } from '../../../lib/api';
 
-export default function TopicDetailScreen() {
+export default function EntityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
   const { data, error, loading, reload } = useAsync(async () => {
     const token = await getToken();
-    if (!token) throw new Error('Sign in to view this topic.');
-    return fetchTopic({ token, id: String(id) });
+    if (!token) throw new Error('Sign in to view this entity.');
+    return fetchEntity({ token, id: String(id) });
   }, [getToken, id]);
 
   if (loading) return <LoadingSkeleton rows={8} />;
   if (error || !data) {
-    return <ErrorState title="Topic unavailable" message={error ?? undefined} onRetry={reload} />;
+    return <ErrorState title="Entity unavailable" message={error ?? undefined} onRetry={reload} />;
   }
 
   return (
@@ -33,26 +33,26 @@ export default function TopicDetailScreen() {
       </ThemedText>
       <SurfaceCard>
         <ThemedText colorKey="textMuted" style={styles.meta}>
-          {data.observationCount} observations
+          {data.type} · {data.observationCount} observations
         </ThemedText>
       </SurfaceCard>
 
       <ThemedButton
-        label="Ask about this topic"
+        label="Ask about this entity"
         onPress={() =>
           router.push({
             pathname: '/(app)/(tabs)/ask',
-            params: { scopeType: 'topic', scopeId: data.id, scopeName: data.name },
+            params: { scopeType: 'entity', scopeId: data.id, scopeName: data.name },
           })
         }
       />
       <ThemedButton
-        label="Search in this topic"
+        label="Search this entity"
         variant="outline"
         onPress={() =>
           router.push({
             pathname: '/(app)/search',
-            params: { topicId: data.id, topicName: data.name },
+            params: { entityId: data.id, entityName: data.name },
           })
         }
       />
@@ -61,7 +61,7 @@ export default function TopicDetailScreen() {
       {data.observations.length === 0 ? (
         <EmptyState
           title="No observations"
-          message="No completed observations are linked to this topic yet."
+          message="No completed observations are linked to this entity yet."
         />
       ) : (
         data.observations.map((observation) => (

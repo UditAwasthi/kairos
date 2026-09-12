@@ -176,20 +176,156 @@ export async function fetchObservation(
 
 export async function fetchObservations(
   token: string,
+  filters?: {
+    topicId?: string;
+    entityId?: string;
+    topic?: string;
+    entity?: string;
+  },
 ): Promise<ApiObservation[]> {
-  const response = await fetch(`${normalizeBaseUrl(apiBaseUrl)}/observations`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
+  const qs = new URLSearchParams();
+  if (filters?.topicId) qs.set('topicId', filters.topicId);
+  if (filters?.entityId) qs.set('entityId', filters.entityId);
+  if (filters?.topic) qs.set('topic', filters.topic);
+  if (filters?.entity) qs.set('entity', filters.entity);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/observations${suffix}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
     },
-  });
+  );
 
   if (!response.ok) {
     throw await parseError(response);
   }
 
   const body = (await response.json()) as { data: ApiObservation[] };
+  return body.data;
+}
+
+export type ApiTopicSummary = {
+  id: string;
+  name: string;
+  observationCount: number;
+  updatedAt: string;
+};
+
+export type ApiEntitySummary = {
+  id: string;
+  name: string;
+  type:
+    | 'PERSON'
+    | 'ORGANIZATION'
+    | 'TECHNOLOGY'
+    | 'PRODUCT'
+    | 'LOCATION'
+    | 'CONCEPT';
+  observationCount: number;
+  updatedAt: string;
+};
+
+export type ApiTopicDetail = ApiTopicSummary & {
+  observations: ApiObservation[];
+};
+
+export type ApiEntityDetail = ApiEntitySummary & {
+  observations: ApiObservation[];
+};
+
+export async function fetchTopics(params: {
+  token: string;
+  limit?: number;
+  cursor?: string;
+}): Promise<{ items: ApiTopicSummary[]; nextCursor: string | null }> {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.cursor) qs.set('cursor', params.cursor);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/topics${suffix}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as {
+    data: { items: ApiTopicSummary[]; nextCursor: string | null };
+  };
+  return body.data;
+}
+
+export async function fetchTopic(params: {
+  token: string;
+  id: string;
+}): Promise<ApiTopicDetail> {
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/topics/${encodeURIComponent(params.id)}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: ApiTopicDetail };
+  return body.data;
+}
+
+export async function fetchEntities(params: {
+  token: string;
+  limit?: number;
+  cursor?: string;
+  type?: string;
+}): Promise<{ items: ApiEntitySummary[]; nextCursor: string | null }> {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.cursor) qs.set('cursor', params.cursor);
+  if (params.type) qs.set('type', params.type);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/entities${suffix}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as {
+    data: { items: ApiEntitySummary[]; nextCursor: string | null };
+  };
+  return body.data;
+}
+
+export async function fetchEntity(params: {
+  token: string;
+  id: string;
+}): Promise<ApiEntityDetail> {
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/entities/${encodeURIComponent(params.id)}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: ApiEntityDetail };
   return body.data;
 }
 
@@ -249,6 +385,9 @@ export type ApiSemanticSearchFilters = {
   observationType?: 'DOCUMENT' | 'PDF' | 'IMAGE' | 'TEXT';
   mimeType?: string;
   topicId?: string;
+  entityId?: string;
+  topic?: string;
+  entity?: string;
 };
 
 export type ApiSemanticSearchResult = {
@@ -291,6 +430,8 @@ export async function semanticSearch(params: {
       query: params.query,
       limit: params.limit,
       filters: params.filters,
+      topic: params.filters?.topic,
+      entity: params.filters?.entity,
     }),
   });
 
@@ -366,9 +507,8 @@ export async function askKairos(params: {
       limit: params.limit,
       clientRequestId: params.clientRequestId,
       filters: params.filters,
-      ...(params.conversationId
-        ? {}
-        : { conversationId: params.conversationId }),
+      topic: params.filters?.topic,
+      entity: params.filters?.entity,
     }),
   });
 

@@ -50,6 +50,8 @@ export default function AppLayout() {
       <Stack.Screen name="search" options={{ title: 'Search' }} />
       <Stack.Screen name="topics/index" options={{ title: 'Topics' }} />
       <Stack.Screen name="topics/[id]" options={{ title: 'Topic' }} />
+      <Stack.Screen name="entities/index" options={{ title: 'Entities' }} />
+      <Stack.Screen name="entities/[id]" options={{ title: 'Entity' }} />
       <Stack.Screen name="projects/index" options={{ title: 'Projects' }} />
       <Stack.Screen name="projects/[id]" options={{ title: 'Project' }} />
       <Stack.Screen name="related/[id]" options={{ title: 'Related' }} />

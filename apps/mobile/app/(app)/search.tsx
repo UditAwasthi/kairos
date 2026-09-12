@@ -1,6 +1,6 @@
 import { useAuth } from '@clerk/expo';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -18,21 +18,12 @@ import { ThemedButton } from '../../components/ui/ThemedButton';
 import { ThemedInput } from '../../components/ui/ThemedInput';
 import {
   ApiError,
+  fetchTopics,
   semanticSearch,
   type ApiSemanticSearchResponse,
+  type ApiTopicSummary,
 } from '../../lib/api';
 import { useAppTheme } from '../../providers/ThemeProvider';
-
-const TYPE_FILTERS: {
-  label: string;
-  value?: 'DOCUMENT' | 'PDF' | 'IMAGE' | 'TEXT';
-}[] = [
-  { label: 'All' },
-  { label: 'Text', value: 'TEXT' },
-  { label: 'PDF', value: 'PDF' },
-  { label: 'Images', value: 'IMAGE' },
-  { label: 'Docs', value: 'DOCUMENT' },
-];
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -62,15 +53,45 @@ export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const { getToken } = useAuth();
+  const params = useLocalSearchParams<{
+    topicId?: string;
+    topicName?: string;
+    entityId?: string;
+    entityName?: string;
+  }>();
 
   const [query, setQuery] = useState('');
-  const [observationType, setObservationType] = useState<
-    'DOCUMENT' | 'PDF' | 'IMAGE' | 'TEXT' | undefined
-  >();
+  const [topics, setTopics] = useState<ApiTopicSummary[]>([]);
+  const [topicId, setTopicId] = useState<string | undefined>(
+    typeof params.topicId === 'string' ? params.topicId : undefined,
+  );
+  const [entityId, setEntityId] = useState<string | undefined>(
+    typeof params.entityId === 'string' ? params.entityId : undefined,
+  );
+  const [scopeName, setScopeName] = useState<string | undefined>(
+    typeof params.topicName === 'string'
+      ? params.topicName
+      : typeof params.entityName === 'string'
+        ? params.entityName
+        : undefined,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ApiSemanticSearchResponse | null>(null);
   const [searched, setSearched] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const data = await fetchTopics({ token, limit: 20 });
+        setTopics(data.items);
+      } catch {
+        // optional filter chips
+      }
+    })();
+  }, [getToken]);
 
   const runSearch = async (q: string = query) => {
     const trimmed = q.trim();
@@ -81,14 +102,15 @@ export default function SearchScreen() {
     setSearched(true);
     try {
       const token = await getToken();
-      if (!token) {
-        throw new ApiError('You must be signed in to search.', 401);
-      }
+      if (!token) throw new ApiError('You must be signed in to search.', 401);
       const response = await semanticSearch({
         token,
         query: trimmed,
         limit: 10,
-        filters: observationType ? { observationType } : undefined,
+        filters: {
+          topicId,
+          entityId,
+        },
       });
       setResult(response);
     } catch (err) {
@@ -122,24 +144,35 @@ export default function SearchScreen() {
         onPress={() => void runSearch()}
       />
 
-      <SectionHeader title="Filters" subtitle="Optional observation type" />
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chips}
-      >
-        {TYPE_FILTERS.map((filter) => (
+      <SectionHeader title="Filters" subtitle="Optional topic scope" />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+        <TopicChip
+          label="All"
+          selected={!topicId && !entityId}
+          onPress={() => {
+            setTopicId(undefined);
+            setEntityId(undefined);
+            setScopeName(undefined);
+          }}
+        />
+        {topics.map((topic) => (
           <TopicChip
-            key={filter.label}
-            label={filter.label}
-            selected={
-              observationType === filter.value ||
-              (!observationType && !filter.value)
-            }
-            onPress={() => setObservationType(filter.value)}
+            key={topic.id}
+            label={topic.name}
+            selected={topicId === topic.id}
+            onPress={() => {
+              setTopicId(topic.id);
+              setEntityId(undefined);
+              setScopeName(topic.name);
+            }}
           />
         ))}
       </ScrollView>
+      {scopeName ? (
+        <ThemedText colorKey="textMuted" style={styles.meta}>
+          Scoped to {scopeName}
+        </ThemedText>
+      ) : null}
 
       {!searched && !loading ? (
         <SurfaceCard>
@@ -164,11 +197,7 @@ export default function SearchScreen() {
           <ThemedText colorKey="error" style={styles.row}>
             {error}
           </ThemedText>
-          <ThemedButton
-            label="Retry"
-            variant="outline"
-            onPress={() => void runSearch()}
-          />
+          <ThemedButton label="Retry" variant="outline" onPress={() => void runSearch()} />
         </SurfaceCard>
       ) : null}
 
@@ -207,11 +236,7 @@ export default function SearchScreen() {
                 <ThemedText colorKey="text" style={styles.title}>
                   {item.observation.filename}
                 </ThemedText>
-                <ThemedText
-                  colorKey="textSecondary"
-                  style={styles.row}
-                  numberOfLines={4}
-                >
+                <ThemedText colorKey="textSecondary" style={styles.row} numberOfLines={4}>
                   {item.content}
                 </ThemedText>
               </SurfaceCard>

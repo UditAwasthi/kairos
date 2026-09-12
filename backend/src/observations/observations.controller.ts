@@ -4,6 +4,7 @@ import {
   Header,
   Param,
   Post,
+  Query,
   Res,
   StreamableFile,
   UploadedFile,
@@ -46,8 +47,17 @@ export class ObservationsController {
   @Get()
   async list(
     @CurrentUser() user: AuthenticatedUser,
+    @Query('topicId') topicId?: string,
+    @Query('entityId') entityId?: string,
+    @Query('topic') topic?: string,
+    @Query('entity') entity?: string,
   ): Promise<{ data: ObservationResponse[] }> {
-    const observations = await this.observations.listForClerkUser(user.id);
+    const observations = await this.observations.listForClerkUser(user.id, {
+      topicId: topicId || undefined,
+      entityId: entityId || undefined,
+      topic: topic || undefined,
+      entity: entity || undefined,
+    });
     return { data: observations };
   }
 
