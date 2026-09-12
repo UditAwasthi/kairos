@@ -56,9 +56,12 @@ export type ApiObservation = {
   mimeType: string;
   type: 'DOCUMENT' | 'PDF' | 'IMAGE' | 'TEXT';
   status: ApiObservationStatus;
+  /** Present on newer backends; derived client-side when absent. */
+  stageLabel?: string;
   createdAt: string;
   updatedAt: string;
   capturedAt: string;
+  processedAt?: string | null;
   extractedText: string | null;
   summary: string | null;
   processingError: string | null;
@@ -213,6 +216,29 @@ export async function fetchObservations(
   }
 
   const body = (await response.json()) as { data: ApiObservation[] };
+  return body.data;
+}
+
+export async function reprocessObservation(
+  token: string,
+  id: string,
+): Promise<ApiObservation> {
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/observations/${encodeURIComponent(id)}/reprocess`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+
+  const body = (await response.json()) as { data: ApiObservation };
   return body.data;
 }
 
@@ -519,16 +545,33 @@ export function isTerminalObservationStatus(
   return status === 'COMPLETED' || status === 'FAILED';
 }
 
+export function isProcessingObservationStatus(
+  status: ApiObservationStatus,
+): boolean {
+  return !isTerminalObservationStatus(status);
+}
+
+export function observationStatusHeadline(
+  status: ApiObservationStatus,
+): string {
+  if (status === 'COMPLETED') return 'Ready';
+  if (status === 'FAILED') return 'Processing failed';
+  return 'Processing';
+}
+
 export function observationStatusLabel(status: ApiObservationStatus): string {
   switch (status) {
     case 'PENDING':
-    case 'EXTRACTING':
-    case 'NORMALIZING':
-    case 'CHUNKING':
     case 'PROCESSING':
-      return 'Processing your document…';
+      return 'Processing…';
+    case 'EXTRACTING':
+      return 'Extracting document content…';
+    case 'NORMALIZING':
+      return 'Normalizing content…';
+    case 'CHUNKING':
+      return 'Creating chunks…';
     case 'ANALYZING':
-      return 'Analyzing content…';
+      return 'Extracting metadata…';
     case 'EMBEDDING':
       return 'Generating embeddings…';
     case 'COMPLETED':
@@ -536,8 +579,22 @@ export function observationStatusLabel(status: ApiObservationStatus): string {
     case 'FAILED':
       return 'Processing failed';
     default:
-      return 'Working…';
+      return 'Processing…';
   }
+}
+
+export function observationStageLabel(observation: {
+  status: ApiObservationStatus;
+  stageLabel?: string;
+}): string {
+  return observation.stageLabel || observationStatusLabel(observation.status);
+}
+
+export function formatObservationReadyTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 export async function pollObservationUntilSettled(params: {
@@ -546,12 +603,16 @@ export async function pollObservationUntilSettled(params: {
   intervalMs?: number;
   timeoutMs?: number;
   onUpdate?: (observation: ApiObservation) => void;
+  shouldContinue?: () => boolean;
 }): Promise<ApiObservation> {
-  const intervalMs = params.intervalMs ?? 1000;
+  const intervalMs = params.intervalMs ?? 2000;
   const timeoutMs = params.timeoutMs ?? 120_000;
   const started = Date.now();
 
   while (Date.now() - started < timeoutMs) {
+    if (params.shouldContinue && !params.shouldContinue()) {
+      throw new ApiError('Polling cancelled', 499);
+    }
     const observation = await fetchObservation(params.token, params.id);
     params.onUpdate?.(observation);
     if (isTerminalObservationStatus(observation.status)) {

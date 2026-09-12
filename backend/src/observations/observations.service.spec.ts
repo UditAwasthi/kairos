@@ -169,4 +169,87 @@ describe('ObservationsService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(storage.get).not.toHaveBeenCalled();
   });
+
+  it('returns processing status fields for owned observations', async () => {
+    prisma.observation.findFirst.mockResolvedValue(
+      baseObservation({
+        processingStatus: ProcessingStatus.EMBEDDING,
+      }),
+    );
+
+    const result = await service.getForClerkUser(clerkUserId, 'obs_1');
+    expect(result.status).toBe(ProcessingStatus.EMBEDDING);
+    expect(result.stageLabel).toBe('Generating embeddings…');
+    expect(result.processedAt).toBeNull();
+  });
+
+  it('marks COMPLETED observations with processedAt', async () => {
+    prisma.observation.findFirst.mockResolvedValue(
+      baseObservation({
+        processingStatus: ProcessingStatus.COMPLETED,
+      }),
+    );
+
+    const result = await service.getForClerkUser(clerkUserId, 'obs_1');
+    expect(result.status).toBe(ProcessingStatus.COMPLETED);
+    expect(result.stageLabel).toBe('Ready');
+    expect(result.processedAt).toBeTruthy();
+  });
+
+  it('exposes FAILED status for owned observations', async () => {
+    prisma.observation.findFirst.mockResolvedValue(
+      baseObservation({
+        processingStatus: ProcessingStatus.FAILED,
+        processingError: 'Processing failed.',
+      }),
+    );
+
+    const result = await service.getForClerkUser(clerkUserId, 'obs_1');
+    expect(result.status).toBe(ProcessingStatus.FAILED);
+    expect(result.stageLabel).toBe('Processing failed');
+    expect(result.processingError).toBe('Processing failed.');
+  });
+
+  it('enforces ownership on reprocess and does not create a new observation', async () => {
+    prisma.observation.findFirst.mockResolvedValue(null);
+    await expect(
+      service.reprocessForClerkUser(clerkUserId, 'obs_other'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.observation.update).not.toHaveBeenCalled();
+    expect(processor.process).not.toHaveBeenCalled();
+  });
+
+  it('reprocesses without duplicating the observation row', async () => {
+    const failed = baseObservation({
+      processingStatus: ProcessingStatus.FAILED,
+      processingError: 'boom',
+      projectObservations: [{ project: { id: 'proj_1', name: 'Alpha' } }],
+    });
+    const pending = baseObservation({
+      processingStatus: ProcessingStatus.PENDING,
+      processingError: null,
+      projectObservations: [{ project: { id: 'proj_1', name: 'Alpha' } }],
+    });
+    prisma.observation.findFirst
+      .mockResolvedValueOnce(failed)
+      .mockResolvedValueOnce(pending);
+    prisma.observation.update.mockResolvedValue(pending);
+
+    const result = await service.reprocessForClerkUser(clerkUserId, 'obs_1');
+
+    expect(prisma.observation.update).toHaveBeenCalledTimes(1);
+    expect(prisma.observation.update).toHaveBeenCalledWith({
+      where: { id: 'obs_1' },
+      data: {
+        processingStatus: ProcessingStatus.PENDING,
+        processingError: null,
+      },
+    });
+    expect(prisma.observation.create).not.toHaveBeenCalled();
+    expect(result.id).toBe('obs_1');
+    expect(result.status).toBe(ProcessingStatus.PENDING);
+    expect(result.projects).toEqual([{ id: 'proj_1', name: 'Alpha' }]);
+    await new Promise((r) => setImmediate(r));
+    expect(processor.process).toHaveBeenCalledWith('obs_1');
+  });
 });

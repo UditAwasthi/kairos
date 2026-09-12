@@ -15,6 +15,8 @@ import {
   resolveProjectFilter,
   resolveTopicFilter,
 } from '../metadata/resolve-filters';
+import { fuseCandidates, readFusionWeights } from './hybrid-fusion';
+import { LexicalSearchService } from './lexical-search.service';
 import {
   type SearchRequestBody,
   validateSearchRequest,
@@ -48,17 +50,30 @@ export class SearchService {
   private readonly logger = new Logger(SearchService.name);
   private readonly minSimilarity: number;
   private readonly maxPerObservation: number;
+  private readonly hybridEnabled: boolean;
+  private readonly semanticCandidateLimit: number;
+  private readonly lexicalCandidateLimit: number;
 
   constructor(
     private readonly users: UsersService,
     private readonly prisma: PrismaService,
     private readonly vectorSearch: VectorSearchService,
+    private readonly lexicalSearch: LexicalSearchService,
     @Inject(EMBEDDING_PROVIDER) private readonly embeddings: EmbeddingProvider,
   ) {
     this.minSimilarity = readFloatEnv('SEARCH_MIN_SIMILARITY', 0.2);
     this.maxPerObservation = Math.max(
       1,
       Math.floor(readFloatEnv('SEARCH_MAX_PER_OBSERVATION', 2)),
+    );
+    this.hybridEnabled = readBoolEnv('SEARCH_HYBRID_ENABLED', false);
+    this.semanticCandidateLimit = Math.min(
+      Math.max(Math.floor(readFloatEnv('SEARCH_SEMANTIC_CANDIDATES', 30)), 1),
+      100,
+    );
+    this.lexicalCandidateLimit = Math.min(
+      Math.max(Math.floor(readFloatEnv('SEARCH_LEXICAL_CANDIDATES', 30)), 1),
+      100,
     );
   }
 
@@ -92,29 +107,65 @@ export class SearchService {
       projectId: request.filters.projectId,
     });
 
+    const filters = {
+      observationType: request.filters.observationType,
+      mimeType: request.filters.mimeType,
+      from: request.filters.from,
+      to: request.filters.to,
+      topicId,
+      entityId,
+      projectId,
+    };
+
     const embedStarted = Date.now();
     const embedded = await this.embeddings.embedText(request.query);
     const embedMs = Date.now() - embedStarted;
 
-    const candidateLimit = Math.min(
-      request.limit * Math.max(3, this.maxPerObservation + 1),
-      100,
-    );
+    const semanticLimit = this.hybridEnabled
+      ? this.semanticCandidateLimit
+      : Math.min(request.limit * Math.max(3, this.maxPerObservation + 1), 100);
 
     const searchStarted = Date.now();
-    const hits = await this.vectorSearch.search(user.id, embedded.embedding, {
-      candidateLimit,
-      minSimilarity: this.minSimilarity,
-      filters: {
-        observationType: request.filters.observationType,
-        mimeType: request.filters.mimeType,
-        from: request.filters.from,
-        to: request.filters.to,
-        topicId,
-        entityId,
-        projectId,
-      },
-    });
+    let hits: VectorSearchHit[];
+    let lexicalMs = 0;
+
+    if (this.hybridEnabled) {
+      const lexicalStarted = Date.now();
+      const [semanticHits, lexicalHits] = await Promise.all([
+        this.vectorSearch.search(user.id, embedded.embedding, {
+          candidateLimit: semanticLimit,
+          minSimilarity: this.minSimilarity,
+          filters,
+        }),
+        this.lexicalSearch.search(user.id, request.query, {
+          limit: this.lexicalCandidateLimit,
+          filters,
+        }),
+      ]);
+      lexicalMs = Date.now() - lexicalStarted;
+
+      const fused = fuseCandidates({
+        query: request.query,
+        semanticHits,
+        lexicalHits,
+        weights: readFusionWeights(),
+      });
+
+      hits = fused.map((row) => ({
+        chunkId: row.chunkId,
+        observationId: row.observationId,
+        chunkIndex: row.chunkIndex,
+        content: row.content,
+        distance: row.distance,
+        similarity: row.similarity,
+      }));
+    } else {
+      hits = await this.vectorSearch.search(user.id, embedded.embedding, {
+        candidateLimit: semanticLimit,
+        minSimilarity: this.minSimilarity,
+        filters,
+      });
+    }
     const searchMs = Date.now() - searchStarted;
 
     const capped = applyPerObservationCap(hits, this.maxPerObservation).slice(
@@ -125,14 +176,20 @@ export class SearchService {
 
     this.logger.log(
       JSON.stringify({
-        event: 'semantic_search',
+        event: this.hybridEnabled ? 'hybrid_search' : 'semantic_search',
         userId: user.id,
         resultCount: results.length,
         embedMs,
         searchMs,
+        lexicalMs: this.hybridEnabled ? lexicalMs : undefined,
         totalMs: Date.now() - started,
         limit: request.limit,
         minSimilarity: this.minSimilarity,
+        hybridEnabled: this.hybridEnabled,
+        semanticCandidates: semanticLimit,
+        lexicalCandidates: this.hybridEnabled
+          ? this.lexicalCandidateLimit
+          : undefined,
       }),
     );
 
@@ -208,4 +265,13 @@ function readFloatEnv(name: string, fallback: number): number {
   if (!raw) return fallback;
   const value = Number.parseFloat(raw);
   return Number.isFinite(value) ? value : fallback;
+}
+
+function readBoolEnv(name: string, fallback: boolean): boolean {
+  const raw = process.env[name];
+  if (raw === undefined || raw === null || raw === '') return fallback;
+  const normalized = raw.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return fallback;
 }

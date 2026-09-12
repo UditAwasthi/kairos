@@ -42,9 +42,13 @@ export type ObservationResponse = {
   mimeType: string;
   type: ObservationType;
   status: ProcessingStatus;
+  /** Human-readable stage derived from processingStatus — not a second state machine. */
+  stageLabel: string;
   createdAt: string;
   updatedAt: string;
   capturedAt: string;
+  /** ISO timestamp when processing reached COMPLETED; null otherwise. */
+  processedAt: string | null;
   extractedText: string | null;
   summary: string | null;
   processingError: string | null;
@@ -55,6 +59,31 @@ export type ObservationResponse = {
   projects: ObservationProjectResponse[];
   chunkCount: number;
 };
+
+/** Truthful labels from existing ProcessingStatus — never invent percentages. */
+export function stageLabelForStatus(status: ProcessingStatus): string {
+  switch (status) {
+    case 'PENDING':
+    case 'PROCESSING':
+      return 'Processing…';
+    case 'EXTRACTING':
+      return 'Extracting document content…';
+    case 'NORMALIZING':
+      return 'Normalizing content…';
+    case 'CHUNKING':
+      return 'Creating chunks…';
+    case 'ANALYZING':
+      return 'Extracting metadata…';
+    case 'EMBEDDING':
+      return 'Generating embeddings…';
+    case 'COMPLETED':
+      return 'Ready';
+    case 'FAILED':
+      return 'Processing failed';
+    default:
+      return 'Processing…';
+  }
+}
 
 type ObservationWithRelations = Observation & {
   observationTopics?: Array<{
@@ -90,15 +119,19 @@ export function toObservationResponse(
     name: row.project.name,
   }));
 
+  const status = observation.processingStatus;
   return {
     id: observation.id,
     filename: observation.originalFilename,
     mimeType: observation.mimeType,
     type: observation.type,
-    status: observation.processingStatus,
+    status,
+    stageLabel: stageLabelForStatus(status),
     createdAt: observation.createdAt.toISOString(),
     updatedAt: observation.updatedAt.toISOString(),
     capturedAt: observation.capturedAt.toISOString(),
+    processedAt:
+      status === 'COMPLETED' ? observation.updatedAt.toISOString() : null,
     extractedText: observation.extractedText,
     summary: observation.summary,
     processingError: observation.processingError,

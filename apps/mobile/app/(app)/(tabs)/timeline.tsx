@@ -1,9 +1,9 @@
 import { useAuth } from '@clerk/expo';
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -12,30 +12,26 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ThemedText } from '../../../components/ThemedText';
 import { EmptyState, ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
 import { TopicChip } from '../../../components/ui/MemoryCards';
-import { useAppTheme } from '../../../providers/ThemeProvider';
+import { ObservationStatusCard } from '../../../components/ui/ObservationStatusCard';
 import {
   fetchEntities,
   fetchObservations,
   fetchProjects,
   fetchTopics,
+  isProcessingObservationStatus,
+  reprocessObservation,
   type ApiEntitySummary,
   type ApiObservation,
   type ApiProjectSummary,
   type ApiTopicSummary,
 } from '../../../lib/api';
+import { useAppTheme } from '../../../providers/ThemeProvider';
 
 type FilterMode = 'all' | 'project' | 'topic' | 'entity';
 
-function formatDateLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
-}
+const POLL_MS = 3000;
 
 export default function TimelineScreen() {
   const router = useRouter();
@@ -73,6 +69,10 @@ export default function TimelineScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const focusedRef = useRef(true);
+  const observationsRef = useRef<ApiObservation[]>([]);
+  observationsRef.current = observations;
 
   const loadMeta = useCallback(async () => {
     const token = await getToken();
@@ -103,17 +103,53 @@ export default function TimelineScreen() {
     }
   }, [entityId, getToken, mode, projectId, topicId]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      await Promise.all([loadMeta(), load()]);
-      if (!cancelled) setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [load, loadMeta]);
+  useFocusEffect(
+    useCallback(() => {
+      focusedRef.current = true;
+      let cancelled = false;
+      void (async () => {
+        setLoading(true);
+        await Promise.all([loadMeta(), load()]);
+        if (!cancelled) setLoading(false);
+      })();
+
+      const timer = setInterval(() => {
+        if (!focusedRef.current) return;
+        if (
+          observationsRef.current.some((o) =>
+            isProcessingObservationStatus(o.status),
+          )
+        ) {
+          void load();
+        }
+      }, POLL_MS);
+
+      return () => {
+        cancelled = true;
+        focusedRef.current = false;
+        clearInterval(timer);
+      };
+    }, [load, loadMeta]),
+  );
+
+  const onRetry = useCallback(
+    async (id: string) => {
+      try {
+        setRetryingId(id);
+        const token = await getToken();
+        if (!token) return;
+        const updated = await reprocessObservation(token, id);
+        setObservations((prev) =>
+          prev.map((item) => (item.id === id ? updated : item)),
+        );
+      } catch {
+        setError('Retry failed. Try again from the observation detail.');
+      } finally {
+        setRetryingId(null);
+      }
+    },
+    [getToken],
+  );
 
   if (loading) return <LoadingSkeleton rows={10} />;
 
@@ -215,20 +251,16 @@ export default function TimelineScreen() {
             />
           }
           renderItem={({ item }) => (
-            <Pressable
+            <ObservationStatusCard
+              observation={item}
+              retrying={retryingId === item.id}
               onPress={() => router.push(`/(app)/observation/${item.id}`)}
-              style={styles.row}
-            >
-              <ThemedText colorKey="textMuted" style={styles.meta}>
-                {formatDateLabel(item.capturedAt)} · {item.type}
-              </ThemedText>
-              <ThemedText colorKey="text" style={styles.title}>
-                {item.filename}
-              </ThemedText>
-              <ThemedText colorKey="textSecondary" style={styles.body} numberOfLines={3}>
-                {item.summary || item.extractedText || item.mimeType}
-              </ThemedText>
-            </Pressable>
+              onRetry={
+                item.status === 'FAILED'
+                  ? () => void onRetry(item.id)
+                  : undefined
+              }
+            />
           )}
           ListFooterComponent={
             refreshing ? <ActivityIndicator color={colors.accent} /> : null
@@ -242,9 +274,5 @@ export default function TimelineScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   filters: { gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
-  list: { paddingHorizontal: 16, paddingBottom: 24, gap: 14 },
-  row: { gap: 4 },
-  meta: { fontFamily: 'Inter_400Regular', fontSize: 12 },
-  title: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
-  body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20 },
+  list: { paddingHorizontal: 16, paddingBottom: 24 },
 });

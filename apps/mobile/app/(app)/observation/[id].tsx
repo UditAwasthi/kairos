@@ -1,6 +1,6 @@
 import { useAuth } from '@clerk/expo';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,15 +9,21 @@ import { ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
 import { Badge } from '../../../components/ui/MetricCard';
 import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
-import { useAsync } from '../../../hooks/useAsync';
 import {
   ApiError,
   fetchObservation,
-  observationStatusLabel,
+  formatObservationReadyTime,
+  isProcessingObservationStatus,
+  isTerminalObservationStatus,
+  observationStageLabel,
+  observationStatusHeadline,
+  reprocessObservation,
   type ApiObservation,
 } from '../../../lib/api';
 import { SOURCE_TYPE_LABELS, observationsService } from '../../../services';
 import type { Observation, ProcessingStatus, SourceType } from '../../../types';
+
+const POLL_MS = 2000;
 
 function mapApiObservation(api: ApiObservation): Observation {
   const sourceType = mapType(api.type);
@@ -75,21 +81,16 @@ function statusTone(
 }
 
 function extractedTextMessage(data: Observation): string {
-  if (data.extractedText) return data.extractedText;
-  if (data.status === 'PENDING' || data.status === 'EXTRACTING') {
-    return 'Extraction has not finished yet.';
-  }
-  if (
-    data.status === 'PROCESSING' ||
-    data.status === 'NORMALIZING' ||
-    data.status === 'CHUNKING' ||
-    data.status === 'ANALYZING'
-  ) {
+  if (data.status !== 'COMPLETED' && data.status !== 'READY') {
+    if (data.status === 'FAILED') {
+      return 'Processing failed. Extracted text is unavailable until retry succeeds.';
+    }
+    if (data.status === 'PENDING' || data.status === 'EXTRACTING') {
+      return 'Extraction has not finished yet.';
+    }
     return 'Extraction in progress…';
   }
-  if (data.status === 'FAILED') {
-    return 'Processing failed. Extracted text is unavailable.';
-  }
+  if (data.extractedText) return data.extractedText;
   if (data.sourceType === 'photo' || data.sourceType === 'screenshot') {
     return 'OCR is not available yet. Image metadata was saved, but no text was extracted.';
   }
@@ -105,6 +106,11 @@ export default function ObservationDetailScreen() {
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [data, setData] = useState<Observation | null>(null);
+  const [apiObs, setApiObs] = useState<ApiObservation | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState(false);
   const matchedSnippet =
     typeof highlight === 'string' && highlight.trim().length > 0
       ? highlight.trim()
@@ -116,45 +122,106 @@ export default function ObservationDetailScreen() {
     const observationId = String(id);
     const token = await getToken();
     if (!token) {
-      return observationsService.get(observationId);
+      const mock = await observationsService.get(observationId);
+      setData(mock);
+      setApiObs(null);
+      return;
     }
 
     try {
       const api = await fetchObservation(token, observationId);
-      return mapApiObservation(api);
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 404) {
-        return observationsService.get(observationId);
+      setApiObs(api);
+      setData(mapApiObservation(api));
+      setError(null);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        const mock = await observationsService.get(observationId);
+        setData(mock);
+        setApiObs(null);
+        return;
       }
-      throw error;
+      setError('Unable to load observation.');
     }
   }, [getToken, id]);
 
-  const { data, error, loading, reload } = useAsync(load, [id]);
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void (async () => {
+        setLoading(true);
+        await load();
+        if (!cancelled) setLoading(false);
+      })();
+
+      return () => {
+        cancelled = true;
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      };
+    }, [load]),
+  );
 
   useEffect(() => {
-    const terminal =
-      data?.status === 'COMPLETED' ||
-      data?.status === 'FAILED' ||
-      data?.status === 'READY';
-    if (!data || terminal) {
-      if (pollRef.current) clearInterval(pollRef.current);
+    if (
+      !data ||
+      isTerminalObservationStatus(data.status as ApiObservation['status'])
+    ) {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
       return;
     }
 
+    if (pollRef.current) return;
+
     pollRef.current = setInterval(() => {
-      void reload();
-    }, 1500);
+      void (async () => {
+        const token = await getToken();
+        if (!token) return;
+        try {
+          const api = await fetchObservation(token, String(id));
+          setApiObs(api);
+          setData(mapApiObservation(api));
+        } catch {
+          // Keep last known state while polling.
+        }
+      })();
+    }, POLL_MS);
 
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
     };
-  }, [data, reload]);
+  }, [data, getToken, id]);
+
+  const onRetry = async () => {
+    try {
+      setRetrying(true);
+      const token = await getToken();
+      if (!token) return;
+      const api = await reprocessObservation(token, String(id));
+      setApiObs(api);
+      setData(mapApiObservation(api));
+    } catch {
+      setError('Retry failed. Please try again.');
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   if (loading && !data) return <LoadingSkeleton rows={8} />;
-  if (error || !data) {
+  if ((error && !data) || !data) {
     return (
-      <ErrorState title="Observation unavailable" message={error ?? undefined} onRetry={reload} />
+      <ErrorState
+        title="Observation unavailable"
+        message={error ?? undefined}
+        onRetry={() => void load()}
+      />
     );
   }
 
@@ -165,10 +232,29 @@ export default function ObservationDetailScreen() {
     hour: 'numeric',
     minute: '2-digit',
   });
+  const ready = data.status === 'COMPLETED' || data.status === 'READY';
+  const failed = data.status === 'FAILED';
+  const processing = isProcessingObservationStatus(
+    data.status as ApiObservation['status'],
+  );
+  const stage =
+    apiObs != null
+      ? observationStageLabel(apiObs)
+      : observationStageLabel({
+          status: data.status as ApiObservation['status'],
+        });
+  const headline = observationStatusHeadline(
+    data.status as ApiObservation['status'],
+  );
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <Badge label={data.status} tone={statusTone(data.status)} />
+    <ScrollView
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: insets.bottom + 24 },
+      ]}
+    >
+      <Badge label={headline} tone={statusTone(data.status)} />
       <ThemedText colorKey="text" style={styles.title}>
         {data.title}
       </ThemedText>
@@ -189,30 +275,47 @@ export default function ObservationDetailScreen() {
 
       <SectionHeader title="Processing status" />
       <SurfaceCard>
-        <ThemedText colorKey="textSecondary" style={styles.body}>
-          {observationStatusLabel(data.status as ApiObservation['status'])}
-          {data.processingError ? `\n${data.processingError}` : ''}
+        <ThemedText colorKey="text" style={styles.cardTitle}>
+          {headline}
         </ThemedText>
+        <ThemedText colorKey="textSecondary" style={styles.body}>
+          {stage}
+          {ready && apiObs
+            ? `\n${formatObservationReadyTime(apiObs.processedAt || apiObs.updatedAt)}`
+            : ''}
+          {failed && data.processingError ? `\n${data.processingError}` : ''}
+        </ThemedText>
+        {failed ? (
+          <View style={styles.retryWrap}>
+            <ThemedButton
+              label={retrying ? 'Retrying…' : 'Retry'}
+              onPress={() => void onRetry()}
+              disabled={retrying}
+            />
+          </View>
+        ) : null}
       </SurfaceCard>
 
       <SectionHeader title="Summary" />
       <SurfaceCard>
         <ThemedText colorKey="textSecondary" style={styles.body}>
-          {data.summary
+          {ready
             ? data.summary
-            : data.analysisNote
-              ? data.analysisNote
-              : data.status === 'ANALYZING'
-                ? 'Analyzing content…'
-                : data.status === 'COMPLETED'
-                  ? 'No summary available for this observation.'
-                  : 'Summary appears when analysis completes.'}
+              ? data.summary
+              : data.analysisNote
+                ? data.analysisNote
+                : 'No summary available for this observation.'
+            : processing
+              ? stage
+              : failed
+                ? 'Summary unavailable until processing succeeds.'
+                : 'Summary appears when analysis completes.'}
         </ThemedText>
       </SurfaceCard>
 
       <SectionHeader title="Topics" />
       <SurfaceCard>
-        {data.topics && data.topics.length > 0 ? (
+        {ready && data.topics && data.topics.length > 0 ? (
           <View style={styles.chipRow}>
             {data.topics.map((topic) => (
               <Pressable
@@ -228,14 +331,18 @@ export default function ObservationDetailScreen() {
           </View>
         ) : (
           <ThemedText colorKey="textMuted" style={styles.meta}>
-            No topics extracted yet.
+            {ready
+              ? 'No topics extracted yet.'
+              : processing
+                ? 'Topics appear when processing finishes.'
+                : 'No topics available.'}
           </ThemedText>
         )}
       </SurfaceCard>
 
       <SectionHeader title="Entities" />
       <SurfaceCard>
-        {data.entities && data.entities.length > 0 ? (
+        {ready && data.entities && data.entities.length > 0 ? (
           <View style={styles.chipRow}>
             {data.entities.map((entity) => (
               <Pressable
@@ -251,7 +358,11 @@ export default function ObservationDetailScreen() {
           </View>
         ) : (
           <ThemedText colorKey="textMuted" style={styles.meta}>
-            No entities extracted yet.
+            {ready
+              ? 'No entities extracted yet.'
+              : processing
+                ? 'Entities appear when processing finishes.'
+                : 'No entities available.'}
           </ThemedText>
         )}
       </SurfaceCard>
@@ -299,10 +410,10 @@ export default function ObservationDetailScreen() {
           {data.metadata?.fileSizeBytes
             ? ` · ${Math.round(data.metadata.fileSizeBytes / 1024)} KB`
             : ''}
-          {data.metadata?.chunkCount != null
+          {ready && data.metadata?.chunkCount != null
             ? ` · ${data.metadata.chunkCount} chunks`
             : ''}
-          {data.metadata?.wordCount != null
+          {ready && data.metadata?.wordCount != null
             ? ` · ${data.metadata.wordCount} words`
             : ''}
         </ThemedText>
@@ -324,7 +435,10 @@ export default function ObservationDetailScreen() {
         </SurfaceCard>
       ) : (
         data.linkedMemoryIds.map((memoryId) => (
-          <Pressable key={memoryId} onPress={() => router.push(`/(app)/memory/${memoryId}`)}>
+          <Pressable
+            key={memoryId}
+            onPress={() => router.push(`/(app)/memory/${memoryId}`)}
+          >
             <SurfaceCard>
               <ThemedText colorKey="text" style={styles.cardTitle}>
                 Open linked memory
@@ -345,7 +459,11 @@ export default function ObservationDetailScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: 20, gap: 12 },
-  title: { fontFamily: 'DotGothic16_400Regular', fontSize: 24, letterSpacing: 1 },
+  title: {
+    fontFamily: 'DotGothic16_400Regular',
+    fontSize: 24,
+    letterSpacing: 1,
+  },
   meta: { fontFamily: 'Inter_400Regular', fontSize: 12 },
   body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21 },
   cardTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
@@ -358,4 +476,5 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   chipText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+  retryWrap: { marginTop: 12 },
 });

@@ -1,7 +1,8 @@
-import { useUser } from '@clerk/expo';
+import { useAuth, useUser } from '@clerk/expo';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   Dimensions,
   Image,
@@ -18,6 +19,10 @@ import { ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
 import { AccentGradient, GlassPanel, ScreenGradient } from '../../../components/ui/Glass';
 import { toneForIndex } from '../../../components/ui/MemoryCards';
 import { useAsync } from '../../../hooks/useAsync';
+import {
+  fetchObservations,
+  isProcessingObservationStatus,
+} from '../../../lib/api';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import { dashboardService } from '../../../services';
 import { auroraToneColors } from '../../../theme';
@@ -115,10 +120,35 @@ function MemoryTile({ memory, onPress }: { memory: Memory; onPress: () => void }
 
 export default function HomeScreen() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, radius } = useAppTheme();
   const { data, error, loading, reload } = useAsync(() => dashboardService.getSummary(), []);
+  const [processingCount, setProcessingCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void (async () => {
+        try {
+          const token = await getToken();
+          if (!token || cancelled) return;
+          const observations = await fetchObservations(token);
+          if (cancelled) return;
+          setProcessingCount(
+            observations.filter((o) => isProcessingObservationStatus(o.status))
+              .length,
+          );
+        } catch {
+          if (!cancelled) setProcessingCount(0);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [getToken]),
+  );
 
   const name =
     user?.firstName ||
@@ -142,7 +172,6 @@ export default function HomeScreen() {
     );
   }
 
-  const processingCount = data.processingJobs.length;
   const recent = data.recentMemories.slice(0, 6);
   const topics = data.topics.slice(0, 5);
   const unread = data.recentActivity.filter((n) => !n.read).length;

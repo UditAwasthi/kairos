@@ -45,6 +45,9 @@ describe('SearchService', () => {
         ],
       ),
     };
+    const lexicalSearch = {
+      search: jest.fn().mockResolvedValue([]),
+    };
     const embeddings = {
       name: 'test',
       model: 'test-model',
@@ -62,10 +65,11 @@ describe('SearchService', () => {
       users as never,
       prisma as never,
       vectorSearch as never,
+      lexicalSearch as never,
       embeddings,
     );
 
-    return { service, users, prisma, vectorSearch, embeddings };
+    return { service, users, prisma, vectorSearch, lexicalSearch, embeddings };
   }
 
   it('rejects empty queries via validation', async () => {
@@ -208,5 +212,74 @@ describe('SearchService', () => {
       expect.objectContaining({ minSimilarity: 0.42 }),
     );
     delete process.env.SEARCH_MIN_SIMILARITY;
+  });
+
+  it('does not call lexical search when SEARCH_HYBRID_ENABLED is off', async () => {
+    delete process.env.SEARCH_HYBRID_ENABLED;
+    const { service, lexicalSearch } = buildService();
+    await service.search('clerk_a', { query: 'Redis' });
+    expect(lexicalSearch.search).not.toHaveBeenCalled();
+  });
+
+  it('calls lexical search and fuses when SEARCH_HYBRID_ENABLED is on', async () => {
+    process.env.SEARCH_HYBRID_ENABLED = 'true';
+    process.env.SEARCH_SEMANTIC_CANDIDATES = '30';
+    process.env.SEARCH_LEXICAL_CANDIDATES = '30';
+    const { service, vectorSearch, lexicalSearch, prisma } = buildService({
+      hits: [
+        {
+          chunkId: 'c_sem',
+          observationId: 'obs_1',
+          chunkIndex: 0,
+          content: 'PostgreSQL caching strategies',
+          distance: 0.4,
+          similarity: 0.6,
+        },
+      ],
+    });
+    lexicalSearch.search.mockResolvedValue([
+      {
+        chunkId: 'c_sem',
+        observationId: 'obs_1',
+        chunkIndex: 0,
+        content: 'The backend uses Redis for caching.',
+        filename: 'backend-stack.txt',
+        ftsRank: 0.4,
+        filenameMatch: false,
+        contentExactMatch: true,
+      },
+    ]);
+    prisma.observation.findMany.mockResolvedValue([
+      {
+        id: 'obs_1',
+        originalFilename: 'backend-stack.txt',
+        type: 'TEXT',
+        mimeType: 'text/plain',
+        createdAt: new Date('2026-09-01T00:00:00.000Z'),
+        capturedAt: new Date('2026-09-01T00:00:00.000Z'),
+        summary: null,
+      },
+    ]);
+
+    const response = await service.search('clerk_a', {
+      query: 'Redis',
+      limit: 5,
+    });
+
+    expect(lexicalSearch.search).toHaveBeenCalledWith(
+      'user_a',
+      'Redis',
+      expect.objectContaining({ limit: 30 }),
+    );
+    expect(vectorSearch.search).toHaveBeenCalled();
+    expect(response.results.length).toBeGreaterThan(0);
+    // Same observation from both branches must appear once after dedupe+cap.
+    expect(new Set(response.results.map((r) => r.chunkId)).size).toBe(
+      response.results.length,
+    );
+
+    delete process.env.SEARCH_HYBRID_ENABLED;
+    delete process.env.SEARCH_SEMANTIC_CANDIDATES;
+    delete process.env.SEARCH_LEXICAL_CANDIDATES;
   });
 });

@@ -3,7 +3,11 @@ import {
   askKairos,
   fetchAuthMe,
   fetchObservation,
+  isProcessingObservationStatus,
+  isTerminalObservationStatus,
+  observationStatusHeadline,
   observationStatusLabel,
+  reprocessObservation,
   semanticSearch,
   uploadObservation,
 } from '../lib/api';
@@ -90,10 +94,69 @@ describe('observations API client', () => {
   });
 
   it('maps processing status labels', () => {
-    expect(observationStatusLabel('ANALYZING')).toBe('Analyzing content…');
+    expect(observationStatusLabel('PENDING')).toBe('Processing…');
+    expect(observationStatusLabel('EXTRACTING')).toBe(
+      'Extracting document content…',
+    );
+    expect(observationStatusLabel('ANALYZING')).toBe('Extracting metadata…');
     expect(observationStatusLabel('EMBEDDING')).toBe('Generating embeddings…');
     expect(observationStatusLabel('COMPLETED')).toBe('Ready');
     expect(observationStatusLabel('FAILED')).toBe('Processing failed');
+  });
+
+  it('reprocesses via existing retry endpoint', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({
+        data: {
+          id: 'obs_1',
+          filename: 'notes.txt',
+          mimeType: 'text/plain',
+          type: 'TEXT',
+          status: 'PENDING',
+          stageLabel: 'Processing…',
+          createdAt: '2026-09-12T00:00:00.000Z',
+          updatedAt: '2026-09-12T00:00:00.000Z',
+          capturedAt: '2026-09-12T00:00:00.000Z',
+          processedAt: null,
+          extractedText: null,
+          summary: null,
+          processingError: null,
+          sourceMetadata: null,
+          metadata: {
+            filename: 'notes.txt',
+            mimeType: 'text/plain',
+            fileSizeBytes: 12,
+            pageCount: null,
+            characterCount: null,
+            wordCount: null,
+            chunkCount: null,
+          },
+          topics: [],
+          entities: [],
+          projects: [],
+          chunkCount: 0,
+        },
+      }),
+    }) as typeof fetch;
+
+    const result = await reprocessObservation('tok', 'obs_1');
+    expect(result.status).toBe('PENDING');
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/observations\/obs_1\/reprocess$/),
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('classifies terminal vs processing statuses for polling', () => {
+    expect(isTerminalObservationStatus('COMPLETED')).toBe(true);
+    expect(isTerminalObservationStatus('FAILED')).toBe(true);
+    expect(isProcessingObservationStatus('EMBEDDING')).toBe(true);
+    expect(isProcessingObservationStatus('COMPLETED')).toBe(false);
+    expect(observationStatusHeadline('FAILED')).toBe('Processing failed');
+    expect(observationStatusHeadline('COMPLETED')).toBe('Ready');
+    expect(observationStatusHeadline('CHUNKING')).toBe('Processing');
   });
 
   it('posts semantic search requests', async () => {

@@ -1,36 +1,115 @@
-import { useRouter } from 'expo-router';
+import { useAuth } from '@clerk/expo';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../components/ThemedText';
 import { EmptyState, ErrorState, LoadingSkeleton } from '../../components/ui/EmptyState';
-import { ProcessingIndicator } from '../../components/ui/MemoryCards';
+import { ObservationStatusCard } from '../../components/ui/ObservationStatusCard';
 import { SectionHeader, SurfaceCard } from '../../components/ui/SectionHeader';
 import { ThemedButton } from '../../components/ui/ThemedButton';
-import { useAsync } from '../../hooks/useAsync';
-import { processingService } from '../../services';
+import {
+  fetchObservations,
+  isProcessingObservationStatus,
+  reprocessObservation,
+  type ApiObservation,
+} from '../../lib/api';
+
+const POLL_MS = 3000;
 
 export default function ActivityScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { data, error, loading, reload } = useAsync(() => processingService.listJobs(), []);
+  const { getToken } = useAuth();
+  const [observations, setObservations] = useState<ApiObservation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const focusedRef = useRef(true);
+  const observationsRef = useRef<ApiObservation[]>([]);
+  observationsRef.current = observations;
 
-  if (loading) return <LoadingSkeleton rows={8} />;
-  if (error) {
-    return <ErrorState title="Unable to load activity" message={error} onRetry={reload} />;
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      const token = await getToken();
+      if (!token) throw new Error('Sign in required');
+      const data = await fetchObservations(token);
+      setObservations(data);
+    } catch {
+      setError('Unable to load activity.');
+    }
+  }, [getToken]);
+
+  useFocusEffect(
+    useCallback(() => {
+      focusedRef.current = true;
+      let cancelled = false;
+      void (async () => {
+        setLoading(true);
+        await load();
+        if (!cancelled) setLoading(false);
+      })();
+
+      const timer = setInterval(() => {
+        if (!focusedRef.current) return;
+        if (
+          observationsRef.current.some((o) =>
+            isProcessingObservationStatus(o.status),
+          )
+        ) {
+          void load();
+        }
+      }, POLL_MS);
+
+      return () => {
+        cancelled = true;
+        focusedRef.current = false;
+        clearInterval(timer);
+      };
+    }, [load]),
+  );
+
+  const active = observations.filter((o) =>
+    isProcessingObservationStatus(o.status),
+  );
+  const failed = observations.filter((o) => o.status === 'FAILED');
+  const recentReady = observations
+    .filter((o) => o.status === 'COMPLETED')
+    .slice(0, 5);
+  const visible = [...active, ...failed, ...recentReady];
+
+  const onRetry = async (id: string) => {
+    try {
+      setRetryingId(id);
+      const token = await getToken();
+      if (!token) return;
+      const updated = await reprocessObservation(token, id);
+      setObservations((prev) =>
+        prev.map((item) => (item.id === id ? updated : item)),
+      );
+    } catch {
+      setError('Retry failed. Try again.');
+    } finally {
+      setRetryingId(null);
+    }
+  };
+
+  if (loading && observations.length === 0) return <LoadingSkeleton rows={8} />;
+  if (error && observations.length === 0) {
+    return <ErrorState title="Unable to load activity" message={error} onRetry={() => void load()} />;
   }
-  if (!data || data.length === 0) {
+  if (visible.length === 0) {
     return (
       <EmptyState
         title="Nothing processing"
-        message="New captures will show upload, OCR, extraction, and embedding stages here."
+        message="New captures show live processing status here while Kairos extracts, chunks, and embeds them."
         actionLabel="Capture"
         onAction={() => router.push('/(app)/(tabs)/capture')}
       />
     );
   }
-
-  const active = data.filter((j) => j.stage !== 'READY' && j.stage !== 'FAILED');
 
   return (
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
@@ -39,16 +118,26 @@ export default function ActivityScreen() {
           Processing {active.length} observation{active.length === 1 ? '' : 's'}
         </ThemedText>
         <ThemedText colorKey="textSecondary" style={styles.body}>
-          This view previews the future async AI pipeline. Stages are simulated in the mock layer.
+          Status comes from the real observation pipeline. No fake percentages.
         </ThemedText>
       </SurfaceCard>
 
-      <SectionHeader title="Jobs" />
-      {data.map((job) => (
-        <ProcessingIndicator key={job.id} job={job} />
+      <SectionHeader title="Activity" />
+      {visible.map((observation) => (
+        <ObservationStatusCard
+          key={observation.id}
+          observation={observation}
+          retrying={retryingId === observation.id}
+          onPress={() => router.push(`/(app)/observation/${observation.id}`)}
+          onRetry={
+            observation.status === 'FAILED'
+              ? () => void onRetry(observation.id)
+              : undefined
+          }
+        />
       ))}
 
-      <ThemedButton label="Refresh" variant="outline" onPress={reload} />
+      <ThemedButton label="Refresh" variant="outline" onPress={() => void load()} />
       <ThemedButton
         label="Capture another"
         onPress={() => router.push('/(app)/(tabs)/capture')}

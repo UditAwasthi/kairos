@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { ChunkEmbeddingService } from '../embeddings/chunk-embedding.service';
 import { LocalDeterministicEmbeddingProvider } from '../embeddings/local-deterministic-embedding.provider';
 import { VectorSearchService } from '../embeddings/vector-search.service';
+import { LexicalSearchService } from './lexical-search.service';
 import { SearchService } from './search.service';
 
 const shouldRun = process.env.RUN_PGVECTOR_IT === '1';
@@ -26,6 +27,7 @@ const shouldRun = process.env.RUN_PGVECTOR_IT === '1';
     provider = new LocalDeterministicEmbeddingProvider();
     embeddings = new ChunkEmbeddingService(prisma as never, provider);
     const vectorSearch = new VectorSearchService(prisma as never, provider);
+    const lexicalSearch = new LexicalSearchService(prisma as never);
 
     const users = {
       findOrCreateByClerkId: async (clerkUserId: string) => {
@@ -41,6 +43,7 @@ const shouldRun = process.env.RUN_PGVECTOR_IT === '1';
       users as never,
       prisma as never,
       vectorSearch,
+      lexicalSearch,
       provider,
     );
 
@@ -166,6 +169,7 @@ const shouldRun = process.env.RUN_PGVECTOR_IT === '1';
       } as never,
       prisma as never,
       new VectorSearchService(prisma as never, provider),
+      new LexicalSearchService(prisma as never),
       provider,
     );
 
