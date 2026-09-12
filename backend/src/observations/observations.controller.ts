@@ -49,12 +49,14 @@ export class ObservationsController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('topicId') topicId?: string,
     @Query('entityId') entityId?: string,
+    @Query('projectId') projectId?: string,
     @Query('topic') topic?: string,
     @Query('entity') entity?: string,
   ): Promise<{ data: ObservationResponse[] }> {
     const observations = await this.observations.listForClerkUser(user.id, {
       topicId: topicId || undefined,
       entityId: entityId || undefined,
+      projectId: projectId || undefined,
       topic: topic || undefined,
       entity: entity || undefined,
     });

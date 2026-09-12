@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import {
   normalizeLabel,
   resolveEntityFilter,
+  resolveProjectFilter,
   resolveTopicFilter,
 } from './resolve-filters';
 
@@ -40,6 +41,40 @@ describe('resolve-filters', () => {
         prisma: prisma as never,
         userId: 'user_a',
         entity: 'Redis',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('resolves project filters for the owning user only', async () => {
+    const prisma = {
+      project: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'proj_1' }),
+      },
+    };
+    await expect(
+      resolveProjectFilter({
+        prisma: prisma as never,
+        userId: 'user_a',
+        projectId: 'proj_1',
+      }),
+    ).resolves.toBe('proj_1');
+    expect(prisma.project.findFirst).toHaveBeenCalledWith({
+      where: { id: 'proj_1', userId: 'user_a' },
+      select: { id: true },
+    });
+  });
+
+  it('rejects another user project filter', async () => {
+    const prisma = {
+      project: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    };
+    await expect(
+      resolveProjectFilter({
+        prisma: prisma as never,
+        userId: 'user_a',
+        projectId: 'proj_b',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });

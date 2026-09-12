@@ -18,8 +18,10 @@ import { ThemedButton } from '../../components/ui/ThemedButton';
 import { ThemedInput } from '../../components/ui/ThemedInput';
 import {
   ApiError,
+  fetchProjects,
   fetchTopics,
   semanticSearch,
+  type ApiProjectSummary,
   type ApiSemanticSearchResponse,
   type ApiTopicSummary,
 } from '../../lib/api';
@@ -58,10 +60,16 @@ export default function SearchScreen() {
     topicName?: string;
     entityId?: string;
     entityName?: string;
+    projectId?: string;
+    projectName?: string;
   }>();
 
   const [query, setQuery] = useState('');
   const [topics, setTopics] = useState<ApiTopicSummary[]>([]);
+  const [projects, setProjects] = useState<ApiProjectSummary[]>([]);
+  const [projectId, setProjectId] = useState<string | undefined>(
+    typeof params.projectId === 'string' ? params.projectId : undefined,
+  );
   const [topicId, setTopicId] = useState<string | undefined>(
     typeof params.topicId === 'string' ? params.topicId : undefined,
   );
@@ -69,11 +77,13 @@ export default function SearchScreen() {
     typeof params.entityId === 'string' ? params.entityId : undefined,
   );
   const [scopeName, setScopeName] = useState<string | undefined>(
-    typeof params.topicName === 'string'
-      ? params.topicName
-      : typeof params.entityName === 'string'
-        ? params.entityName
-        : undefined,
+    typeof params.projectName === 'string'
+      ? params.projectName
+      : typeof params.topicName === 'string'
+        ? params.topicName
+        : typeof params.entityName === 'string'
+          ? params.entityName
+          : undefined,
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,8 +95,12 @@ export default function SearchScreen() {
       try {
         const token = await getToken();
         if (!token) return;
-        const data = await fetchTopics({ token, limit: 20 });
-        setTopics(data.items);
+        const [topicData, projectData] = await Promise.all([
+          fetchTopics({ token, limit: 20 }),
+          fetchProjects({ token, limit: 20 }),
+        ]);
+        setTopics(topicData.items);
+        setProjects(projectData.items);
       } catch {
         // optional filter chips
       }
@@ -108,6 +122,7 @@ export default function SearchScreen() {
         query: trimmed,
         limit: 10,
         filters: {
+          projectId,
           topicId,
           entityId,
         },
@@ -144,17 +159,31 @@ export default function SearchScreen() {
         onPress={() => void runSearch()}
       />
 
-      <SectionHeader title="Filters" subtitle="Optional topic scope" />
+      <SectionHeader title="Filters" subtitle="Optional project or topic scope" />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
         <TopicChip
           label="All"
-          selected={!topicId && !entityId}
+          selected={!projectId && !topicId && !entityId}
           onPress={() => {
+            setProjectId(undefined);
             setTopicId(undefined);
             setEntityId(undefined);
             setScopeName(undefined);
           }}
         />
+        {projects.map((project) => (
+          <TopicChip
+            key={project.id}
+            label={project.name}
+            selected={projectId === project.id}
+            onPress={() => {
+              setProjectId(project.id);
+              setTopicId(undefined);
+              setEntityId(undefined);
+              setScopeName(project.name);
+            }}
+          />
+        ))}
         {topics.map((topic) => (
           <TopicChip
             key={topic.id}
@@ -162,6 +191,7 @@ export default function SearchScreen() {
             selected={topicId === topic.id}
             onPress={() => {
               setTopicId(topic.id);
+              setProjectId(undefined);
               setEntityId(undefined);
               setScopeName(topic.name);
             }}

@@ -4,6 +4,7 @@ import type {
   Observation,
   ObservationType,
   ProcessingStatus,
+  Project,
   Topic,
 } from '@prisma/client';
 
@@ -18,6 +19,11 @@ export type ObservationEntityResponse = {
   name: string;
   type: EntityType;
   confidence: number | null;
+};
+
+export type ObservationProjectResponse = {
+  id: string;
+  name: string;
 };
 
 export type ObservationMetadataResponse = {
@@ -46,6 +52,7 @@ export type ObservationResponse = {
   metadata: ObservationMetadataResponse;
   topics: ObservationTopicResponse[];
   entities: ObservationEntityResponse[];
+  projects: ObservationProjectResponse[];
   chunkCount: number;
 };
 
@@ -57,6 +64,9 @@ type ObservationWithRelations = Observation & {
   observationEntities?: Array<{
     confidence: number | null;
     entity: Entity;
+  }>;
+  projectObservations?: Array<{
+    project: Project;
   }>;
   _count?: { chunks?: number };
 };
@@ -74,6 +84,10 @@ export function toObservationResponse(
     name: row.entity.name,
     type: row.entity.type,
     confidence: row.confidence,
+  }));
+  const projects = (observation.projectObservations ?? []).map((row) => ({
+    id: row.project.id,
+    name: row.project.name,
   }));
 
   return {
@@ -104,6 +118,7 @@ export function toObservationResponse(
     },
     topics,
     entities,
+    projects,
     chunkCount: observation.chunkCount ?? observation._count?.chunks ?? 0,
   };
 }

@@ -23,6 +23,7 @@ export type VectorSearchFilters = {
   to?: Date;
   topicId?: string;
   entityId?: string;
+  projectId?: string;
 };
 
 export type VectorSearchOptions = {
@@ -109,6 +110,14 @@ export class VectorSearchService {
         WHERE oe."observationId" = o.id AND oe."entityId" = $${idx}
       )`);
       params.push(filters.entityId);
+      idx += 1;
+    }
+    if (filters.projectId) {
+      where.push(`EXISTS (
+        SELECT 1 FROM project_observations po
+        WHERE po."observationId" = o.id AND po."projectId" = $${idx}
+      )`);
+      params.push(filters.projectId);
       idx += 1;
     }
     if (maxDistance !== undefined) {

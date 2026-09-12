@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { EntitiesModule } from './entities/entities.module';
 import { ObservationsModule } from './observations/observations.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProjectsModule } from './projects/projects.module';
 import { SearchModule } from './search/search.module';
 import { StorageModule } from './storage/storage.module';
 import { TopicsModule } from './topics/topics.module';
@@ -22,6 +23,7 @@ import { UsersModule } from './users/users.module';
     AskModule,
     TopicsModule,
     EntitiesModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

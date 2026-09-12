@@ -113,6 +113,7 @@ export class AskService {
           mimeType: request.filters.mimeType,
           topicId: request.filters.topicId,
           entityId: request.filters.entityId,
+          projectId: request.filters.projectId,
           topic: request.filters.topic,
           entity: request.filters.entity,
         },

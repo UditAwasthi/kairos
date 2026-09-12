@@ -35,6 +35,11 @@ export type ApiObservationEntity = {
   confidence: number | null;
 };
 
+export type ApiObservationProject = {
+  id: string;
+  name: string;
+};
+
 export type ApiObservationMetadata = {
   filename: string;
   mimeType: string;
@@ -61,6 +66,7 @@ export type ApiObservation = {
   metadata: ApiObservationMetadata;
   topics: ApiObservationTopic[];
   entities: ApiObservationEntity[];
+  projects: ApiObservationProject[];
   chunkCount: number;
 };
 
@@ -179,6 +185,7 @@ export async function fetchObservations(
   filters?: {
     topicId?: string;
     entityId?: string;
+    projectId?: string;
     topic?: string;
     entity?: string;
   },
@@ -186,6 +193,7 @@ export async function fetchObservations(
   const qs = new URLSearchParams();
   if (filters?.topicId) qs.set('topicId', filters.topicId);
   if (filters?.entityId) qs.set('entityId', filters.entityId);
+  if (filters?.projectId) qs.set('projectId', filters.projectId);
   if (filters?.topic) qs.set('topic', filters.topic);
   if (filters?.entity) qs.set('entity', filters.entity);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
@@ -235,6 +243,20 @@ export type ApiTopicDetail = ApiTopicSummary & {
 
 export type ApiEntityDetail = ApiEntitySummary & {
   observations: ApiObservation[];
+};
+
+export type ApiProjectSummary = {
+  id: string;
+  name: string;
+  description: string | null;
+  observationCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApiProjectDetail = ApiProjectSummary & {
+  observations: ApiObservation[];
+  nextCursor: string | null;
 };
 
 export async function fetchTopics(params: {
@@ -329,6 +351,168 @@ export async function fetchEntity(params: {
   return body.data;
 }
 
+export async function fetchProjects(params: {
+  token: string;
+  limit?: number;
+  cursor?: string;
+}): Promise<{ items: ApiProjectSummary[]; nextCursor: string | null }> {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.cursor) qs.set('cursor', params.cursor);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/projects${suffix}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as {
+    data: { items: ApiProjectSummary[]; nextCursor: string | null };
+  };
+  return body.data;
+}
+
+export async function fetchProject(params: {
+  token: string;
+  id: string;
+  limit?: number;
+  cursor?: string;
+}): Promise<ApiProjectDetail> {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.cursor) qs.set('cursor', params.cursor);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/projects/${encodeURIComponent(params.id)}${suffix}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: ApiProjectDetail };
+  return body.data;
+}
+
+export async function createProject(params: {
+  token: string;
+  name: string;
+  description?: string | null;
+}): Promise<ApiProjectSummary> {
+  const response = await fetch(`${normalizeBaseUrl(apiBaseUrl)}/projects`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${params.token}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: params.name,
+      description: params.description ?? null,
+    }),
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: ApiProjectSummary };
+  return body.data;
+}
+
+export async function updateProject(params: {
+  token: string;
+  id: string;
+  name?: string;
+  description?: string | null;
+}): Promise<ApiProjectSummary> {
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/projects/${encodeURIComponent(params.id)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: params.name,
+        description: params.description,
+      }),
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: ApiProjectSummary };
+  return body.data;
+}
+
+export async function deleteProject(params: {
+  token: string;
+  id: string;
+}): Promise<void> {
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/projects/${encodeURIComponent(params.id)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok && response.status !== 204) {
+    throw await parseError(response);
+  }
+}
+
+export async function addObservationToProject(params: {
+  token: string;
+  projectId: string;
+  observationId: string;
+}): Promise<{ projectId: string; observationId: string; created: boolean }> {
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/projects/${encodeURIComponent(params.projectId)}/observations`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ observationId: params.observationId }),
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as {
+    data: { projectId: string; observationId: string; created: boolean };
+  };
+  return body.data;
+}
+
+export async function removeObservationFromProject(params: {
+  token: string;
+  projectId: string;
+  observationId: string;
+}): Promise<void> {
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/projects/${encodeURIComponent(params.projectId)}/observations/${encodeURIComponent(params.observationId)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok && response.status !== 204) {
+    throw await parseError(response);
+  }
+}
+
 export function isTerminalObservationStatus(
   status: ApiObservationStatus,
 ): boolean {
@@ -386,6 +570,7 @@ export type ApiSemanticSearchFilters = {
   mimeType?: string;
   topicId?: string;
   entityId?: string;
+  projectId?: string;
   topic?: string;
   entity?: string;
 };
@@ -432,6 +617,7 @@ export async function semanticSearch(params: {
       filters: params.filters,
       topic: params.filters?.topic,
       entity: params.filters?.entity,
+      projectId: params.filters?.projectId,
     }),
   });
 
@@ -509,6 +695,7 @@ export async function askKairos(params: {
       filters: params.filters,
       topic: params.filters?.topic,
       entity: params.filters?.entity,
+      projectId: params.filters?.projectId,
     }),
   });
 

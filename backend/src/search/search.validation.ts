@@ -9,9 +9,10 @@ export const DEFAULT_SEARCH_LIMIT = 10;
 export type SearchRequestBody = {
   query?: unknown;
   limit?: unknown;
-  /** Optional convenience aliases for filters.topic / filters.entity */
+  /** Optional convenience aliases for filters.topic / filters.entity / filters.projectId */
   topic?: unknown;
   entity?: unknown;
+  projectId?: unknown;
   filters?: {
     from?: unknown;
     to?: unknown;
@@ -19,6 +20,7 @@ export type SearchRequestBody = {
     mimeType?: unknown;
     topicId?: unknown;
     entityId?: unknown;
+    projectId?: unknown;
     topic?: unknown;
     entity?: unknown;
   };
@@ -34,6 +36,7 @@ export type ValidatedSearchRequest = {
     mimeType?: string;
     topicId?: string;
     entityId?: string;
+    projectId?: string;
     topic?: string;
     entity?: string;
   };
@@ -104,6 +107,10 @@ export function validateSearchRequest(
 
   const topicId = parseOptionalStringId(filters.topicId, 'topicId');
   const entityId = parseOptionalStringId(filters.entityId, 'entityId');
+  const projectId = parseOptionalStringId(
+    filters.projectId ?? body.projectId,
+    'projectId',
+  );
   const topic =
     parseOptionalStringId(filters.topic ?? body.topic, 'topic') ?? undefined;
   const entity =
@@ -119,6 +126,7 @@ export function validateSearchRequest(
       mimeType,
       topicId,
       entityId,
+      projectId,
       topic,
       entity,
     },

@@ -19,13 +19,15 @@ import { useAppTheme } from '../../../providers/ThemeProvider';
 import {
   fetchEntities,
   fetchObservations,
+  fetchProjects,
   fetchTopics,
   type ApiEntitySummary,
   type ApiObservation,
+  type ApiProjectSummary,
   type ApiTopicSummary,
 } from '../../../lib/api';
 
-type FilterMode = 'all' | 'topic' | 'entity';
+type FilterMode = 'all' | 'project' | 'topic' | 'entity';
 
 function formatDateLabel(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -40,13 +42,27 @@ export default function TimelineScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const { getToken } = useAuth();
-  const params = useLocalSearchParams<{ topicId?: string; entityId?: string }>();
+  const params = useLocalSearchParams<{
+    topicId?: string;
+    entityId?: string;
+    projectId?: string;
+  }>();
 
   const [observations, setObservations] = useState<ApiObservation[]>([]);
   const [topics, setTopics] = useState<ApiTopicSummary[]>([]);
   const [entities, setEntities] = useState<ApiEntitySummary[]>([]);
+  const [projects, setProjects] = useState<ApiProjectSummary[]>([]);
   const [mode, setMode] = useState<FilterMode>(
-    params.topicId ? 'topic' : params.entityId ? 'entity' : 'all',
+    params.projectId
+      ? 'project'
+      : params.topicId
+        ? 'topic'
+        : params.entityId
+          ? 'entity'
+          : 'all',
+  );
+  const [projectId, setProjectId] = useState<string | undefined>(
+    typeof params.projectId === 'string' ? params.projectId : undefined,
   );
   const [topicId, setTopicId] = useState<string | undefined>(
     typeof params.topicId === 'string' ? params.topicId : undefined,
@@ -61,12 +77,14 @@ export default function TimelineScreen() {
   const loadMeta = useCallback(async () => {
     const token = await getToken();
     if (!token) return;
-    const [topicData, entityData] = await Promise.all([
+    const [topicData, entityData, projectData] = await Promise.all([
       fetchTopics({ token, limit: 30 }),
       fetchEntities({ token, limit: 30 }),
+      fetchProjects({ token, limit: 30 }),
     ]);
     setTopics(topicData.items);
     setEntities(entityData.items);
+    setProjects(projectData.items);
   }, [getToken]);
 
   const load = useCallback(async () => {
@@ -75,6 +93,7 @@ export default function TimelineScreen() {
       const token = await getToken();
       if (!token) throw new Error('Sign in to view your timeline.');
       const data = await fetchObservations(token, {
+        projectId: mode === 'project' ? projectId : undefined,
         topicId: mode === 'topic' ? topicId : undefined,
         entityId: mode === 'entity' ? entityId : undefined,
       });
@@ -82,7 +101,7 @@ export default function TimelineScreen() {
     } catch {
       setError('Unable to load timeline.');
     }
-  }, [entityId, getToken, mode, topicId]);
+  }, [entityId, getToken, mode, projectId, topicId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,11 +142,25 @@ export default function TimelineScreen() {
           selected={mode === 'all'}
           onPress={() => {
             setMode('all');
+            setProjectId(undefined);
             setTopicId(undefined);
             setEntityId(undefined);
           }}
         />
-        {topics.slice(0, 8).map((topic) => (
+        {projects.slice(0, 6).map((project) => (
+          <TopicChip
+            key={project.id}
+            label={project.name}
+            selected={mode === 'project' && projectId === project.id}
+            onPress={() => {
+              setMode('project');
+              setProjectId(project.id);
+              setTopicId(undefined);
+              setEntityId(undefined);
+            }}
+          />
+        ))}
+        {topics.slice(0, 6).map((topic) => (
           <TopicChip
             key={topic.id}
             label={topic.name}
@@ -135,11 +168,12 @@ export default function TimelineScreen() {
             onPress={() => {
               setMode('topic');
               setTopicId(topic.id);
+              setProjectId(undefined);
               setEntityId(undefined);
             }}
           />
         ))}
-        {entities.slice(0, 8).map((entity) => (
+        {entities.slice(0, 6).map((entity) => (
           <TopicChip
             key={entity.id}
             label={entity.name}
@@ -147,6 +181,7 @@ export default function TimelineScreen() {
             onPress={() => {
               setMode('entity');
               setEntityId(entity.id);
+              setProjectId(undefined);
               setTopicId(undefined);
             }}
           />

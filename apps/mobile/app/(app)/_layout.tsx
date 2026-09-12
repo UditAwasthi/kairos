@@ -53,7 +53,10 @@ export default function AppLayout() {
       <Stack.Screen name="entities/index" options={{ title: 'Entities' }} />
       <Stack.Screen name="entities/[id]" options={{ title: 'Entity' }} />
       <Stack.Screen name="projects/index" options={{ title: 'Projects' }} />
-      <Stack.Screen name="projects/[id]" options={{ title: 'Project' }} />
+      <Stack.Screen name="projects/new" options={{ title: 'New project' }} />
+      <Stack.Screen name="projects/[id]/index" options={{ title: 'Project' }} />
+      <Stack.Screen name="projects/[id]/add" options={{ title: 'Add observations' }} />
+      <Stack.Screen name="observation/projects" options={{ title: 'Add to project' }} />
       <Stack.Screen name="related/[id]" options={{ title: 'Related' }} />
       <Stack.Screen name="activity" options={{ title: 'Processing' }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />

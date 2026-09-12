@@ -20,11 +20,13 @@ export type AskRequestBody = {
     mimeType?: unknown;
     topicId?: unknown;
     entityId?: unknown;
+    projectId?: unknown;
     topic?: unknown;
     entity?: unknown;
   };
   topic?: unknown;
   entity?: unknown;
+  projectId?: unknown;
 };
 
 export type ValidatedAskRequest = {
@@ -39,6 +41,7 @@ export type ValidatedAskRequest = {
     mimeType?: string;
     topicId?: string;
     entityId?: string;
+    projectId?: string;
     topic?: string;
     entity?: string;
   };
@@ -138,6 +141,10 @@ export function validateAskRequest(body: AskRequestBody): ValidatedAskRequest {
 
   const topicId = parseOptionalStringId(filters.topicId, 'topicId');
   const entityId = parseOptionalStringId(filters.entityId, 'entityId');
+  const projectId = parseOptionalStringId(
+    filters.projectId ?? body.projectId,
+    'projectId',
+  );
   const topic =
     parseOptionalStringId(filters.topic ?? body.topic, 'topic') ?? undefined;
   const entity =
@@ -155,6 +162,7 @@ export function validateAskRequest(body: AskRequestBody): ValidatedAskRequest {
       mimeType,
       topicId,
       entityId,
+      projectId,
       topic,
       entity,
     },

@@ -21,12 +21,14 @@ import {
 import { ObservationProcessor } from './observation.processor';
 import {
   resolveEntityFilter,
+  resolveProjectFilter,
   resolveTopicFilter,
 } from '../metadata/resolve-filters';
 
 const observationInclude = {
   observationTopics: { include: { topic: true } },
   observationEntities: { include: { entity: true } },
+  projectObservations: { include: { project: true } },
   _count: { select: { chunks: true } },
 } as const;
 
@@ -104,6 +106,7 @@ export class ObservationsService {
     filters?: {
       topicId?: string;
       entityId?: string;
+      projectId?: string;
       topic?: string;
       entity?: string;
     },
@@ -121,12 +124,18 @@ export class ObservationsService {
       entityId: filters?.entityId,
       entity: filters?.entity,
     });
+    const projectId = await resolveProjectFilter({
+      prisma: this.prisma,
+      userId: user.id,
+      projectId: filters?.projectId,
+    });
 
     const observations = await this.prisma.observation.findMany({
       where: {
         userId: user.id,
         ...(topicId ? { observationTopics: { some: { topicId } } } : {}),
         ...(entityId ? { observationEntities: { some: { entityId } } } : {}),
+        ...(projectId ? { projectObservations: { some: { projectId } } } : {}),
       },
       orderBy: { createdAt: 'desc' },
       include: observationInclude,

@@ -39,4 +39,13 @@ describe('validateSearchRequest', () => {
     expect(result.filters.observationType).toBe('TEXT');
     expect(result.filters.from?.toISOString()).toBe('2026-01-01T00:00:00.000Z');
   });
+
+  it('accepts projectId filter', () => {
+    const result = validateSearchRequest({
+      query: 'caching',
+      projectId: 'proj_1',
+      filters: { projectId: 'proj_1' },
+    });
+    expect(result.filters.projectId).toBe('proj_1');
+  });
 });

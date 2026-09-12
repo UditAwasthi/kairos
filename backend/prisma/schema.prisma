@@ -20,6 +20,7 @@ model User {
   observations  Observation[]
   topics        Topic[]
   entities      Entity[]
+  projects      Project[]
   conversations Conversation[]
 
   @@map("users")
@@ -74,9 +75,10 @@ model Observation {
   capturedAt       DateTime              @default(now())
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
-  chunks           ObservationChunk[]
-  observationTopics ObservationTopic[]
+  chunks              ObservationChunk[]
+  observationTopics   ObservationTopic[]
   observationEntities ObservationEntity[]
+  projectObservations ProjectObservation[]
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, processingStatus])
@@ -157,6 +159,34 @@ model ObservationEntity {
 
   @@id([observationId, entityId])
   @@map("observation_entities")
+}
+
+/// User-managed collection. Membership is independent of extraction/reprocessing.
+model Project {
+  id                  String               @id @default(cuid())
+  userId              String
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                String
+  description         String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  projectObservations ProjectObservation[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("projects")
+}
+
+model ProjectObservation {
+  projectId     String
+  observationId String
+  createdAt     DateTime    @default(now())
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  observation   Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, observationId])
+  @@index([observationId])
+  @@index([projectId, createdAt(sort: Desc)])
+  @@map("project_observations")
 }
 
 enum ConversationMessageRole {

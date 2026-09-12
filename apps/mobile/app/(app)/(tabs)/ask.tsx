@@ -110,8 +110,10 @@ export default function AskScreen() {
   );
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationTitle, setConversationTitle] = useState('Ask Kairos');
-  const [scopeType, setScopeType] = useState<'topic' | 'entity' | null>(
-    params.scopeType === 'topic' || params.scopeType === 'entity'
+  const [scopeType, setScopeType] = useState<'topic' | 'entity' | 'project' | null>(
+    params.scopeType === 'topic' ||
+      params.scopeType === 'entity' ||
+      params.scopeType === 'project'
       ? params.scopeType
       : null,
   );
@@ -248,6 +250,7 @@ export default function AskScreen() {
         filters: {
           topicId: scopeType === 'topic' ? scopeId ?? undefined : undefined,
           entityId: scopeType === 'entity' ? scopeId ?? undefined : undefined,
+          projectId: scopeType === 'project' ? scopeId ?? undefined : undefined,
         },
       });
 

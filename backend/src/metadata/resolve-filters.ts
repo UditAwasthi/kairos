@@ -95,3 +95,24 @@ export async function resolveEntityFilter(params: {
   }
   return entity.id;
 }
+
+export async function resolveProjectFilter(params: {
+  prisma: PrismaService;
+  userId: string;
+  projectId?: string;
+}): Promise<string | undefined> {
+  if (!params.projectId) return undefined;
+  const project = await params.prisma.project.findFirst({
+    where: { id: params.projectId, userId: params.userId },
+    select: { id: true },
+  });
+  if (!project) {
+    throw new BadRequestException({
+      error: {
+        code: 'PROJECT_NOT_FOUND',
+        message: 'Project filter does not match your projects.',
+      },
+    });
+  }
+  return project.id;
+}

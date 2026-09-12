@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import {
   resolveEntityFilter,
+  resolveProjectFilter,
   resolveTopicFilter,
 } from '../metadata/resolve-filters';
 import {
@@ -85,6 +86,11 @@ export class SearchService {
       entityId: request.filters.entityId,
       entity: request.filters.entity,
     });
+    const projectId = await resolveProjectFilter({
+      prisma: this.prisma,
+      userId: user.id,
+      projectId: request.filters.projectId,
+    });
 
     const embedStarted = Date.now();
     const embedded = await this.embeddings.embedText(request.query);
@@ -106,6 +112,7 @@ export class SearchService {
         to: request.filters.to,
         topicId,
         entityId,
+        projectId,
       },
     });
     const searchMs = Date.now() - searchStarted;

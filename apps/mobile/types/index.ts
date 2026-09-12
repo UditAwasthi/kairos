@@ -83,6 +83,7 @@ export type Observation = {
   sourceLabel: string;
   topics?: { id: string; name: string }[];
   entities?: { id: string; name: string; type: string }[];
+  projects?: { id: string; name: string }[];
   metadata?: {
     mimeType?: string;
     fileSizeBytes?: number;

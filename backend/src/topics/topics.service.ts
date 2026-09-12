@@ -21,6 +21,7 @@ export type TopicDetail = TopicSummary & {
 const observationInclude = {
   observationTopics: { include: { topic: true } },
   observationEntities: { include: { entity: true } },
+  projectObservations: { include: { project: true } },
   _count: { select: { chunks: true } },
 } as const;
 

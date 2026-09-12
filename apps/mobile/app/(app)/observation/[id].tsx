@@ -45,6 +45,7 @@ function mapApiObservation(api: ApiObservation): Observation {
       name: e.name,
       type: e.type,
     })),
+    projects: (api.projects ?? []).map((p) => ({ id: p.id, name: p.name })),
     metadata: api.metadata,
     processingError: api.processingError,
     analysisNote,
@@ -254,6 +255,39 @@ export default function ObservationDetailScreen() {
           </ThemedText>
         )}
       </SurfaceCard>
+
+      <SectionHeader title="Projects" />
+      <SurfaceCard>
+        {data.projects && data.projects.length > 0 ? (
+          <View style={styles.chipRow}>
+            {data.projects.map((project) => (
+              <Pressable
+                key={project.id}
+                onPress={() => router.push(`/(app)/projects/${project.id}`)}
+                style={styles.chip}
+              >
+                <ThemedText colorKey="text" style={styles.chipText}>
+                  {project.name}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <ThemedText colorKey="textMuted" style={styles.meta}>
+            Not in any project yet.
+          </ThemedText>
+        )}
+      </SurfaceCard>
+      <ThemedButton
+        label="Add to project"
+        variant="outline"
+        onPress={() =>
+          router.push({
+            pathname: '/(app)/observation/projects',
+            params: { id: String(id) },
+          })
+        }
+      />
 
       <SectionHeader title="Source" />
       <SurfaceCard>
