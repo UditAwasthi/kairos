@@ -81,7 +81,10 @@ function statusTone(
   return 'neutral';
 }
 
-function extractedTextMessage(data: Observation): string {
+function extractedTextMessage(
+  data: Observation,
+  apiObs: ApiObservation | null,
+): string {
   if (data.status !== 'COMPLETED' && data.status !== 'READY') {
     if (data.status === 'FAILED') {
       return 'Processing failed. Extracted text is unavailable until retry succeeds.';
@@ -92,8 +95,15 @@ function extractedTextMessage(data: Observation): string {
     return 'Extraction in progress…';
   }
   if (data.extractedText) return data.extractedText;
+
+  const processingNote =
+    typeof apiObs?.sourceMetadata?.processingNote === 'string'
+      ? apiObs.sourceMetadata.processingNote.trim()
+      : '';
+  if (processingNote) return processingNote;
+
   if (data.sourceType === 'photo' || data.sourceType === 'screenshot') {
-    return 'OCR is not available yet. Image metadata was saved, but no text was extracted.';
+    return 'No text was extracted from this image yet. Try Reprocess after OCR is configured.';
   }
   return 'No extracted text available.';
 }
@@ -458,7 +468,7 @@ export default function ObservationDetailScreen() {
       <SectionHeader title="Extracted text" />
       <SurfaceCard>
         <ThemedText colorKey="textSecondary" style={styles.body}>
-          {extractedTextMessage(data)}
+          {extractedTextMessage(data, apiObs)}
         </ThemedText>
       </SurfaceCard>
 

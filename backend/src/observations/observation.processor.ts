@@ -101,7 +101,8 @@ export class ObservationProcessor {
               ? (observation.sourceMetadata as Record<string, unknown>)
               : {}),
             extraction: extracted.metadata,
-            ...(extracted.notes ? { processingNote: extracted.notes } : {}),
+            // Always overwrite so stale "OCR not available" notes do not linger.
+            processingNote: extracted.notes ?? null,
           } as Prisma.InputJsonValue,
         },
       });

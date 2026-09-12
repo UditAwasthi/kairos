@@ -20,8 +20,8 @@ export interface OcrProvider {
 
 export function readOcrConfig(): OcrConfig {
   const provider = (process.env.OCR_PROVIDER ?? 'gemini').toLowerCase();
-  const defaultModel =
-    provider === 'gemini' ? 'gemini-2.0-flash' : 'gemini-2.0-flash';
+  // gemini-2.0-flash was shut down 2026-06-01; prefer a current Flash multimodal model.
+  const defaultModel = 'gemini-2.5-flash';
 
   return {
     provider,

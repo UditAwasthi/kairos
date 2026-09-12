@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ObservationType } from '@prisma/client';
 import type { ContentExtractor, ExtractionResult } from './extractor.types';
 import { createOcrProvider } from '../ocr/gemini-ocr.provider';
@@ -8,6 +9,8 @@ import { OCR_MAX_IMAGE_BYTES, OCR_SUPPORTED_MIME } from '../ocr/ocr.types';
  * When OCR is not configured, stores metadata only (no invented text).
  */
 export class ImageExtractor implements ContentExtractor {
+  private readonly logger = new Logger(ImageExtractor.name);
+
   supports(type: ObservationType, mimeType: string): boolean {
     return type === ObservationType.IMAGE || mimeType.startsWith('image/');
   }
@@ -20,6 +23,9 @@ export class ImageExtractor implements ContentExtractor {
 
     const ocr = createOcrProvider();
     if (!ocr) {
+      this.logger.warn(
+        'OCR skipped: provider not configured (set OCR_PROVIDER=gemini and OCR_API_KEY or EMBEDDING_API_KEY)',
+      );
       return {
         text: null,
         metadata: {
@@ -48,8 +54,14 @@ export class ImageExtractor implements ContentExtractor {
     }
 
     try {
+      this.logger.log(
+        `OCR starting (provider=${ocr.name}, model=${ocr.model}, bytes=${buffer.byteLength}, mime=${mimeType})`,
+      );
       const result = await ocr.extractText(buffer, mimeType);
       const text = result.text.trim() || null;
+      this.logger.log(
+        `OCR completed (model=${result.model}, textLength=${text?.length ?? 0})`,
+      );
       return {
         text,
         metadata: {
@@ -66,6 +78,7 @@ export class ImageExtractor implements ContentExtractor {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'OCR request failed';
+      this.logger.warn(`OCR failed: ${message}`);
       return {
         text: null,
         metadata: {

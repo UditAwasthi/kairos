@@ -50,7 +50,41 @@ export class GeminiOcrProvider implements OcrProvider {
       );
     }
 
-    const url = `${this.baseUrl}/models/${encodeURIComponent(this.model)}:generateContent`;
+    const modelsToTry = uniqueModels([
+      this.model,
+      'gemini-2.5-flash',
+      'gemini-3.5-flash',
+      'gemini-3.6-flash',
+    ]);
+
+    let lastError: Error | undefined;
+    for (const model of modelsToTry) {
+      try {
+        const text = await this.requestOnce(buffer, mimeType, model);
+        return { text, provider: this.name, model };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const retryable404 =
+          /status 404/i.test(lastError.message) && model !== modelsToTry.at(-1);
+        if (retryable404) {
+          this.logger.warn(
+            `OCR model ${model} unavailable, trying next: ${lastError.message}`,
+          );
+          continue;
+        }
+        throw lastError;
+      }
+    }
+
+    throw lastError ?? new Error('OCR request failed');
+  }
+
+  private async requestOnce(
+    buffer: Buffer,
+    mimeType: string,
+    model: string,
+  ): Promise<string> {
+    const url = `${this.baseUrl}/models/${encodeURIComponent(model)}:generateContent`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 90_000);
 
@@ -112,10 +146,10 @@ export class GeminiOcrProvider implements OcrProvider {
 
       if (!text) {
         this.logger.warn('OCR returned empty candidates');
-        return { text: '', provider: this.name, model: this.model };
+        return '';
       }
 
-      return { text, provider: this.name, model: this.model };
+      return text;
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error('OCR request timed out');
@@ -125,6 +159,18 @@ export class GeminiOcrProvider implements OcrProvider {
       clearTimeout(timeout);
     }
   }
+}
+
+function uniqueModels(models: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const model of models) {
+    const id = model.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
 }
 
 export function createOcrProvider(): OcrProvider | null {
