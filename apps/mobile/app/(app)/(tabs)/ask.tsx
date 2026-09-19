@@ -21,6 +21,7 @@ import {
 
 import { ThemedText } from '../../../components/ThemedText';
 import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
+import { LoadingSkeleton, SoftRefreshBar } from '../../../components/ui/EmptyState';
 import { AccentGradient, GlassPanel, ScreenGradient } from '../../../components/ui/Glass';
 import { AskBubble, EvidenceCard } from '../../../components/ui/MemoryCards';
 import { useAppTheme } from '../../../providers/ThemeProvider';
@@ -101,6 +102,7 @@ export default function AskScreen() {
   }>();
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
+  const hasListRef = useRef(false);
   const keyboardHeight = useGradualKeyboardHeight();
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
 
@@ -150,12 +152,13 @@ export default function AskScreen() {
   }, [keyboardVisible]);
 
   const refreshList = useCallback(async () => {
-    setLoadingList(true);
+    if (!hasListRef.current) setLoadingList(true);
     try {
       const token = await getToken();
       if (!token) throw new ApiError('You must be signed in.', 401);
       const data = await listConversations({ token, limit: 30 });
       setConversations(data.items);
+      hasListRef.current = true;
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -172,8 +175,12 @@ export default function AskScreen() {
   }, [view, refreshList]);
 
   const openConversation = async (id: string) => {
-    setLoadingThread(true);
     setError(null);
+    setLoadingThread(true);
+    setMessages([]);
+    setConversationId(id);
+    setConversationTitle('…');
+    setView('thread');
     try {
       const token = await getToken();
       if (!token) throw new ApiError('You must be signed in.', 401);
@@ -188,13 +195,13 @@ export default function AskScreen() {
           })),
         ),
       );
-      setView('thread');
     } catch (err) {
       setError(
         err instanceof ApiError
           ? err.message
           : 'Could not open conversation.',
       );
+      setView('list');
     } finally {
       setLoadingThread(false);
     }
@@ -326,53 +333,54 @@ export default function AskScreen() {
             </Pressable>
           </View>
 
-          {loadingList ? (
-            <View style={styles.typingBlock}>
-              <ActivityIndicator color={colors.accent} />
-            </View>
-          ) : null}
-
-          <ScrollView contentContainerStyle={styles.listContent}>
-            {conversations.length === 0 && !loadingList ? (
-              <ThemedText colorKey="textMuted" style={styles.emptyHint}>
-                No conversations yet. Ask a question to start one.
-              </ThemedText>
-            ) : null}
-            {conversations.map((item) => (
-              <Pressable
-                key={item.id}
-                onPress={() => void openConversation(item.id)}
-                onLongPress={async () => {
-                  try {
-                    const token = await getToken();
-                    if (!token) return;
-                    await deleteConversation({ token, id: item.id });
-                    await refreshList();
-                  } catch {
-                    setError('Could not delete conversation.');
-                  }
-                }}
-              >
-                <GlassPanel contentStyle={styles.conversationRow} padded={false}>
-                  <View style={styles.flex}>
-                    <ThemedText colorKey="text" style={styles.conversationTitle} numberOfLines={1}>
-                      {item.title}
-                    </ThemedText>
-                    <ThemedText colorKey="textMuted" style={styles.meta}>
-                      {item.messageCount} messages ·{' '}
-                      {new Date(item.updatedAt).toLocaleDateString()}
-                    </ThemedText>
-                  </View>
-                  <Feather name="chevron-right" size={16} color={colors.textMuted} />
-                </GlassPanel>
-              </Pressable>
-            ))}
-            {error ? (
-              <ThemedText colorKey="error" style={styles.body}>
-                {error}
-              </ThemedText>
-            ) : null}
-          </ScrollView>
+          {loadingList && conversations.length === 0 ? (
+            <LoadingSkeleton rows={6} />
+          ) : (
+            <>
+              <SoftRefreshBar active={loadingList && conversations.length > 0} />
+              <ScrollView contentContainerStyle={styles.listContent}>
+                {conversations.length === 0 ? (
+                  <ThemedText colorKey="textMuted" style={styles.emptyHint}>
+                    No conversations yet. Ask a question to start one.
+                  </ThemedText>
+                ) : null}
+                {conversations.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => void openConversation(item.id)}
+                    onLongPress={async () => {
+                      try {
+                        const token = await getToken();
+                        if (!token) return;
+                        await deleteConversation({ token, id: item.id });
+                        await refreshList();
+                      } catch {
+                        setError('Could not delete conversation.');
+                      }
+                    }}
+                  >
+                    <GlassPanel contentStyle={styles.conversationRow} padded={false}>
+                      <View style={styles.flex}>
+                        <ThemedText colorKey="text" style={styles.conversationTitle} numberOfLines={1}>
+                          {item.title}
+                        </ThemedText>
+                        <ThemedText colorKey="textMuted" style={styles.meta}>
+                          {item.messageCount} messages ·{' '}
+                          {new Date(item.updatedAt).toLocaleDateString()}
+                        </ThemedText>
+                      </View>
+                      <Feather name="chevron-right" size={16} color={colors.textMuted} />
+                    </GlassPanel>
+                  </Pressable>
+                ))}
+                {error ? (
+                  <ThemedText colorKey="error" style={styles.body}>
+                    {error}
+                  </ThemedText>
+                ) : null}
+              </ScrollView>
+            </>
+          )}
         </View>
       </ScreenGradient>
     );
@@ -439,9 +447,7 @@ export default function AskScreen() {
           }}
         >
           {loadingThread ? (
-            <View style={styles.typingBlock}>
-              <ActivityIndicator color={colors.accent} />
-            </View>
+            <LoadingSkeleton rows={5} />
           ) : null}
 
           {emptyThread && !loadingThread ? (

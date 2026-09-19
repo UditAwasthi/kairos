@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../../components/ThemedText';
-import { EmptyState, ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
+import { EmptyState, ErrorState, FadeInContent, LoadingSkeleton, SoftRefreshBar } from '../../../components/ui/EmptyState';
 import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { useAsync } from '../../../hooks/useAsync';
@@ -15,18 +15,24 @@ export default function EntityDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
-  const { data, error, loading, reload } = useAsync(async () => {
-    const token = await getToken();
-    if (!token) throw new Error('Sign in to view this entity.');
-    return fetchEntity({ token, id: String(id) });
-  }, [getToken, id]);
+  const { data, error, loading, refreshing, reload } = useAsync(
+    async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Sign in to view this entity.');
+      return fetchEntity({ token, id: String(id) });
+    },
+    [getToken, id],
+    { resetKey: String(id) },
+  );
 
   if (loading) return <LoadingSkeleton rows={8} />;
-  if (error || !data) {
+  if ((error && !data) || !data) {
     return <ErrorState title="Entity unavailable" message={error ?? undefined} onRetry={reload} />;
   }
 
   return (
+    <FadeInContent>
+      <SoftRefreshBar active={refreshing} />
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
       <ThemedText colorKey="text" style={styles.title}>
         {data.name}
@@ -81,6 +87,7 @@ export default function EntityDetailScreen() {
         ))
       )}
     </ScrollView>
+    </FadeInContent>
   );
 }
 

@@ -9,6 +9,7 @@ import { useAppTheme } from '../../providers/ThemeProvider';
 
 const LINKS = [
   { label: 'Account', href: '/(app)/(tabs)/profile' },
+  { label: 'Recall', href: '/(app)/recall' },
   { label: 'Activity updates', href: '/(app)/notifications' },
   { label: 'Connected devices', href: '/(app)/devices' },
   { label: 'Privacy', href: '/(app)/privacy' },

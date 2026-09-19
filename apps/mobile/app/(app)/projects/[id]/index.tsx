@@ -5,7 +5,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../../../components/ThemedText';
-import { EmptyState, ErrorState, LoadingSkeleton } from '../../../../components/ui/EmptyState';
+import { EmptyState, ErrorState, FadeInContent, LoadingSkeleton, SoftRefreshBar } from '../../../../components/ui/EmptyState';
 import { SectionHeader, SurfaceCard } from '../../../../components/ui/SectionHeader';
 import { ThemedButton } from '../../../../components/ui/ThemedButton';
 import { useAsync } from '../../../../hooks/useAsync';
@@ -29,10 +29,12 @@ export default function ProjectDetailScreen() {
     return fetchProject({ token, id: String(id), limit: 50 });
   }, [getToken, id]);
 
-  const { data, error, loading, reload } = useAsync(load, [id]);
+  const { data, error, loading, refreshing, reload } = useAsync(load, [id], {
+    resetKey: String(id),
+  });
 
   if (loading) return <LoadingSkeleton rows={10} />;
-  if (error || !data) {
+  if ((error && !data) || !data) {
     return <ErrorState title="Project unavailable" message={error ?? undefined} onRetry={reload} />;
   }
 
@@ -101,6 +103,8 @@ export default function ProjectDetailScreen() {
   };
 
   return (
+    <FadeInContent>
+      <SoftRefreshBar active={refreshing} />
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
       <ThemedText colorKey="text" style={styles.title}>
         {data.name}
@@ -190,6 +194,7 @@ export default function ProjectDetailScreen() {
         onPress={confirmDelete}
       />
     </ScrollView>
+    </FadeInContent>
   );
 }
 

@@ -2,7 +2,7 @@ import { useAuth, useUser } from '@clerk/expo';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   Dimensions,
   Image,
@@ -15,7 +15,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SoftAurora } from '../../../components/SoftAurora';
 import { ThemedText } from '../../../components/ThemedText';
-import { EmptyState, ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
+import {
+  EmptyState,
+  ErrorState,
+  FadeInContent,
+  LoadingSkeleton,
+} from '../../../components/ui/EmptyState';
 import { AccentGradient, GlassPanel, ScreenGradient } from '../../../components/ui/Glass';
 import { toneForIndex } from '../../../components/ui/MemoryCards';
 import {
@@ -137,6 +142,7 @@ export default function HomeScreen() {
   const [topics, setTopics] = useState<ApiTopicSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasDataRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -149,6 +155,7 @@ export default function HomeScreen() {
       ]);
       setObservations(obs);
       setTopics(topicData.items);
+      hasDataRef.current = true;
     } catch {
       setError('Unable to load home.');
     }
@@ -158,7 +165,7 @@ export default function HomeScreen() {
     useCallback(() => {
       let cancelled = false;
       void (async () => {
-        setLoading(true);
+        if (!hasDataRef.current) setLoading(true);
         await load();
         if (!cancelled) setLoading(false);
       })();
@@ -202,6 +209,7 @@ export default function HomeScreen() {
 
   return (
     <ScreenGradient>
+      <FadeInContent>
       <ScrollView
         contentContainerStyle={[
           styles.content,
@@ -418,6 +426,7 @@ export default function HomeScreen() {
           </ScrollView>
         ) : null}
       </ScrollView>
+      </FadeInContent>
     </ScreenGradient>
   );
 }

@@ -10,6 +10,7 @@ import { ThemedText } from '../../components/ThemedText';
 import { ApiError, deleteMyData } from '../../lib/api';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import { useOnboarding } from '../../providers/OnboardingProvider';
+import Recall from 'kairos-recall';
 
 export default function DataScreen() {
   const insets = useSafeAreaInsets();
@@ -36,6 +37,8 @@ export default function DataScreen() {
                 setMessage(null);
                 const token = await getToken();
                 if (!token) throw new ApiError('Sign in required.', 401);
+                await Recall.stop().catch(() => undefined);
+                await Recall.clearLocalData().catch(() => undefined);
                 const result = await deleteMyData(token);
                 setMessage(
                   `Deleted ${result.deletedObservations} observation${

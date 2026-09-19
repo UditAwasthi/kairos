@@ -5,7 +5,7 @@ import { ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../components/ThemedText';
-import { EmptyState, ErrorState, LoadingSkeleton } from '../../components/ui/EmptyState';
+import { EmptyState, ErrorState, FadeInContent, LoadingSkeleton } from '../../components/ui/EmptyState';
 import { ObservationStatusCard } from '../../components/ui/ObservationStatusCard';
 import { SectionHeader, SurfaceCard } from '../../components/ui/SectionHeader';
 import { ThemedButton } from '../../components/ui/ThemedButton';
@@ -28,6 +28,7 @@ export default function ActivityScreen() {
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const focusedRef = useRef(true);
   const observationsRef = useRef<ApiObservation[]>([]);
+  const hasDataRef = useRef(false);
   observationsRef.current = observations;
 
   const load = useCallback(async () => {
@@ -37,6 +38,7 @@ export default function ActivityScreen() {
       if (!token) throw new Error('Sign in required');
       const data = await fetchObservations(token);
       setObservations(data);
+      hasDataRef.current = true;
     } catch {
       setError('Unable to load activity.');
     }
@@ -47,7 +49,7 @@ export default function ActivityScreen() {
       focusedRef.current = true;
       let cancelled = false;
       void (async () => {
-        setLoading(true);
+        if (!hasDataRef.current) setLoading(true);
         await load();
         if (!cancelled) setLoading(false);
       })();
@@ -112,6 +114,7 @@ export default function ActivityScreen() {
   }
 
   return (
+    <FadeInContent>
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
       <SurfaceCard>
         <ThemedText colorKey="text" style={styles.hero}>
@@ -143,6 +146,7 @@ export default function ActivityScreen() {
         onPress={() => router.push('/(app)/(tabs)/capture')}
       />
     </ScrollView>
+    </FadeInContent>
   );
 }
 

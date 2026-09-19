@@ -1,17 +1,11 @@
 import { useAuth } from '@clerk/expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../components/ThemedText';
-import { EmptyState } from '../../components/ui/EmptyState';
+import { EmptyState, FadeInContent, LoadingSkeleton, SoftRefreshBar } from '../../components/ui/EmptyState';
 import { TopicChip } from '../../components/ui/MemoryCards';
 import { SectionHeader, SurfaceCard } from '../../components/ui/SectionHeader';
 import { ThemedButton } from '../../components/ui/ThemedButton';
@@ -25,7 +19,6 @@ import {
   type ApiSemanticSearchResponse,
   type ApiTopicSummary,
 } from '../../lib/api';
-import { useAppTheme } from '../../providers/ThemeProvider';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -53,7 +46,6 @@ function typeLabel(type: string): string {
 export default function SearchScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
   const { getToken } = useAuth();
   const params = useLocalSearchParams<{
     topicId?: string;
@@ -134,13 +126,14 @@ export default function SearchScreen() {
           ? err.message
           : "Couldn't search your memories. Try again.";
       setError(message);
-      setResult(null);
+      // Keep prior results visible on failure.
     } finally {
       setLoading(false);
     }
   };
 
   return (
+    <FadeInContent>
     <ScrollView
       contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
       keyboardShouldPersistTaps="handled"
@@ -213,14 +206,8 @@ export default function SearchScreen() {
         </SurfaceCard>
       ) : null}
 
-      {loading ? (
-        <View style={styles.loading}>
-          <ActivityIndicator color={colors.text} />
-          <ThemedText colorKey="textSecondary" style={styles.meta}>
-            Looking through your memories…
-          </ThemedText>
-        </View>
-      ) : null}
+      <SoftRefreshBar active={loading && !!result} />
+      {loading && !result ? <LoadingSkeleton rows={5} /> : null}
 
       {error ? (
         <SurfaceCard>
@@ -239,7 +226,7 @@ export default function SearchScreen() {
       ) : null}
 
       {result && result.results.length > 0 ? (
-        <>
+        <View style={{ opacity: loading ? 0.72 : 1, gap: 12 }}>
           <SectionHeader
             title="Results"
             subtitle={`${result.total} relevant ${result.total === 1 ? 'match' : 'matches'}`}
@@ -272,9 +259,10 @@ export default function SearchScreen() {
               </SurfaceCard>
             </Pressable>
           ))}
-        </>
+        </View>
       ) : null}
     </ScrollView>
+    </FadeInContent>
   );
 }
 
@@ -284,5 +272,4 @@ const styles = StyleSheet.create({
   meta: { fontFamily: 'Inter_400Regular', fontSize: 12 },
   title: { fontFamily: 'Inter_600SemiBold', fontSize: 16, marginTop: 4 },
   row: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 21 },
-  loading: { alignItems: 'center', gap: 10, paddingVertical: 20 },
 });

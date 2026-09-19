@@ -1,18 +1,22 @@
-import { useAuth } from '@clerk/expo';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   RefreshControl,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useAuth } from '@clerk/expo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { EmptyState, ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
+import {
+  EmptyState,
+  ErrorState,
+  FadeInContent,
+  LoadingSkeleton,
+  SoftRefreshBar,
+} from '../../../components/ui/EmptyState';
 import { TopicChip } from '../../../components/ui/MemoryCards';
 import { ObservationStatusCard } from '../../../components/ui/ObservationStatusCard';
 import {
@@ -68,11 +72,16 @@ export default function TimelineScreen() {
   );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filtering, setFiltering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
+
   const focusedRef = useRef(true);
   const observationsRef = useRef<ApiObservation[]>([]);
+  const filtersRef = useRef({ mode, projectId, topicId, entityId });
+  const hasLoadedRef = useRef(false);
   observationsRef.current = observations;
+  filtersRef.current = { mode, projectId, topicId, entityId };
 
   const loadMeta = useCallback(async () => {
     const token = await getToken();
@@ -87,31 +96,57 @@ export default function TimelineScreen() {
     setProjects(projectData.items);
   }, [getToken]);
 
-  const load = useCallback(async () => {
-    try {
+  const loadObservations = useCallback(async () => {
+    const token = await getToken();
+    if (!token) throw new Error('Sign in to view your timeline.');
+    const f = filtersRef.current;
+    return fetchObservations(token, {
+      projectId: f.mode === 'project' ? f.projectId : undefined,
+      topicId: f.mode === 'topic' ? f.topicId : undefined,
+      entityId: f.mode === 'entity' ? f.entityId : undefined,
+    });
+  }, [getToken]);
+
+  // Filter / first load — keep prior rows visible while the new page arrives.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const initial = !hasLoadedRef.current;
+      if (initial) setLoading(true);
+      else setFiltering(true);
       setError(null);
-      const token = await getToken();
-      if (!token) throw new Error('Sign in to view your timeline.');
-      const data = await fetchObservations(token, {
-        projectId: mode === 'project' ? projectId : undefined,
-        topicId: mode === 'topic' ? topicId : undefined,
-        entityId: mode === 'entity' ? entityId : undefined,
-      });
-      setObservations(data);
-    } catch {
-      setError('Unable to load timeline.');
-    }
-  }, [entityId, getToken, mode, projectId, topicId]);
+      try {
+        const data = await loadObservations();
+        if (cancelled) return;
+        setObservations(data);
+        hasLoadedRef.current = true;
+      } catch {
+        if (!cancelled) setError('Unable to load timeline.');
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setFiltering(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, projectId, topicId, entityId, loadObservations]);
 
   useFocusEffect(
     useCallback(() => {
       focusedRef.current = true;
-      let cancelled = false;
-      void (async () => {
-        setLoading(true);
-        await Promise.all([loadMeta(), load()]);
-        if (!cancelled) setLoading(false);
-      })();
+      void loadMeta();
+
+      // Soft refresh on return — never blank the screen.
+      if (hasLoadedRef.current) {
+        void loadObservations()
+          .then((data) => setObservations(data))
+          .catch(() => {
+            /* keep last good list */
+          });
+      }
 
       const timer = setInterval(() => {
         if (!focusedRef.current) return;
@@ -120,16 +155,19 @@ export default function TimelineScreen() {
             isProcessingObservationStatus(o.status),
           )
         ) {
-          void load();
+          void loadObservations()
+            .then((data) => setObservations(data))
+            .catch(() => {
+              /* keep last good list */
+            });
         }
       }, POLL_MS);
 
       return () => {
-        cancelled = true;
         focusedRef.current = false;
         clearInterval(timer);
       };
-    }, [load, loadMeta]),
+    }, [loadMeta, loadObservations]),
   );
 
   const onRetry = useCallback(
@@ -151,7 +189,9 @@ export default function TimelineScreen() {
     [getToken],
   );
 
-  if (loading) return <LoadingSkeleton rows={10} />;
+  if (loading && observations.length === 0 && !error) {
+    return <LoadingSkeleton rows={10} />;
+  }
 
   if (error && observations.length === 0) {
     return (
@@ -160,14 +200,21 @@ export default function TimelineScreen() {
         message={error}
         onRetry={() => {
           setLoading(true);
-          void load().finally(() => setLoading(false));
+          void loadObservations()
+            .then((data) => {
+              setObservations(data);
+              setError(null);
+              hasLoadedRef.current = true;
+            })
+            .catch(() => setError('Unable to load timeline.'))
+            .finally(() => setLoading(false));
         }}
       />
     );
   }
 
   return (
-    <View style={[styles.flex, { paddingBottom: insets.bottom }]}>
+    <FadeInContent style={[styles.flex, { paddingBottom: insets.bottom }]}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -224,6 +271,8 @@ export default function TimelineScreen() {
         ))}
       </ScrollView>
 
+      <SoftRefreshBar active={filtering} />
+
       {observations.length === 0 ? (
         <EmptyState
           title="No observations"
@@ -240,13 +289,20 @@ export default function TimelineScreen() {
           data={observations}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          style={{ opacity: filtering ? 0.72 : 1 }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               tintColor={colors.text}
               onRefresh={() => {
                 setRefreshing(true);
-                void load().finally(() => setRefreshing(false));
+                void loadObservations()
+                  .then((data) => {
+                    setObservations(data);
+                    setError(null);
+                  })
+                  .catch(() => setError('Unable to load timeline.'))
+                  .finally(() => setRefreshing(false));
               }}
             />
           }
@@ -262,12 +318,9 @@ export default function TimelineScreen() {
               }
             />
           )}
-          ListFooterComponent={
-            refreshing ? <ActivityIndicator color={colors.accent} /> : null
-          }
         />
       )}
-    </View>
+    </FadeInContent>
   );
 }
 

@@ -143,6 +143,72 @@ export class ObservationsService {
     });
   }
 
+  /**
+   * Recall derived-text ingest. Already OCR'd on device — TEXT path only.
+   * Does not accept or store raw screenshots.
+   */
+  async createFromRecall(params: {
+    clerkUserId: string;
+    event: {
+      clientEventId: string;
+      capturedAt: Date;
+      sessionId?: string;
+      extractedText: string;
+      fingerprint: string;
+      appPackage?: string;
+      appLabel?: string;
+      url?: string;
+      title?: string;
+      ocrConfidence?: number;
+      pipelineVersion: string;
+      clientProcessingVersion: string;
+    };
+  }): Promise<ObservationResponse> {
+    const text = params.event.extractedText.trim();
+    if (!text) {
+      throw new BadRequestException({
+        error: {
+          code: 'MISSING_TEXT',
+          message: 'Recall extractedText is required.',
+        },
+      });
+    }
+
+    const title = (
+      params.event.title?.trim() ||
+      params.event.appLabel?.trim() ||
+      text.slice(0, 48)
+    ).slice(0, 80);
+    const safeFilename = `recall-${slugFilename(title)}.txt`;
+    const buffer = Buffer.from(text, 'utf8');
+
+    const sourceMetadata: Prisma.InputJsonValue = {
+      captureKind: 'recall',
+      clientEventId: params.event.clientEventId,
+      fingerprint: params.event.fingerprint,
+      pipelineVersion: params.event.pipelineVersion,
+      clientProcessingVersion: params.event.clientProcessingVersion,
+      ...(params.event.sessionId ? { sessionId: params.event.sessionId } : {}),
+      ...(params.event.appPackage ? { appPackage: params.event.appPackage } : {}),
+      ...(params.event.appLabel ? { appLabel: params.event.appLabel } : {}),
+      ...(params.event.url ? { url: params.event.url } : {}),
+      ...(params.event.title ? { title: params.event.title } : {}),
+      ...(typeof params.event.ocrConfidence === 'number'
+        ? { ocrConfidence: params.event.ocrConfidence }
+        : {}),
+    };
+
+    return this.createStoredObservation({
+      clerkUserId: params.clerkUserId,
+      buffer,
+      mimeType: 'text/plain',
+      observationType: ObservationType.TEXT,
+      safeFilename,
+      sourceMetadata,
+      capturedAt: params.event.capturedAt,
+    });
+  }
+
   async createFromUrl(params: {
     clerkUserId: string;
     url: string;
@@ -187,6 +253,7 @@ export class ObservationsService {
     observationType: ObservationType;
     safeFilename: string;
     sourceMetadata: Prisma.InputJsonValue;
+    capturedAt?: Date;
   }): Promise<ObservationResponse> {
     const user = await this.users.findOrCreateByClerkId(params.clerkUserId);
     const storageKey = buildStorageKey(user.id, params.safeFilename);
@@ -212,6 +279,7 @@ export class ObservationsService {
         fileSizeBytes: params.buffer.byteLength,
         processingStatus: ProcessingStatus.PENDING,
         sourceMetadata: params.sourceMetadata,
+        ...(params.capturedAt ? { capturedAt: params.capturedAt } : {}),
       },
       include: observationInclude,
     });

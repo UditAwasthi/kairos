@@ -10,9 +10,11 @@ import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader
 import { ThemedText } from '../../../components/ThemedText';
 import { useOnboarding } from '../../../providers/OnboardingProvider';
 import { useAppTheme } from '../../../providers/ThemeProvider';
+import Recall from 'kairos-recall';
 
 const LINKS = [
   { label: 'Settings', href: '/(app)/settings' },
+  { label: 'Recall', href: '/(app)/recall' },
   { label: 'Notifications', href: '/(app)/notifications' },
   { label: 'Connected devices', href: '/(app)/devices' },
   { label: 'Privacy', href: '/(app)/privacy' },
@@ -38,6 +40,9 @@ export default function ProfileScreen() {
   const handleSignOut = async () => {
     setIsSigningOut(true);
     try {
+      await Recall.stop().catch(() => undefined);
+      await Recall.clearLocalData().catch(() => undefined);
+      await Recall.setAuthToken(null).catch(() => undefined);
       await signOut();
       await resetOnboarding();
     } finally {

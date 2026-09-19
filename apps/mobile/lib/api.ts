@@ -948,3 +948,74 @@ export async function deleteConversation(params: {
     throw await parseError(response);
   }
 }
+
+export type RecallEntitlement = {
+  feature: 'RECALL';
+  status: string;
+  allowed: boolean;
+  validUntil: string | null;
+  source: string;
+};
+
+export type RecallEventResult = {
+  clientEventId: string;
+  status: 'accepted' | 'deduped' | 'rejected';
+  observationId: string | null;
+  deduped: boolean;
+  reason?: string;
+};
+
+export async function fetchRecallEntitlement(
+  token: string,
+): Promise<RecallEntitlement> {
+  const response = await fetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/recall/entitlement`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: RecallEntitlement };
+  return body.data;
+}
+
+export async function postRecallEvents(params: {
+  token: string;
+  events: Array<Record<string, unknown>>;
+}): Promise<{ results: RecallEventResult[] }> {
+  const response = await fetch(`${normalizeBaseUrl(apiBaseUrl)}/recall/events`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${params.token}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ events: params.events }),
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as {
+    data: { results: RecallEventResult[] };
+  };
+  return body.data;
+}
+
+export async function deleteRecallData(token: string): Promise<{
+  deletedObservations: number;
+}> {
+  const response = await fetch(`${normalizeBaseUrl(apiBaseUrl)}/recall/data`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as {
+    data: { deletedObservations: number };
+  };
+  return body.data;
+}

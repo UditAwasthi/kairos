@@ -5,7 +5,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../../../components/ThemedText';
-import { EmptyState, ErrorState, LoadingSkeleton } from '../../../../components/ui/EmptyState';
+import { EmptyState, ErrorState, FadeInContent, LoadingSkeleton, SoftRefreshBar } from '../../../../components/ui/EmptyState';
 import { SectionHeader, SurfaceCard } from '../../../../components/ui/SectionHeader';
 import { ThemedButton } from '../../../../components/ui/ThemedButton';
 import { useAsync } from '../../../../hooks/useAsync';
@@ -36,7 +36,9 @@ export default function AddProjectObservationsScreen() {
     return { project, observations };
   }, [getToken, id]);
 
-  const { data, error, loading, reload } = useAsync(load, [id]);
+  const { data, error, loading, refreshing, reload } = useAsync(load, [id], {
+    resetKey: String(id),
+  });
 
   const memberIds = useMemo(
     () => new Set(data?.project.observations.map((o) => o.id) ?? []),
@@ -52,7 +54,7 @@ export default function AddProjectObservationsScreen() {
   );
 
   if (loading) return <LoadingSkeleton rows={10} />;
-  if (error || !data) {
+  if ((error && !data) || !data) {
     return (
       <ErrorState title="Unable to load observations" message={error ?? undefined} onRetry={reload} />
     );
@@ -92,6 +94,8 @@ export default function AddProjectObservationsScreen() {
   };
 
   return (
+    <FadeInContent>
+      <SoftRefreshBar active={refreshing} />
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
       <SectionHeader
         title={`Add to ${data.project.name}`}
@@ -140,6 +144,7 @@ export default function AddProjectObservationsScreen() {
         onPress={() => void save()}
       />
     </ScrollView>
+    </FadeInContent>
   );
 }
 

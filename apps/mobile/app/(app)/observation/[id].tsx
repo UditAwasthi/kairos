@@ -5,7 +5,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../../components/ThemedText';
-import { ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
+import { ErrorState, FadeInContent, LoadingSkeleton } from '../../../components/ui/EmptyState';
 import { Badge } from '../../../components/ui/MetricCard';
 import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
@@ -117,6 +117,7 @@ export default function ObservationDetailScreen() {
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const loadedIdRef = useRef<string | null>(null);
   const [data, setData] = useState<Observation | null>(null);
   const [apiObs, setApiObs] = useState<ApiObservation | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +138,7 @@ export default function ObservationDetailScreen() {
       setError('Sign in to view this observation.');
       setData(null);
       setApiObs(null);
+      loadedIdRef.current = null;
       return;
     }
 
@@ -145,6 +147,7 @@ export default function ObservationDetailScreen() {
       setApiObs(api);
       setData(mapApiObservation(api));
       setError(null);
+      loadedIdRef.current = observationId;
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setError('Observation not found.');
@@ -155,6 +158,7 @@ export default function ObservationDetailScreen() {
       }
       setData(null);
       setApiObs(null);
+      loadedIdRef.current = null;
     }
   }, [getToken, id]);
 
@@ -162,7 +166,8 @@ export default function ObservationDetailScreen() {
     useCallback(() => {
       let cancelled = false;
       void (async () => {
-        setLoading(true);
+        const soft = loadedIdRef.current === String(id);
+        if (!soft) setLoading(true);
         await load();
         if (!cancelled) setLoading(false);
       })();
@@ -174,7 +179,7 @@ export default function ObservationDetailScreen() {
           pollRef.current = null;
         }
       };
-    }, [load]),
+    }, [load, id]),
   );
 
   useEffect(() => {
@@ -294,6 +299,7 @@ export default function ObservationDetailScreen() {
   );
 
   return (
+    <FadeInContent>
     <ScrollView
       contentContainerStyle={[
         styles.content,
@@ -484,6 +490,7 @@ export default function ObservationDetailScreen() {
         onPress={onDelete}
       />
     </ScrollView>
+    </FadeInContent>
   );
 }
 

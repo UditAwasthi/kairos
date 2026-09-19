@@ -32,6 +32,20 @@ export default function PrivacyScreen() {
         </ThemedText>
       </SurfaceCard>
 
+      <SectionHeader title="Recall" />
+      <SurfaceCard>
+        <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
+          When Recall is enabled on Android, raw screen pixels stay on-device and
+          are discarded after local processing. Derived text may upload to Kairos
+          as observations. Manage capture from Settings → Recall.
+        </ThemedText>
+      </SurfaceCard>
+      <ThemedButton
+        label="Open Recall"
+        variant="outline"
+        onPress={() => router.push('/(app)/recall')}
+      />
+
       <SectionHeader title="Controls" />
       <ThemedButton label="Manage data" variant="outline" onPress={() => router.push('/(app)/data')} />
       <ThemedButton

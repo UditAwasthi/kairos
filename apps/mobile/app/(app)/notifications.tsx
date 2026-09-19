@@ -1,11 +1,11 @@
 import { useAuth } from '@clerk/expo';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../components/ThemedText';
-import { EmptyState, ErrorState, LoadingSkeleton } from '../../components/ui/EmptyState';
+import { EmptyState, ErrorState, FadeInContent, LoadingSkeleton } from '../../components/ui/EmptyState';
 import { Badge } from '../../components/ui/MetricCard';
 import { SectionHeader, SurfaceCard } from '../../components/ui/SectionHeader';
 import {
@@ -54,6 +54,7 @@ export default function NotificationsScreen() {
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasDataRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -62,6 +63,7 @@ export default function NotificationsScreen() {
       if (!token) throw new Error('Sign in required');
       const observations = await fetchObservations(token);
       setItems(toActivity(observations));
+      hasDataRef.current = true;
     } catch {
       setError('Unable to load activity updates.');
     }
@@ -71,7 +73,7 @@ export default function NotificationsScreen() {
     useCallback(() => {
       let cancelled = false;
       void (async () => {
-        setLoading(true);
+        if (!hasDataRef.current) setLoading(true);
         await load();
         if (!cancelled) setLoading(false);
       })();
@@ -97,6 +99,7 @@ export default function NotificationsScreen() {
   }
 
   return (
+    <FadeInContent>
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
       <SectionHeader
         title="Activity"
@@ -132,6 +135,7 @@ export default function NotificationsScreen() {
         </Pressable>
       ))}
     </ScrollView>
+    </FadeInContent>
   );
 }
 

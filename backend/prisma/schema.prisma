@@ -13,17 +13,65 @@ datasource db {
 }
 
 model User {
-  id            String         @id @default(cuid())
-  clerkUserId   String         @unique
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  observations  Observation[]
-  topics        Topic[]
-  entities      Entity[]
-  projects      Project[]
-  conversations Conversation[]
+  id                String               @id @default(cuid())
+  clerkUserId       String               @unique
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  observations      Observation[]
+  topics            Topic[]
+  entities          Entity[]
+  projects          Project[]
+  conversations     Conversation[]
+  entitlements      Entitlement[]
+  recallEventReceipts RecallEventReceipt[]
 
   @@map("users")
+}
+
+enum EntitlementFeature {
+  RECALL
+}
+
+enum EntitlementStatus {
+  inactive
+  trial
+  active
+  grace
+  expired
+  revoked
+}
+
+/// Provider-agnostic feature entitlement. Server is authoritative.
+model Entitlement {
+  id         String            @id @default(cuid())
+  userId     String
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feature    EntitlementFeature
+  status     EntitlementStatus @default(inactive)
+  validUntil DateTime?
+  /// stub | admin | stripe | play | other
+  source     String            @default("stub")
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@unique([userId, feature])
+  @@index([userId, feature, status])
+  @@map("entitlements")
+}
+
+/// Durable idempotency + soft fingerprint dedupe for Recall ingest.
+model RecallEventReceipt {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientEventId String
+  fingerprint   String
+  observationId String?
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, clientEventId])
+  @@index([userId, fingerprint, createdAt])
+  @@map("recall_event_receipts")
 }
 
 enum ObservationType {

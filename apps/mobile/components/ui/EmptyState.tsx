@@ -1,4 +1,13 @@
-import { StyleSheet, View } from 'react-native';
+import { useEffect } from 'react';
+import { ActivityIndicator, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import Animated, {
+  Easing,
+  FadeIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { ThemedText } from '../ThemedText';
 import { useAppTheme } from '../../providers/ThemeProvider';
@@ -146,20 +155,80 @@ type LoadingSkeletonProps = {
 
 export function LoadingSkeleton({ rows = 4 }: LoadingSkeletonProps) {
   const { colors, spacing, radius } = useAppTheme();
+  const pulse = useSharedValue(0.42);
+
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withTiming(1, { duration: 900, easing: Easing.inOut(Easing.quad) }),
+      -1,
+      true,
+    );
+  }, [pulse]);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    opacity: pulse.value,
+  }));
 
   return (
-    <View style={{ padding: spacing['6'], gap: spacing['3'] }} accessibilityLabel="Loading">
-      {Array.from({ length: rows }).map((_, i) => (
-        <View
-          key={i}
-          style={{
-            height: 12,
-            borderRadius: radius.sm,
-            backgroundColor: colors.border,
-            width: `${92 - i * 10}%` as `${number}%`,
-          }}
-        />
-      ))}
+    <Animated.View
+      entering={FadeIn.duration(180)}
+      style={{ padding: spacing['6'], gap: spacing['3'], flex: 1 }}
+      accessibilityLabel="Loading"
+    >
+      {Array.from({ length: rows }).map((_, i) => {
+        const isBlock = i % 3 === 0;
+        return (
+          <Animated.View
+            key={i}
+            style={[
+              {
+                height: isBlock ? 76 : 12,
+                borderRadius: isBlock ? radius.lg : radius.sm,
+                backgroundColor: colors.border,
+                width: isBlock ? '100%' : (`${90 - (i % 4) * 14}%` as `${number}%`),
+              },
+              pulseStyle,
+            ]}
+          />
+        );
+      })}
+    </Animated.View>
+  );
+}
+
+type FadeInContentProps = {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+};
+
+/** Soft entrance once real content is ready — avoids hard pop-in. */
+export function FadeInContent({ children, style }: FadeInContentProps) {
+  return (
+    <Animated.View entering={FadeIn.duration(220)} style={[{ flex: 1 }, style]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+type SoftRefreshProps = {
+  active: boolean;
+};
+
+/** Tiny top indicator while stale data stays on screen. */
+export function SoftRefreshBar({ active }: SoftRefreshProps) {
+  const { colors, spacing } = useAppTheme();
+  if (!active) return null;
+  return (
+    <View
+      style={{
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: spacing['2'],
+        minHeight: 28,
+      }}
+      accessibilityLabel="Refreshing"
+    >
+      <ActivityIndicator size="small" color={colors.accent} />
     </View>
   );
 }

@@ -7,10 +7,12 @@ import { EntitiesModule } from './entities/entities.module';
 import { ObservationsModule } from './observations/observations.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProjectsModule } from './projects/projects.module';
+import { RecallModule } from './recall/recall.module';
 import { SearchModule } from './search/search.module';
 import { StorageModule } from './storage/storage.module';
 import { TopicsModule } from './topics/topics.module';
 import { UsersModule } from './users/users.module';
+import { EntitlementsModule } from './entitlements/entitlements.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { UsersModule } from './users/users.module';
     TopicsModule,
     EntitiesModule,
     ProjectsModule,
+    EntitlementsModule,
+    RecallModule,
   ],
   controllers: [AppController],
   providers: [AppService],

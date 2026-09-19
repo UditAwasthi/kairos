@@ -4,7 +4,13 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../../components/ThemedText';
-import { EmptyState, ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
+import {
+  EmptyState,
+  ErrorState,
+  FadeInContent,
+  LoadingSkeleton,
+  SoftRefreshBar,
+} from '../../../components/ui/EmptyState';
 import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { useAsync } from '../../../hooks/useAsync';
@@ -14,55 +20,58 @@ export default function ProjectsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
-  const { data, error, loading, reload } = useAsync(async () => {
+  const { data, error, loading, refreshing, reload } = useAsync(async () => {
     const token = await getToken();
     if (!token) throw new Error('Sign in to view projects.');
     return fetchProjects({ token, limit: 100 });
   }, [getToken]);
 
   if (loading) return <LoadingSkeleton rows={8} />;
-  if (error) {
+  if (error && !data) {
     return <ErrorState title="Unable to load projects" message={error} onRetry={reload} />;
   }
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <SectionHeader title="Projects" subtitle="Group observations by workstream" />
-      <ThemedButton
-        label="New project"
-        onPress={() => router.push('/(app)/projects/new')}
-      />
-
-      {!data || data.items.length === 0 ? (
-        <EmptyState
-          title="No projects yet"
-          message="Create a project to organize related observations."
+    <FadeInContent>
+      <SoftRefreshBar active={refreshing} />
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
+        <SectionHeader title="Projects" subtitle="Group observations by workstream" />
+        <ThemedButton
+          label="New project"
+          onPress={() => router.push('/(app)/projects/new')}
         />
-      ) : (
-        data.items.map((project) => (
-          <Pressable
-            key={project.id}
-            onPress={() => router.push(`/(app)/projects/${project.id}`)}
-          >
-            <SurfaceCard>
-              <View style={styles.row}>
-                <ThemedText colorKey="text" style={styles.title}>
-                  {project.name}
-                </ThemedText>
-                <ThemedText colorKey="textMuted" style={styles.count}>
-                  {project.observationCount}
-                </ThemedText>
-              </View>
-              {project.description ? (
-                <ThemedText colorKey="textSecondary" style={styles.body} numberOfLines={2}>
-                  {project.description}
-                </ThemedText>
-              ) : null}
-            </SurfaceCard>
-          </Pressable>
-        ))
-      )}
-    </ScrollView>
+
+        {!data || data.items.length === 0 ? (
+          <EmptyState
+            title="No projects yet"
+            message="Create a project to organize related observations."
+          />
+        ) : (
+          data.items.map((project) => (
+            <Pressable
+              key={project.id}
+              onPress={() => router.push(`/(app)/projects/${project.id}`)}
+            >
+              <SurfaceCard>
+                <View style={styles.row}>
+                  <ThemedText colorKey="text" style={styles.title}>
+                    {project.name}
+                  </ThemedText>
+                  <ThemedText colorKey="textMuted" style={styles.count}>
+                    {project.observationCount}
+                  </ThemedText>
+                </View>
+                {project.description ? (
+                  <ThemedText colorKey="textSecondary" style={styles.body} numberOfLines={2}>
+                    {project.description}
+                  </ThemedText>
+                ) : null}
+              </SurfaceCard>
+            </Pressable>
+          ))
+        )}
+      </ScrollView>
+    </FadeInContent>
   );
 }
 

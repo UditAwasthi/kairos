@@ -4,7 +4,13 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../../components/ThemedText';
-import { EmptyState, ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
+import {
+  EmptyState,
+  ErrorState,
+  FadeInContent,
+  LoadingSkeleton,
+  SoftRefreshBar,
+} from '../../../components/ui/EmptyState';
 import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
 import { useAsync } from '../../../hooks/useAsync';
 import { fetchEntities, type ApiEntitySummary } from '../../../lib/api';
@@ -42,14 +48,16 @@ export default function EntitiesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
-  const { data, error, loading, reload } = useAsync(async () => {
+  const { data, error, loading, refreshing, reload } = useAsync(async () => {
     const token = await getToken();
     if (!token) throw new Error('Sign in to view entities.');
     return fetchEntities({ token, limit: 100 });
   }, [getToken]);
 
   if (loading) return <LoadingSkeleton rows={8} />;
-  if (error) return <ErrorState title="Unable to load entities" message={error} onRetry={reload} />;
+  if (error && !data) {
+    return <ErrorState title="Unable to load entities" message={error} onRetry={reload} />;
+  }
   if (!data || data.items.length === 0) {
     return (
       <EmptyState
@@ -62,31 +70,34 @@ export default function EntitiesScreen() {
   const groups = groupByType(data.items);
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <SectionHeader title="Entities" subtitle="People, tools, and concepts you captured" />
-      {groups.map(([type, items]) => (
-        <View key={type} style={styles.group}>
-          <ThemedText colorKey="textMuted" style={styles.kicker}>
-            {typeLabel(type)}
-          </ThemedText>
-          {items.map((entity) => (
-            <Pressable
-              key={entity.id}
-              onPress={() => router.push(`/(app)/entities/${entity.id}`)}
-            >
-              <SurfaceCard>
-                <ThemedText colorKey="text" style={styles.title}>
-                  {entity.name}
-                </ThemedText>
-                <ThemedText colorKey="textMuted" style={styles.meta}>
-                  {entity.observationCount} observations
-                </ThemedText>
-              </SurfaceCard>
-            </Pressable>
-          ))}
-        </View>
-      ))}
-    </ScrollView>
+    <FadeInContent>
+      <SoftRefreshBar active={refreshing} />
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
+        <SectionHeader title="Entities" subtitle="People, tools, and concepts you captured" />
+        {groups.map(([type, items]) => (
+          <View key={type} style={styles.group}>
+            <ThemedText colorKey="textMuted" style={styles.kicker}>
+              {typeLabel(type)}
+            </ThemedText>
+            {items.map((entity) => (
+              <Pressable
+                key={entity.id}
+                onPress={() => router.push(`/(app)/entities/${entity.id}`)}
+              >
+                <SurfaceCard>
+                  <ThemedText colorKey="text" style={styles.title}>
+                    {entity.name}
+                  </ThemedText>
+                  <ThemedText colorKey="textMuted" style={styles.meta}>
+                    {entity.observationCount} observations
+                  </ThemedText>
+                </SurfaceCard>
+              </Pressable>
+            ))}
+          </View>
+        ))}
+      </ScrollView>
+    </FadeInContent>
   );
 }
 
