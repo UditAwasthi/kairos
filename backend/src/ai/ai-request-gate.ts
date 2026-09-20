@@ -3,6 +3,8 @@
  * Limits concurrent HTTP requests and applies a shared cooldown after 429s
  * so retries do not stampede the same TPM window.
  */
+import { readAiApiKeys } from './ai-api-key-pool';
+
 export class AiRequestGate {
   private active = 0;
   private readonly waiters: Array<() => void> = [];
@@ -89,11 +91,19 @@ export class AiRequestGate {
 
 export function readAiChatConcurrency(
   env: NodeJS.ProcessEnv = process.env,
+  keyCount?: number,
 ): number {
+  const keys =
+    typeof keyCount === 'number' && Number.isFinite(keyCount)
+      ? Math.max(0, Math.floor(keyCount))
+      : readAiApiKeys(env).length;
+  // Default: one in-flight chat call per configured key (capped).
+  const auto = Math.max(1, Math.min(keys || 1, 8));
+
   const raw = env.AI_CHAT_CONCURRENCY?.trim();
-  if (!raw) return 1;
+  if (!raw) return auto;
   const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed < 1) return 1;
+  if (!Number.isFinite(parsed) || parsed < 1) return auto;
   // Hard ceiling keeps a misconfigured env from opening a stampede.
   return Math.min(parsed, 8);
 }

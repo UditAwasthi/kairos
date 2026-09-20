@@ -146,11 +146,19 @@ class RecallUploader(private val context: Context) {
       for (i in 0 until results.length()) {
         val item = results.getJSONObject(i)
         val status = item.optString("status")
-        if (status == "accepted" || status == "deduped") {
-          ids.add(item.optString("clientEventId"))
+        val reason = item.optString("reason")
+        when {
+          status == "accepted" || status == "deduped" -> {
+            ids.add(item.optString("clientEventId"))
+          }
+          // Permanent rejects leave the outbox; rate-limited ones stay for retry.
+          status == "rejected" &&
+            !reason.contains("Rate limited", ignoreCase = true) -> {
+            ids.add(item.optString("clientEventId"))
+          }
         }
       }
-      ids
+      ids.filter { it.isNotBlank() }
     } catch (_: Exception) {
       // If parse fails but HTTP 200, ack all sent to avoid infinite retry of poison payloads.
       sent.map { it.optString("clientEventId") }.filter { it.isNotBlank() }

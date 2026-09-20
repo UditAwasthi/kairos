@@ -25,12 +25,25 @@ describe('AiApiKeyPool / readAiApiKeys', () => {
 
   it('rotates away from a rate-limited key immediately', () => {
     const pool = new AiApiKeyPool(['a', 'b', 'c']);
-    const first = pool.select(1_000)!;
+    const first = pool.acquire(1_000)!;
     expect(first.key).toBe('a');
     pool.markRateLimited(first.slot, 60_000, 1_000);
-    const second = pool.select(1_001)!;
+    pool.release(first.slot);
+    const second = pool.acquire(1_001)!;
     expect(second.key).toBe('b');
     expect(pool.availableCount(1_001)).toBe(2);
+    pool.release(second.slot);
+  });
+
+  it('gives distinct idle keys to concurrent acquires', () => {
+    const pool = new AiApiKeyPool(['a', 'b', 'c', 'd']);
+    const got = [
+      pool.acquire(1_000)!.key,
+      pool.acquire(1_000)!.key,
+      pool.acquire(1_000)!.key,
+      pool.acquire(1_000)!.key,
+    ];
+    expect(new Set(got).size).toBe(4);
   });
 });
 
@@ -42,6 +55,7 @@ describe('OpenAICompatibleProvider rate control', () => {
     delete process.env.AI_API_KEY;
     delete process.env.AI_API_KEY_1;
     delete process.env.AI_API_KEY_2;
+    delete process.env.AI_API_KEY_3;
     delete process.env.AI_API_KEYS;
     delete process.env.AI_BASE_URL;
     delete process.env.AI_MODEL;
@@ -84,6 +98,45 @@ describe('OpenAICompatibleProvider rate control', () => {
 
     expect(maxInFlight).toBe(1);
     expect(global.fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('runs one chat call per API key in parallel', async () => {
+    process.env.AI_API_KEY = 'k0';
+    process.env.AI_API_KEY_1 = 'k1';
+    process.env.AI_API_KEY_2 = 'k2';
+    process.env.AI_API_KEY_3 = 'k3';
+    process.env.AI_BASE_URL = 'https://api.groq.com/openai/v1';
+    process.env.AI_MODEL = 'openai/gpt-oss-120b';
+    delete process.env.AI_CHAT_CONCURRENCY;
+
+    const provider = new OpenAICompatibleProvider();
+    expect(provider.apiKeyCount).toBe(4);
+    expect(provider.chatConcurrency).toBe(4);
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const keysUsed = new Set<string>();
+
+    global.fetch = jest.fn(async (_url, init) => {
+      const headers = init?.headers as Record<string, string>;
+      const auth = headers.Authorization ?? '';
+      keysUsed.add(auth);
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await delay(50);
+      inFlight -= 1;
+      return jsonResponse(VALID_ANALYSIS);
+    }) as unknown as typeof fetch;
+
+    await Promise.all([
+      provider.analyzeDocument(['doc 0']),
+      provider.analyzeDocument(['doc 1']),
+      provider.analyzeDocument(['doc 2']),
+      provider.analyzeDocument(['doc 3']),
+    ]);
+
+    expect(maxInFlight).toBe(4);
+    expect(keysUsed.size).toBe(4);
   });
 
   it('respects Retry-After on 429 then succeeds (single key)', async () => {

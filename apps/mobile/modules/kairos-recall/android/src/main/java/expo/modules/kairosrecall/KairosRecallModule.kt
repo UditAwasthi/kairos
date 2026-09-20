@@ -165,6 +165,39 @@ class KairosRecallModule : Module() {
       statusInternal()
     }
 
+    AsyncFunction("flushUploads") {
+      if (RecallRuntime.uploading) {
+        return@AsyncFunction statusInternal()
+      }
+      RecallRuntime.uploading = true
+      try {
+        var rounds = 0
+        while (rounds < 8) {
+          rounds += 1
+          val batch = outbox.peekBatch(20)
+          if (batch.isEmpty()) break
+          val outcome = uploader.uploadBatch(batch)
+          if (!outcome.ok) {
+            RecallRuntime.lastError = outcome.error
+            break
+          }
+          outbox.acknowledge(outcome.acknowledgedIds)
+          RecallRuntime.lastUploadBatchSize = outcome.acknowledgedIds.size
+          RecallRuntime.lastError = null
+          if (outcome.acknowledgedIds.isEmpty()) break
+        }
+      } finally {
+        RecallRuntime.uploading = false
+      }
+      // Also nudge the capture service loop if it's running.
+      try {
+        RecallCaptureService.send(context, RecallCaptureService.ACTION_UPLOAD)
+      } catch (_: Exception) {
+        // Service may not be running when capture is off.
+      }
+      statusInternal()
+    }
+
     AsyncFunction("setAuthToken") { token: String? ->
       // Never stop capture when the token is briefly missing during refresh.
       // Sign-out / data-delete paths call stop() explicitly.

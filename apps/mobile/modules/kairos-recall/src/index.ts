@@ -30,6 +30,10 @@ export type RecallStatus = {
   queuedCount: number;
   lastError: string | null;
   lastUploadAt: number | null;
+  /** True while a sync batch is uploading to the server. */
+  uploading?: boolean;
+  /** How many events were drained in the last successful upload. */
+  lastUploadBatchSize?: number;
   entitlementCached: boolean | null;
   notificationPermission?: boolean;
   platform?: string;
@@ -57,6 +61,7 @@ type KairosRecallNative = {
   resume(): Promise<RecallStatus>;
   stop(): Promise<RecallStatus>;
   getStatus(): Promise<RecallStatus>;
+  flushUploads?: () => Promise<RecallStatus>;
   setAuthToken(token: string | null): Promise<void>;
   clearLocalData(): Promise<RecallStatus>;
   setConfig(config: RecallConfig): Promise<RecallStatus>;
@@ -72,6 +77,8 @@ const IDLE: RecallStatus = {
   queuedCount: 0,
   lastError: Platform.OS === 'android' ? 'Native Recall module unavailable' : 'Android only',
   lastUploadAt: null,
+  uploading: false,
+  lastUploadBatchSize: 0,
   entitlementCached: null,
   platform: Platform.OS,
 };
@@ -197,6 +204,16 @@ export const Recall = {
   async getStatus(): Promise<RecallStatus> {
     const native = getNative();
     if (!native) return IDLE;
+    return native.getStatus();
+  },
+
+  /** Push queued events to the server now (drains outbox in batches). */
+  async flushUploads(): Promise<RecallStatus> {
+    const native = getNative();
+    if (!native) return IDLE;
+    if (typeof native.flushUploads === 'function') {
+      return native.flushUploads();
+    }
     return native.getStatus();
   },
 

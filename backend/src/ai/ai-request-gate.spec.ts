@@ -106,13 +106,22 @@ describe('parseRetryAfterMs', () => {
 });
 
 describe('readAiChatConcurrency / max retries', () => {
-  it('defaults concurrency to 1', () => {
+  it('defaults concurrency to configured key count', () => {
     expect(readAiChatConcurrency({})).toBe(1);
+    expect(
+      readAiChatConcurrency({
+        AI_API_KEY: 'a',
+        AI_API_KEY_1: 'b',
+        AI_API_KEY_2: 'c',
+        AI_API_KEY_3: 'd',
+      }),
+    ).toBe(4);
+    expect(readAiChatConcurrency({}, 4)).toBe(4);
   });
 
   it('reads and clamps concurrency', () => {
     expect(readAiChatConcurrency({ AI_CHAT_CONCURRENCY: '3' })).toBe(3);
-    expect(readAiChatConcurrency({ AI_CHAT_CONCURRENCY: '0' })).toBe(1);
+    expect(readAiChatConcurrency({ AI_CHAT_CONCURRENCY: '0' }, 4)).toBe(4);
     expect(readAiChatConcurrency({ AI_CHAT_CONCURRENCY: '99' })).toBe(8);
   });
 

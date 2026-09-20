@@ -18,6 +18,10 @@ object RecallRuntime {
   @Volatile var sampleIntervalMs: Long = 700L
   @Volatile var maxOcrPerMinute: Int = 12
   @Volatile var denylistPackages: Set<String> = defaultDenylist()
+  /** True while an upload batch is in flight. */
+  @Volatile var uploading: Boolean = false
+  /** Events acknowledged in the most recent successful upload. */
+  @Volatile var lastUploadBatchSize: Int = 0
 
   @Volatile
   var consentContinuation: CancellableContinuation<Map<String, Any?>>? = null
@@ -55,6 +59,8 @@ object RecallRuntime {
       "queuedCount" to queuedCount,
       "lastError" to lastError,
       "lastUploadAt" to lastUploadAt,
+      "uploading" to uploading,
+      "lastUploadBatchSize" to lastUploadBatchSize,
       "entitlementCached" to entitlementCached,
       "platform" to "android",
     )

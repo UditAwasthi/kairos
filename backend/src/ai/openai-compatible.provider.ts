@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AiApiKeyPool, readAiApiKeys } from './ai-api-key-pool';
 import {
   AiRequestGate,
   parseRetryAfterMs,
   readAiChatConcurrency,
   readAiChatMaxRetries,
 } from './ai-request-gate';
+import { AiApiKeyPool, readAiApiKeys } from './ai-api-key-pool';
 import {
   validateDocumentAnalysis,
   validateEntities,
@@ -43,13 +43,20 @@ export class OpenAICompatibleProvider implements AIProvider {
   private gate: AiRequestGate;
 
   constructor() {
-    this.keyPool = new AiApiKeyPool(readAiApiKeys());
+    const keys = readAiApiKeys();
+    this.keyPool = new AiApiKeyPool(keys);
     this.baseUrl = (
       process.env.AI_BASE_URL?.trim() || 'https://api.openai.com/v1'
     ).replace(/\/+$/, '');
     this.model = process.env.AI_MODEL?.trim() || 'gpt-4o-mini';
     this.maxRetries = readAiChatMaxRetries();
-    this.gate = new AiRequestGate(readAiChatConcurrency());
+    const concurrency = readAiChatConcurrency(process.env, keys.length);
+    this.gate = new AiRequestGate(concurrency);
+    if (keys.length > 0) {
+      this.logger.log(
+        `AI chat ready: ${keys.length} key(s), concurrency=${concurrency}, model=${this.model}`,
+      );
+    }
   }
 
   /** Test-only: swap the shared chat gate without Nest DI. */
@@ -220,9 +227,11 @@ export class OpenAICompatibleProvider implements AIProvider {
     let lastError: Error | undefined;
 
     while (attempt <= this.maxRetries) {
-      const selected = this.keyPool.select();
-      if (!selected) {
-        const waitMs = Math.max(200, this.keyPool.msUntilAnyAvailable() || 1_000);
+      if (this.keyPool.availableCount() === 0) {
+        const waitMs = Math.max(
+          200,
+          this.keyPool.msUntilAnyAvailable() || 1_000,
+        );
         this.gate.noteCooldownFor(waitMs);
         this.logger.warn(
           `All AI API keys cooling down; waiting ${waitMs}ms before retry`,
@@ -234,9 +243,34 @@ export class OpenAICompatibleProvider implements AIProvider {
       }
 
       try {
-        return await this.gate.run(() =>
-          this.chatJsonOnce(messages, attempt, selected.key, selected.slot),
-        );
+        return await this.gate.run(async () => {
+          const selected = this.keyPool.acquire();
+          if (!selected) {
+            const waitMs = Math.max(
+              200,
+              this.keyPool.msUntilAnyAvailable() || 1_000,
+            );
+            throw new RateLimitError('All AI API keys cooling down', waitMs);
+          }
+          try {
+            return await this.chatJsonOnce(
+              messages,
+              attempt,
+              selected.key,
+              selected.slot,
+            );
+          } catch (error) {
+            if (error instanceof RateLimitError) {
+              this.keyPool.markRateLimited(
+                selected.slot,
+                error.retryAfterMs ?? 1_000,
+              );
+            }
+            throw error;
+          } finally {
+            this.keyPool.release(selected.slot);
+          }
+        });
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         const retryAfterMs =
@@ -247,14 +281,10 @@ export class OpenAICompatibleProvider implements AIProvider {
         }
 
         if (error instanceof RateLimitError) {
-          this.keyPool.markRateLimited(
-            selected.slot,
-            retryAfterMs ?? 1_000,
-          );
           const othersFree = this.keyPool.availableCount() > 0;
           if (othersFree) {
             this.logger.warn(
-              `AI key slot ${selected.slot + 1}/${this.keyPool.size} rate-limited; rotating to next key (attempt ${attempt + 1}/${this.maxRetries + 1})`,
+              `AI key rate-limited; rotating to next key (attempt ${attempt + 1}/${this.maxRetries + 1})`,
             );
             attempt += 1;
             continue;
@@ -415,7 +445,8 @@ class RateLimitError extends Error {
 }
 
 function isRetryableAiError(error: Error): boolean {
-  return /timeout|rate limit|429|502|503|504|network|ECONNRESET|fetch failed/i.test(
+  if (error instanceof RateLimitError) return true;
+  return /timeout|rate limit|429|502|503|504|network|ECONNRESET|fetch failed|cooling down/i.test(
     error.message,
   );
 }

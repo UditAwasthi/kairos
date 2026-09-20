@@ -1,11 +1,13 @@
 /**
  * Rotating pool of OpenAI-compatible API keys (e.g. multiple Groq keys).
  * On 429, the hot key cools down while the next free key is used immediately.
+ * In-flight checkouts prefer idle keys so N keys ≈ N parallel requests.
  */
 
 export class AiApiKeyPool {
   private readonly keys: string[];
   private readonly cooldownUntilMs: number[];
+  private readonly inUse: number[];
   private cursor = 0;
 
   constructor(keys: string[]) {
@@ -19,6 +21,7 @@ export class AiApiKeyPool {
     }
     this.keys = unique;
     this.cooldownUntilMs = unique.map(() => 0);
+    this.inUse = unique.map(() => 0);
   }
 
   get size(): number {
@@ -38,20 +41,51 @@ export class AiApiKeyPool {
   }
 
   /**
-   * Pick the next usable key (round-robin among non-cooling keys).
+   * Checkout a key for an in-flight request.
+   * Prefers non-cooling, idle keys (round-robin); falls back to the
+   * least-loaded non-cooling key when every key is already in use.
    * Returns null when every key is still cooling down.
    */
-  select(now = Date.now()): { key: string; slot: number } | null {
+  acquire(now = Date.now()): { key: string; slot: number } | null {
     if (this.keys.length === 0) return null;
     const n = this.keys.length;
+
+    // Pass 1: idle + not cooling
     for (let i = 0; i < n; i += 1) {
       const slot = (this.cursor + i) % n;
-      if (this.cooldownUntilMs[slot] <= now) {
+      if (this.cooldownUntilMs[slot] <= now && this.inUse[slot] === 0) {
         this.cursor = (slot + 1) % n;
+        this.inUse[slot] += 1;
         return { key: this.keys[slot], slot };
       }
     }
-    return null;
+
+    // Pass 2: not cooling, least in-use (allows concurrency > key count)
+    let bestSlot = -1;
+    let bestLoad = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < n; i += 1) {
+      const slot = (this.cursor + i) % n;
+      if (this.cooldownUntilMs[slot] > now) continue;
+      if (this.inUse[slot] < bestLoad) {
+        bestLoad = this.inUse[slot];
+        bestSlot = slot;
+      }
+    }
+    if (bestSlot < 0) return null;
+
+    this.cursor = (bestSlot + 1) % n;
+    this.inUse[bestSlot] += 1;
+    return { key: this.keys[bestSlot], slot: bestSlot };
+  }
+
+  /** @deprecated Prefer acquire() — kept for older call sites/tests. */
+  select(now = Date.now()): { key: string; slot: number } | null {
+    return this.acquire(now);
+  }
+
+  release(slot: number): void {
+    if (slot < 0 || slot >= this.keys.length) return;
+    this.inUse[slot] = Math.max(0, this.inUse[slot] - 1);
   }
 
   markRateLimited(slot: number, retryAfterMs: number, now = Date.now()): void {

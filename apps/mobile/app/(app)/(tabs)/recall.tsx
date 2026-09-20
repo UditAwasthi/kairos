@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Platform,
   Pressable,
@@ -54,6 +55,7 @@ function statusWord(status: RecallStatus | null, entitlement: RecallEntitlement 
   if (!Recall.isAvailable() || Platform.OS !== 'android') return 'Android';
   if (entitlement && !entitlement.allowed) return 'Locked';
   if (!status) return '…';
+  if (status.uploading || (status.queuedCount ?? 0) > 0) return 'Syncing';
   if (status.capturing || status.on) return 'On';
   if (status.state === 'needs_consent' || status.userEnabled) return 'Resume';
   if (status.state === 'paused') return 'Paused';
@@ -191,11 +193,46 @@ export default function RecallScreen() {
 
   useEffect(() => {
     void refresh(false);
-    const id = setInterval(() => {
-      void Recall.getStatus().then(setStatus).catch(() => undefined);
-    }, 3000);
-    return () => clearInterval(id);
   }, [refresh]);
+
+  // Live status + proactive flush while there is a backlog.
+  useEffect(() => {
+    if (!Recall.isAvailable()) return;
+
+    let cancelled = false;
+    let flushInFlight = false;
+
+    const tick = async () => {
+      try {
+        let st = await Recall.getStatus();
+        if (cancelled) return;
+        setStatus(st);
+
+        const queued = st.queuedCount ?? 0;
+        if (queued > 0 && !st.uploading && !flushInFlight) {
+          flushInFlight = true;
+          try {
+            st = await Recall.flushUploads();
+            if (!cancelled) setStatus(st);
+          } finally {
+            flushInFlight = false;
+          }
+        }
+      } catch {
+        /* ignore transient native errors */
+      }
+    };
+
+    void tick();
+    const id = setInterval(() => {
+      void tick();
+    }, 1200);
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   const run = async (action: () => Promise<unknown>) => {
     try {
@@ -216,7 +253,16 @@ export default function RecallScreen() {
   const canUse = Recall.isAvailable() && entitlement?.allowed === true && !busy;
   const word = statusWord(status, entitlement);
   const queued = status?.queuedCount ?? 0;
-  const lastSync = relativeTime(status?.lastUploadAt);
+  const uploading = Boolean(status?.uploading);
+  const syncing = uploading || queued > 0;
+  const lastSync = uploading ? '…' : relativeTime(status?.lastUploadAt);
+  const syncHint = uploading
+    ? queued > 0
+      ? `Uploading · ${queued} left`
+      : 'Uploading…'
+    : queued > 0
+      ? `${queued} waiting to sync`
+      : null;
 
   const toggle = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -251,11 +297,13 @@ export default function RecallScreen() {
               style={[
                 styles.dot,
                 {
-                  backgroundColor: isOn
-                    ? colors.success
-                    : word === 'Locked'
-                      ? colors.warning
-                      : colors.textMuted,
+                  backgroundColor: syncing
+                    ? colors.accent
+                    : isOn
+                      ? colors.success
+                      : word === 'Locked'
+                        ? colors.warning
+                        : colors.textMuted,
                 },
               ]}
             />
@@ -275,17 +323,41 @@ export default function RecallScreen() {
           />
         </View>
 
+        {syncHint ? (
+          <View
+            style={[
+              styles.syncBanner,
+              { backgroundColor: colors.surfaceElevated, borderColor: colors.glassBorder },
+            ]}
+          >
+            <ActivityIndicator size="small" color={colors.accent} />
+            <ThemedText colorKey="textSecondary" style={styles.syncBannerText}>
+              {syncHint}
+            </ThemedText>
+          </View>
+        ) : null}
+
         <View style={styles.metrics}>
           <GlassPanel style={styles.metric} contentStyle={styles.metricInner} padded={false}>
             <Feather name="layers" size={16} color={colors.accent} />
             <ThemedText colorKey="text" style={styles.metricValue}>
               {queued}
             </ThemedText>
+            <ThemedText colorKey="textMuted" style={styles.metricLabel}>
+              Queue
+            </ThemedText>
           </GlassPanel>
           <GlassPanel style={styles.metric} contentStyle={styles.metricInner} padded={false}>
-            <Feather name="upload-cloud" size={16} color={colors.accent} />
+            <Feather
+              name={uploading ? 'refresh-cw' : 'upload-cloud'}
+              size={16}
+              color={colors.accent}
+            />
             <ThemedText colorKey="text" style={styles.metricValue}>
               {lastSync}
+            </ThemedText>
+            <ThemedText colorKey="textMuted" style={styles.metricLabel}>
+              {uploading ? 'Syncing' : 'Synced'}
             </ThemedText>
           </GlassPanel>
           <GlassPanel style={styles.metric} contentStyle={styles.metricInner} padded={false}>
@@ -296,6 +368,9 @@ export default function RecallScreen() {
             />
             <ThemedText colorKey="text" style={styles.metricValue}>
               {entitlement?.allowed ? 'OK' : '—'}
+            </ThemedText>
+            <ThemedText colorKey="textMuted" style={styles.metricLabel}>
+              Access
             </ThemedText>
           </GlassPanel>
         </View>
@@ -460,12 +535,30 @@ const styles = StyleSheet.create({
   metricInner: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
+    gap: 6,
+    paddingVertical: 14,
   },
   metricValue: {
     fontFamily: 'Inter_600SemiBold',
     fontSize: 16,
+  },
+  metricLabel: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+  },
+  syncBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  syncBannerText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
   },
   actions: {
     flexDirection: 'row',

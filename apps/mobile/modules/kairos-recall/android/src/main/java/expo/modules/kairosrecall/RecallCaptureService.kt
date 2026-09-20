@@ -366,31 +366,57 @@ class RecallCaptureService : Service() {
         scope.launch {
           flushUploads()
         }
-        val delay = if (uploader.lastError == null) 30_000L else backoffMs
+        val queued = try {
+          outbox.queuedCount()
+        } catch (_: Exception) {
+          0
+        }
+        val delay = when {
+          uploader.lastError != null -> backoffMs
+          queued > 0 || RecallRuntime.uploading -> 3_500L
+          else -> 20_000L
+        }
         handler?.postDelayed(this, delay)
       }
-    }, 15_000L)
+    }, 2_500L)
   }
 
   private suspend fun flushUploads() {
-    val batch = outbox.peekBatch(20)
-    if (batch.isEmpty()) return
-    val outcome = uploader.uploadBatch(batch)
-    if (outcome.ok) {
-      outbox.acknowledge(outcome.acknowledgedIds)
-      backoffMs = RecallUploader.INITIAL_BACKOFF_MS
-      RecallRuntime.lastError = null
-    } else {
-      RecallRuntime.lastError = outcome.error
-      backoffMs = (backoffMs * 2).coerceAtMost(RecallUploader.MAX_BACKOFF_MS)
-      // Never stop capture on auth/network errors — keep reading screens and
-      // retry uploads when a fresh token is available.
-      if (outcome.entitlementRequired) {
-        outbox.clear()
-        uploader.userEnabled = false
-        stopCaptureInternal(clearConsent = true)
-        stopSelf()
+    if (RecallRuntime.uploading) return
+    RecallRuntime.uploading = true
+    try {
+      var rounds = 0
+      while (rounds < 8) {
+        rounds += 1
+        val batch = outbox.peekBatch(20)
+        if (batch.isEmpty()) {
+          RecallRuntime.lastError = null
+          break
+        }
+        val outcome = uploader.uploadBatch(batch)
+        if (outcome.ok) {
+          outbox.acknowledge(outcome.acknowledgedIds)
+          RecallRuntime.lastUploadBatchSize = outcome.acknowledgedIds.size
+          backoffMs = RecallUploader.INITIAL_BACKOFF_MS
+          RecallRuntime.lastError = null
+          // Nothing drained — avoid spinning on a stuck batch.
+          if (outcome.acknowledgedIds.isEmpty()) break
+        } else {
+          RecallRuntime.lastError = outcome.error
+          backoffMs = (backoffMs * 2).coerceAtMost(RecallUploader.MAX_BACKOFF_MS)
+          // Never stop capture on auth/network errors — keep reading screens and
+          // retry uploads when a fresh token is available.
+          if (outcome.entitlementRequired) {
+            outbox.clear()
+            uploader.userEnabled = false
+            stopCaptureInternal(clearConsent = true)
+            stopSelf()
+          }
+          break
+        }
       }
+    } finally {
+      RecallRuntime.uploading = false
     }
   }
 
