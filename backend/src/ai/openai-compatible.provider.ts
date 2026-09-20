@@ -1,5 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  AiRequestGate,
+  parseRetryAfterMs,
+  readAiChatConcurrency,
+  readAiChatMaxRetries,
+} from './ai-request-gate';
+import {
   validateDocumentAnalysis,
   validateEntities,
   validateGroundedAnswerPayload,
@@ -24,7 +30,6 @@ const SINGLE_PASS_MAX_CHARS = 24_000;
 const MAP_REDUCE_MAX_CHUNKS = 6;
 const MAP_REDUCE_CHUNK_CHARS = 4_000;
 const INTER_REQUEST_DELAY_MS = 350;
-const MAX_RETRIES = 4;
 
 @Injectable()
 export class OpenAICompatibleProvider implements AIProvider {
@@ -33,13 +38,22 @@ export class OpenAICompatibleProvider implements AIProvider {
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly model: string;
+  private readonly maxRetries: number;
+  private readonly gate: AiRequestGate;
 
-  constructor() {
+  constructor(gate?: AiRequestGate) {
     this.apiKey = process.env.AI_API_KEY?.trim() || '';
     this.baseUrl = (
       process.env.AI_BASE_URL?.trim() || 'https://api.openai.com/v1'
     ).replace(/\/+$/, '');
     this.model = process.env.AI_MODEL?.trim() || 'gpt-4o-mini';
+    this.maxRetries = readAiChatMaxRetries();
+    this.gate = gate ?? new AiRequestGate(readAiChatConcurrency());
+  }
+
+  /** Exposed for diagnostics/tests. */
+  get chatConcurrency(): number {
+    return this.gate.concurrencyLimit;
   }
 
   isConfigured(): boolean {
@@ -179,26 +193,42 @@ export class OpenAICompatibleProvider implements AIProvider {
     });
   }
 
+  /**
+   * Each attempt acquires the shared gate. On 429, the slot is released before
+   * waiting (Retry-After or backoff), then the retry re-enters the queue.
+   */
   private async chatJson(
     messages: ChatMessage[],
   ): Promise<Record<string, unknown>> {
     let attempt = 0;
     let lastError: Error | undefined;
 
-    while (attempt <= MAX_RETRIES) {
+    while (attempt <= this.maxRetries) {
       try {
-        return await this.chatJsonOnce(messages, attempt);
+        return await this.gate.run(() => this.chatJsonOnce(messages, attempt));
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         const retryAfterMs =
           error instanceof RateLimitError ? error.retryAfterMs : undefined;
-        if (!isRetryableAiError(lastError) || attempt === MAX_RETRIES) {
+
+        if (!isRetryableAiError(lastError) || attempt === this.maxRetries) {
           throw lastError;
         }
-        const delayMs =
-          retryAfterMs ?? Math.min(1000 * 2 ** attempt, 12_000);
+
+        if (retryAfterMs !== undefined && retryAfterMs > 0) {
+          // Shared cooldown: next attempt (and other callers) wait inside the gate.
+          // Do not sleep while holding a mental "parallel retry" — re-queue instead.
+          this.gate.noteCooldownFor(retryAfterMs);
+          this.logger.warn(
+            `AI call failed (attempt ${attempt + 1}/${this.maxRetries + 1}): ${lastError.message}. Cooling down ${retryAfterMs}ms then re-queueing`,
+          );
+          attempt += 1;
+          continue;
+        }
+
+        const delayMs = Math.min(1000 * 2 ** attempt, 12_000);
         this.logger.warn(
-          `AI call failed (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${lastError.message}. Retrying in ${delayMs}ms`,
+          `AI call failed (attempt ${attempt + 1}/${this.maxRetries + 1}): ${lastError.message}. Retrying in ${delayMs}ms`,
         );
         await sleep(delayMs);
         attempt += 1;
@@ -251,7 +281,11 @@ export class OpenAICompatibleProvider implements AIProvider {
           // ignore body parse errors
         }
         const message = `AI request failed with status ${response.status} (model=${this.model})${detail}`;
-        if (response.status === 502 || response.status === 503 || response.status === 504) {
+        if (
+          response.status === 502 ||
+          response.status === 503 ||
+          response.status === 504
+        ) {
           throw new Error(message);
         }
         throw new Error(message);
@@ -302,7 +336,8 @@ export class OpenAICompatibleProvider implements AIProvider {
         baseUrlHost: hostnameOf(this.baseUrl),
         status: 429,
         attempt: attempt + 1,
-        maxAttempts: MAX_RETRIES + 1,
+        maxAttempts: this.maxRetries + 1,
+        concurrency: this.gate.concurrencyLimit,
         retryAfter: response.headers.get('retry-after') ?? undefined,
         providerErrorCode: providerError.code,
         providerErrorMessage: providerError.message,
@@ -337,19 +372,6 @@ function isRetryableAiError(error: Error): boolean {
   );
 }
 
-function parseRetryAfterMs(header: string | null): number | undefined {
-  if (!header) return undefined;
-  const asSeconds = Number(header);
-  if (Number.isFinite(asSeconds) && asSeconds >= 0) {
-    return Math.min(asSeconds * 1000, 30_000);
-  }
-  const asDate = Date.parse(header);
-  if (Number.isFinite(asDate)) {
-    return Math.min(Math.max(0, asDate - Date.now()), 30_000);
-  }
-  return undefined;
-}
-
 function hostnameOf(baseUrl: string): string {
   try {
     return new URL(baseUrl).hostname;
@@ -381,7 +403,6 @@ function collectRateLimitHeaders(
       out[name] = value;
     }
   }
-  // Capture any other x-ratelimit-* headers without guessing vendor names.
   headers.forEach((value, key) => {
     const lower = key.toLowerCase();
     if (lower.startsWith('x-ratelimit-') && !(lower in out)) {
