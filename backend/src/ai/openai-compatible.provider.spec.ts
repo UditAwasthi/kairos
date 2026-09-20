@@ -1,3 +1,4 @@
+import { AiApiKeyPool, readAiApiKeys } from './ai-api-key-pool';
 import { AiRequestGate } from './ai-request-gate';
 import { OpenAICompatibleProvider } from './openai-compatible.provider';
 
@@ -7,12 +8,41 @@ const VALID_ANALYSIS = {
   entities: [],
 };
 
+describe('AiApiKeyPool / readAiApiKeys', () => {
+  const envBackup = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...envBackup };
+  });
+
+  it('reads primary + numbered + list keys without duplicates', () => {
+    process.env.AI_API_KEY = 'primary';
+    process.env.AI_API_KEY_1 = 'k1';
+    process.env.AI_API_KEY_2 = 'k2';
+    process.env.AI_API_KEYS = 'k2, k3';
+    expect(readAiApiKeys(process.env)).toEqual(['primary', 'k1', 'k2', 'k3']);
+  });
+
+  it('rotates away from a rate-limited key immediately', () => {
+    const pool = new AiApiKeyPool(['a', 'b', 'c']);
+    const first = pool.select(1_000)!;
+    expect(first.key).toBe('a');
+    pool.markRateLimited(first.slot, 60_000, 1_000);
+    const second = pool.select(1_001)!;
+    expect(second.key).toBe('b');
+    expect(pool.availableCount(1_001)).toBe(2);
+  });
+});
+
 describe('OpenAICompatibleProvider rate control', () => {
   const originalFetch = global.fetch;
 
   afterEach(() => {
     global.fetch = originalFetch;
     delete process.env.AI_API_KEY;
+    delete process.env.AI_API_KEY_1;
+    delete process.env.AI_API_KEY_2;
+    delete process.env.AI_API_KEYS;
     delete process.env.AI_BASE_URL;
     delete process.env.AI_MODEL;
     delete process.env.AI_CHAT_MAX_RETRIES;
@@ -56,7 +86,7 @@ describe('OpenAICompatibleProvider rate control', () => {
     expect(global.fetch).toHaveBeenCalledTimes(3);
   });
 
-  it('respects Retry-After on 429 then succeeds', async () => {
+  it('respects Retry-After on 429 then succeeds (single key)', async () => {
     const gate = new AiRequestGate(1);
     const provider = buildProvider(gate);
     let calls = 0;
@@ -94,6 +124,43 @@ describe('OpenAICompatibleProvider rate control', () => {
     expect(result.summary).toMatch(/Recovered/);
     expect(calls).toBe(2);
     expect(timestamps[1]).toBeGreaterThanOrEqual(900);
+  });
+
+  it('rotates to the next API key on 429 without waiting Retry-After', async () => {
+    process.env.AI_API_KEY = 'key-a';
+    process.env.AI_API_KEY_1 = 'key-b';
+    process.env.AI_BASE_URL = 'https://api.groq.com/openai/v1';
+    process.env.AI_MODEL = 'openai/gpt-oss-120b';
+    process.env.AI_CHAT_MAX_RETRIES = '3';
+    const provider = new OpenAICompatibleProvider();
+    provider.replaceGateForTests(new AiRequestGate(1));
+
+    const authHeaders: string[] = [];
+    const timestamps: number[] = [];
+    const t0 = Date.now();
+
+    global.fetch = jest.fn(async (_url, init) => {
+      const headers = init?.headers as Record<string, string>;
+      authHeaders.push(headers.Authorization ?? '');
+      timestamps.push(Date.now() - t0);
+      if (authHeaders.length === 1) {
+        return new Response(JSON.stringify({ error: { message: 'tpm' } }), {
+          status: 429,
+          headers: {
+            'retry-after': '5',
+            'content-type': 'application/json',
+          },
+        });
+      }
+      return jsonResponse(VALID_ANALYSIS);
+    }) as unknown as typeof fetch;
+
+    const result = await provider.analyzeDocument(['rotate me']);
+    expect(result.summary).toMatch(/valid document summary/i);
+    expect(authHeaders[0]).toContain('key-a');
+    expect(authHeaders[1]).toContain('key-b');
+    // Must not wait the full Retry-After when another key is free.
+    expect(timestamps[1]).toBeLessThan(2_000);
   });
 
   it('does not retry non-retryable 4xx errors', async () => {

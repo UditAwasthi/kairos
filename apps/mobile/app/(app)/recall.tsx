@@ -47,8 +47,8 @@ export default function RecallScreen() {
       await Recall.setConfig({
         apiBaseUrl: apiBaseUrl.replace(/\/+$/, ''),
         entitlementAllowed: ent.allowed,
-        sampleIntervalMs: 800,
-        maxOcrPerMinute: 8,
+        sampleIntervalMs: 700,
+        maxOcrPerMinute: 14,
       });
       const st = await Recall.getStatus();
       setStatus(st);

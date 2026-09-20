@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { AiApiKeyPool, readAiApiKeys } from './ai-api-key-pool';
 import {
   AiRequestGate,
   parseRetryAfterMs,
@@ -35,14 +36,14 @@ const INTER_REQUEST_DELAY_MS = 350;
 export class OpenAICompatibleProvider implements AIProvider {
   readonly name = 'openai-compatible';
   private readonly logger = new Logger(OpenAICompatibleProvider.name);
-  private readonly apiKey: string;
+  private keyPool: AiApiKeyPool;
   private readonly baseUrl: string;
   private readonly model: string;
   private readonly maxRetries: number;
   private gate: AiRequestGate;
 
   constructor() {
-    this.apiKey = process.env.AI_API_KEY?.trim() || '';
+    this.keyPool = new AiApiKeyPool(readAiApiKeys());
     this.baseUrl = (
       process.env.AI_BASE_URL?.trim() || 'https://api.openai.com/v1'
     ).replace(/\/+$/, '');
@@ -56,13 +57,22 @@ export class OpenAICompatibleProvider implements AIProvider {
     this.gate = gate;
   }
 
+  /** Test-only: replace key pool without Nest DI. */
+  replaceKeyPoolForTests(pool: AiApiKeyPool): void {
+    this.keyPool = pool;
+  }
+
   /** Exposed for diagnostics/tests. */
   get chatConcurrency(): number {
     return this.gate.concurrencyLimit;
   }
 
+  get apiKeyCount(): number {
+    return this.keyPool.size;
+  }
+
   isConfigured(): boolean {
-    return Boolean(this.apiKey);
+    return this.keyPool.isConfigured();
   }
 
   async summarize(text: string): Promise<string> {
@@ -199,8 +209,9 @@ export class OpenAICompatibleProvider implements AIProvider {
   }
 
   /**
-   * Each attempt acquires the shared gate. On 429, the slot is released before
-   * waiting (Retry-After or backoff), then the retry re-enters the queue.
+   * Each attempt acquires the shared gate. On 429:
+   * - cool that key and rotate to the next free key immediately when possible
+   * - only apply a global gate cooldown when every key is hot
    */
   private async chatJson(
     messages: ChatMessage[],
@@ -209,8 +220,23 @@ export class OpenAICompatibleProvider implements AIProvider {
     let lastError: Error | undefined;
 
     while (attempt <= this.maxRetries) {
+      const selected = this.keyPool.select();
+      if (!selected) {
+        const waitMs = Math.max(200, this.keyPool.msUntilAnyAvailable() || 1_000);
+        this.gate.noteCooldownFor(waitMs);
+        this.logger.warn(
+          `All AI API keys cooling down; waiting ${waitMs}ms before retry`,
+        );
+        // Honor shared cooldown without issuing an HTTP call.
+        await this.gate.run(async () => undefined);
+        attempt += 1;
+        continue;
+      }
+
       try {
-        return await this.gate.run(() => this.chatJsonOnce(messages, attempt));
+        return await this.gate.run(() =>
+          this.chatJsonOnce(messages, attempt, selected.key, selected.slot),
+        );
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         const retryAfterMs =
@@ -220,12 +246,24 @@ export class OpenAICompatibleProvider implements AIProvider {
           throw lastError;
         }
 
-        if (retryAfterMs !== undefined && retryAfterMs > 0) {
-          // Shared cooldown: next attempt (and other callers) wait inside the gate.
-          // Do not sleep while holding a mental "parallel retry" — re-queue instead.
-          this.gate.noteCooldownFor(retryAfterMs);
+        if (error instanceof RateLimitError) {
+          this.keyPool.markRateLimited(
+            selected.slot,
+            retryAfterMs ?? 1_000,
+          );
+          const othersFree = this.keyPool.availableCount() > 0;
+          if (othersFree) {
+            this.logger.warn(
+              `AI key slot ${selected.slot + 1}/${this.keyPool.size} rate-limited; rotating to next key (attempt ${attempt + 1}/${this.maxRetries + 1})`,
+            );
+            attempt += 1;
+            continue;
+          }
+          const waitMs =
+            (retryAfterMs ?? this.keyPool.msUntilAnyAvailable()) || 1_000;
+          this.gate.noteCooldownFor(waitMs);
           this.logger.warn(
-            `AI call failed (attempt ${attempt + 1}/${this.maxRetries + 1}): ${lastError.message}. Cooling down ${retryAfterMs}ms then re-queueing`,
+            `AI call failed (attempt ${attempt + 1}/${this.maxRetries + 1}): ${lastError.message}. All keys hot; cooling ${waitMs}ms then re-queueing`,
           );
           attempt += 1;
           continue;
@@ -246,6 +284,8 @@ export class OpenAICompatibleProvider implements AIProvider {
   private async chatJsonOnce(
     messages: ChatMessage[],
     attempt: number,
+    apiKey: string,
+    keySlot: number,
   ): Promise<Record<string, unknown>> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 45_000);
@@ -254,7 +294,7 @@ export class OpenAICompatibleProvider implements AIProvider {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -267,7 +307,7 @@ export class OpenAICompatibleProvider implements AIProvider {
       });
 
       if (response.status === 429) {
-        await this.logRateLimitDiagnostics(response, attempt);
+        await this.logRateLimitDiagnostics(response, attempt, keySlot);
         throw new RateLimitError(
           'AI rate limit exceeded',
           parseRetryAfterMs(response.headers.get('retry-after')),
@@ -323,6 +363,7 @@ export class OpenAICompatibleProvider implements AIProvider {
   private async logRateLimitDiagnostics(
     response: Response,
     attempt: number,
+    keySlot: number,
   ): Promise<void> {
     const providerError = await readProviderErrorMeta(response);
     const rateLimitHeaders = collectRateLimitHeaders(response.headers);
@@ -342,6 +383,8 @@ export class OpenAICompatibleProvider implements AIProvider {
         status: 429,
         attempt: attempt + 1,
         maxAttempts: this.maxRetries + 1,
+        keySlot: keySlot + 1,
+        keyCount: this.keyPool.size,
         concurrency: this.gate.concurrencyLimit,
         retryAfter: response.headers.get('retry-after') ?? undefined,
         providerErrorCode: providerError.code,

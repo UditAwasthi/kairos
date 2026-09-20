@@ -7,6 +7,8 @@ export type RecallDiagnostics = {
   ocrRuns: number;
   ocrNonEmpty: number;
   averageOcrTextLength: number;
+  maxOcrTextLength?: number;
+  averageOcrConfidence?: number | null;
   eventsCreated: number;
   eventsCoalesced: number;
   eventsDropped: number;

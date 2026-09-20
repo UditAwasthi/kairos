@@ -6,6 +6,7 @@ import {
   isMeaningfulRecallText,
   unionRecallLines,
   simulateEventAggregator,
+  assembleOcrReadingOrder,
 } from '../lib/recallFingerprint';
 
 describe('recallFingerprint', () => {
@@ -204,5 +205,102 @@ describe('textRelation / aggregation (memory quality)', () => {
     expect(merged).toContain('boAt Nirvana');
     expect(merged).toContain('₹1,299');
     expect(merged).not.toMatch(/invented|probably|likely/i);
+  });
+
+  it('search query survives aggregation as its own state', () => {
+    const events = simulateEventAggregator([
+      {
+        text: ['Amazon', 'Search', 'wireless earbuds', 'Recent searches'].join('\n'),
+        appPackage: 'in.amazon.mShop.android.shopping',
+        nowMs: 1_000,
+      },
+      {
+        text: amazonResults,
+        appPackage: 'in.amazon.mShop.android.shopping',
+        nowMs: 5_000,
+      },
+    ]);
+    expect(events.some((e) => /wireless earbuds/i.test(e.extractedText))).toBe(true);
+    expect(events.some((e) => /boAt Airdopes|Noise Buds|1,?299/i.test(e.extractedText))).toBe(
+      true,
+    );
+  });
+
+  it('product title and price survive into stored events', () => {
+    const events = simulateEventAggregator([
+      { text: amazonResults, appPackage: 'in.amazon.mShop.android.shopping', nowMs: 1_000 },
+      { text: productTop, appPackage: 'in.amazon.mShop.android.shopping', nowMs: 6_000 },
+    ]);
+    const joined = events.map((e) => e.extractedText).join('\n');
+    expect(joined).toMatch(/boAt Nirvana Ion/i);
+    expect(joined).toMatch(/1,?299/);
+    expect(joined).toMatch(/Wireless Earbuds with ANC|Add to Cart/i);
+    expect(textRelation(amazonResults, productTop)).toBe('MATERIAL');
+  });
+
+  it('scrolling creates related merge that keeps features without flooding', () => {
+    expect(textRelation(productTop, productScrollFeatures)).toBe('RELATED_SCROLL');
+    const events = simulateEventAggregator([
+      { text: productTop, appPackage: 'com.amazon.mShop.android.shopping', nowMs: 1_000 },
+      {
+        text: productScrollFeatures,
+        appPackage: 'com.amazon.mShop.android.shopping',
+        nowMs: 3_000,
+      },
+      {
+        text: productScrollFeatures,
+        appPackage: 'com.amazon.mShop.android.shopping',
+        nowMs: 3_500,
+      },
+    ]);
+    expect(events.length).toBeGreaterThanOrEqual(1);
+    expect(events.length).toBeLessThanOrEqual(2);
+    const joined = events.map((e) => e.extractedText).join('\n');
+    expect(joined).toMatch(/Active Noise Cancellation|40 hours/i);
+    expect(joined).toMatch(/Nirvana|1,?299/i);
+  });
+
+  it('same app different screens do not incorrectly coalesce', () => {
+    expect(textRelation(amazonSearch, productTop)).toBe('MATERIAL');
+    const events = simulateEventAggregator([
+      { text: amazonSearch, appPackage: 'in.amazon.mShop.android.shopping', nowMs: 1_000 },
+      { text: productTop, appPackage: 'in.amazon.mShop.android.shopping', nowMs: 4_000 },
+    ]);
+    expect(events.length).toBeGreaterThanOrEqual(2);
+    expect(events.map((e) => e.fingerprint).every((fp, i, arr) => arr.indexOf(fp) === i)).toBe(
+      true,
+    );
+  });
+
+  it('tiny visual changes without text change do not create excessive events', () => {
+    const events = simulateEventAggregator(
+      Array.from({ length: 20 }, (_, i) => ({
+        text: productTop,
+        appPackage: 'in.amazon.mShop.android.shopping',
+        nowMs: 1_000 + i * 400,
+      })),
+    );
+    expect(events).toHaveLength(1);
+  });
+
+  it('OCR text ordering is preserved top-to-bottom left-to-right', () => {
+    const text = assembleOcrReadingOrder([
+      {
+        top: 200,
+        left: 10,
+        lines: [
+          { top: 220, left: 12, text: '₹1,299' },
+          { top: 200, left: 12, text: 'boAt Nirvana Ion' },
+        ],
+      },
+      {
+        top: 40,
+        left: 8,
+        lines: [{ top: 40, left: 8, text: 'Amazon' }],
+      },
+    ]);
+    expect(text.split('\n')[0]).toBe('Amazon');
+    expect(text).toContain('boAt Nirvana Ion');
+    expect(text.indexOf('boAt Nirvana Ion')).toBeLessThan(text.indexOf('₹1,299'));
   });
 });
