@@ -39,16 +39,21 @@ export class OpenAICompatibleProvider implements AIProvider {
   private readonly baseUrl: string;
   private readonly model: string;
   private readonly maxRetries: number;
-  private readonly gate: AiRequestGate;
+  private gate: AiRequestGate;
 
-  constructor(gate?: AiRequestGate) {
+  constructor() {
     this.apiKey = process.env.AI_API_KEY?.trim() || '';
     this.baseUrl = (
       process.env.AI_BASE_URL?.trim() || 'https://api.openai.com/v1'
     ).replace(/\/+$/, '');
     this.model = process.env.AI_MODEL?.trim() || 'gpt-4o-mini';
     this.maxRetries = readAiChatMaxRetries();
-    this.gate = gate ?? new AiRequestGate(readAiChatConcurrency());
+    this.gate = new AiRequestGate(readAiChatConcurrency());
+  }
+
+  /** Test-only: swap the shared chat gate without Nest DI. */
+  replaceGateForTests(gate: AiRequestGate): void {
+    this.gate = gate;
   }
 
   /** Exposed for diagnostics/tests. */

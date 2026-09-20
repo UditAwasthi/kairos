@@ -25,7 +25,11 @@ describe('OpenAICompatibleProvider rate control', () => {
     process.env.AI_BASE_URL = 'https://api.groq.com/openai/v1';
     process.env.AI_MODEL = 'openai/gpt-oss-120b';
     process.env.AI_CHAT_MAX_RETRIES = '3';
-    return new OpenAICompatibleProvider(gate);
+    const provider = new OpenAICompatibleProvider();
+    if (gate) {
+      provider.replaceGateForTests(gate);
+    }
+    return provider;
   }
 
   it('limits concurrent chat/completions across analyzeDocument calls', async () => {
