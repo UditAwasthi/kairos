@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
-export const MAX_RECALL_BATCH = 25;
+export const MAX_RECALL_BATCH = 20;
 export const MAX_EXTRACTED_TEXT_CHARS = 32_000;
 export const MAX_CLIENT_EVENT_ID_LENGTH = 64;
 export const MAX_FINGERPRINT_LENGTH = 128;

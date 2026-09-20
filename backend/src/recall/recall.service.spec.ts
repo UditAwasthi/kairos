@@ -173,16 +173,58 @@ describe('RecallService', () => {
     expect(result.results.some((r) => r.status === 'rejected')).toBe(true);
   });
 
-  it('rate limits excessive accepts', async () => {
-    const events = Array.from({ length: 21 }, (_, i) =>
+  it('rate limits when minute capacity is exhausted', async () => {
+    const first = Array.from({ length: 20 }, (_, i) =>
       baseEvent({
-        clientEventId: `evt_rate_${String(i).padStart(4, '0')}`,
-        fingerprint: `fp_${String(i).padStart(8, '0')}_${'c'.repeat(20)}`,
+        clientEventId: `evt_rate_a_${String(i).padStart(4, '0')}`,
+        fingerprint: `fp_a_${String(i).padStart(8, '0')}_${'c'.repeat(20)}`,
       }),
     );
+    const firstResult = await service.ingestEventsForClerkUser(clerkUserId, {
+      events: first,
+    });
+    expect(
+      firstResult.results.every(
+        (r) => r.status === 'accepted' || r.status === 'deduped',
+      ),
+    ).toBe(true);
+
     await expect(
-      service.ingestEventsForClerkUser(clerkUserId, { events }),
+      service.ingestEventsForClerkUser(clerkUserId, {
+        events: [
+          baseEvent({
+            clientEventId: 'evt_rate_b_0001',
+            fingerprint: `fp_b_${'d'.repeat(28)}`,
+          }),
+        ],
+      }),
     ).rejects.toBeInstanceOf(HttpException);
+  });
+
+  it('accepts a partial batch when only some capacity remains', async () => {
+    const first = Array.from({ length: 15 }, (_, i) =>
+      baseEvent({
+        clientEventId: `evt_part_a_${String(i).padStart(4, '0')}`,
+        fingerprint: `fp_pa_${String(i).padStart(8, '0')}_${'e'.repeat(20)}`,
+      }),
+    );
+    await service.ingestEventsForClerkUser(clerkUserId, { events: first });
+
+    const second = Array.from({ length: 10 }, (_, i) =>
+      baseEvent({
+        clientEventId: `evt_part_b_${String(i).padStart(4, '0')}`,
+        fingerprint: `fp_pb_${String(i).padStart(8, '0')}_${'f'.repeat(20)}`,
+      }),
+    );
+    const result = await service.ingestEventsForClerkUser(clerkUserId, {
+      events: second,
+    });
+    const accepted = result.results.filter((r) => r.status === 'accepted');
+    const deferred = result.results.filter(
+      (r) => r.status === 'rejected' && r.reason?.includes('Rate limited'),
+    );
+    expect(accepted).toHaveLength(5);
+    expect(deferred).toHaveLength(5);
   });
 
   it('exposes entitlement for UI', async () => {

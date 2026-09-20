@@ -169,19 +169,34 @@ export class RecallService {
       toAccept.push(item.event);
     }
 
-    if (
-      toAccept.length > 0 &&
-      !this.rateLimiter.tryConsume(user.id, toAccept.length)
-    ) {
-      throw new HttpException(
-        {
-          error: {
-            code: 'RECALL_RATE_LIMITED',
-            message: 'Recall event rate limit exceeded. Try again later.',
+    if (toAccept.length > 0) {
+      const allowed = this.rateLimiter.tryConsumeUpTo(user.id, toAccept.length);
+      if (allowed <= 0) {
+        throw new HttpException(
+          {
+            error: {
+              code: 'RECALL_RATE_LIMITED',
+              message: 'Recall event rate limit exceeded. Try again later.',
+            },
           },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+
+      const accepting = toAccept.slice(0, allowed);
+      const deferred = toAccept.slice(allowed);
+      for (const event of deferred) {
+        results.push({
+          clientEventId: event.clientEventId,
+          status: 'rejected',
+          observationId: null,
+          deduped: false,
+          reason: 'Rate limited; retry later.',
+        });
+      }
+      // Replace toAccept with the capacity we actually reserved.
+      toAccept.length = 0;
+      toAccept.push(...accepting);
     }
 
     for (const event of toAccept) {
