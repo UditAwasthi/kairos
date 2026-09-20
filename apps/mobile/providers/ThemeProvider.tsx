@@ -4,8 +4,13 @@ import {
 } from '@expo-google-fonts/dotgothic16';
 import {
   Inter_400Regular,
+  Inter_500Medium,
   Inter_600SemiBold,
 } from '@expo-google-fonts/inter';
+import {
+  PlayfairDisplay_400Regular,
+  PlayfairDisplay_500Medium,
+} from '@expo-google-fonts/playfair-display';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import React, {
@@ -33,6 +38,7 @@ import {
   darkTheme,
   getThemeGradients,
   lightTheme,
+  motion,
   radius,
   shadows,
   spacing,
@@ -51,6 +57,7 @@ type ThemeContextValue = {
   spacing: typeof spacing;
   radius: typeof radius;
   shadows: typeof shadows;
+  motion: typeof motion;
   themeProgress: SharedValue<number>;
   toggleTheme: () => void;
   isLight: boolean;
@@ -66,7 +73,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [fontsLoaded] = useFonts({
     DotGothic16_400Regular,
     Inter_400Regular,
+    Inter_500Medium,
     Inter_600SemiBold,
+    PlayfairDisplay_400Regular,
+    PlayfairDisplay_500Medium,
   });
 
   const { themeProgress, toggleTheme } = useThemeTransition();
@@ -128,6 +138,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       spacing,
       radius,
       shadows,
+      motion,
       themeProgress,
       toggleTheme,
       isLight,

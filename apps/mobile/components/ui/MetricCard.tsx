@@ -19,7 +19,7 @@ export function MetricCard({ label, value, hint, style }: MetricCardProps) {
       <ThemedText
         colorKey="textMuted"
         style={{
-          fontFamily: 'DotGothic16_400Regular',
+          fontFamily: typography.overline.fontFamily,
           fontSize: typography.overline.size,
           lineHeight: typography.overline.lineHeight,
           letterSpacing: typography.overline.letterSpacing,
@@ -31,7 +31,7 @@ export function MetricCard({ label, value, hint, style }: MetricCardProps) {
       <ThemedText
         colorKey="text"
         style={{
-          fontFamily: 'Inter_700Bold',
+          fontFamily: typography.title2.fontFamily,
           fontSize: typography.title2.size,
           letterSpacing: typography.title2.letterSpacing,
           lineHeight: typography.title2.lineHeight,
@@ -44,7 +44,7 @@ export function MetricCard({ label, value, hint, style }: MetricCardProps) {
         <ThemedText
           colorKey="textSecondary"
           style={{
-            fontFamily: 'Inter_400Regular',
+            fontFamily: typography.caption.fontFamily,
             fontSize: typography.caption.size,
             lineHeight: typography.caption.lineHeight,
             marginTop: spacing['1'],
@@ -87,7 +87,7 @@ export function Badge({ label, tone = 'neutral' }: BadgeProps) {
       <ThemedText
         colorKey={colorKey}
         style={{
-          fontFamily: 'DotGothic16_400Regular',
+          fontFamily: typography.overline.fontFamily,
           fontSize: typography.overline.size,
           letterSpacing: typography.overline.letterSpacing,
           textTransform: 'uppercase',
@@ -145,11 +145,12 @@ export function InsightCard({ title, body, meta, badge }: InsightCardProps) {
         <ThemedText
           colorKey="text"
           style={{
-            fontFamily: 'Inter_600SemiBold',
+            fontFamily: typography.bodySmall.fontFamily,
             fontSize: typography.bodySmall.size + 1,
             flex: 1,
-            letterSpacing: -0.2,
+            letterSpacing: typography.bodySmall.letterSpacing,
             lineHeight: typography.bodySmall.lineHeight + 2,
+            fontWeight: '600',
           }}
         >
           {title}
@@ -159,10 +160,10 @@ export function InsightCard({ title, body, meta, badge }: InsightCardProps) {
       <ThemedText
         colorKey="textSecondary"
         style={{
-          fontFamily: 'Inter_400Regular',
+          fontFamily: typography.bodySmall.fontFamily,
           fontSize: typography.bodySmall.size,
           lineHeight: typography.bodySmall.lineHeight + 2,
-          letterSpacing: -0.1,
+          letterSpacing: typography.bodySmall.letterSpacing,
         }}
       >
         {body}
@@ -171,7 +172,7 @@ export function InsightCard({ title, body, meta, badge }: InsightCardProps) {
         <ThemedText
           colorKey="textMuted"
           style={{
-            fontFamily: 'DotGothic16_400Regular',
+            fontFamily: typography.overline.fontFamily,
             fontSize: typography.overline.size,
             letterSpacing: typography.overline.letterSpacing,
             marginTop: spacing['2'],

@@ -169,9 +169,9 @@ export function OAuthButtons({ disabled = false, onError }: OAuthButtonsProps) {
         colorKey="textMuted"
         style={{
           textAlign: 'center',
-          fontFamily: 'DotGothic16_400Regular',
+          fontFamily: typography.overline.fontFamily,
           fontSize: typography.overline.size,
-          letterSpacing: 2,
+          letterSpacing: typography.overline.letterSpacing,
           marginBottom: spacing['1'],
         }}
       >

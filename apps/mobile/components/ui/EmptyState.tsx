@@ -38,11 +38,12 @@ export function EmptyState({ title, message, actionLabel, onAction, style }: Emp
       <ThemedText
         colorKey="text"
         style={{
-          fontFamily: 'DotGothic16_400Regular',
+          fontFamily: typography.title3.fontFamily,
           fontSize: typography.title3.size,
-          letterSpacing: 2,
+          letterSpacing: typography.title3.letterSpacing,
           textAlign: 'center',
           lineHeight: typography.title3.lineHeight,
+          fontWeight: typography.title3.weight,
         }}
       >
         {title}
@@ -50,12 +51,12 @@ export function EmptyState({ title, message, actionLabel, onAction, style }: Emp
       <ThemedText
         colorKey="textSecondary"
         style={{
-          fontFamily: 'Inter_400Regular',
+          fontFamily: typography.bodySmall.fontFamily,
           fontSize: typography.bodySmall.size,
           lineHeight: typography.bodySmall.lineHeight + 2,
           textAlign: 'center',
           maxWidth: 280,
-          letterSpacing: -0.1,
+          letterSpacing: typography.bodySmall.letterSpacing,
         }}
       >
         {message}
@@ -123,9 +124,9 @@ export function ErrorState({
         <ThemedText
           colorKey="error"
           style={{
-            fontFamily: 'DotGothic16_400Regular',
+            fontFamily: typography.title3.fontFamily,
             fontSize: typography.title3.size - 2,
-            letterSpacing: 2,
+            letterSpacing: typography.title3.letterSpacing,
             textAlign: 'center',
           }}
         >
@@ -134,11 +135,11 @@ export function ErrorState({
         <ThemedText
           colorKey="textSecondary"
           style={{
-            fontFamily: 'Inter_400Regular',
+            fontFamily: typography.bodySmall.fontFamily,
             fontSize: typography.bodySmall.size,
             lineHeight: typography.bodySmall.lineHeight + 1,
             textAlign: 'center',
-            letterSpacing: -0.1,
+            letterSpacing: typography.bodySmall.letterSpacing,
           }}
         >
           {message}

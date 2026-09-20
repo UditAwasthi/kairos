@@ -377,6 +377,9 @@ function normalizeLabel(value: string): string {
 
 function toSafeProcessingError(message: string): string {
   const cleaned = message.replace(/\s+/g, ' ').trim().slice(0, 500);
+  if (/rate limit|429/i.test(cleaned)) {
+    return 'AI provider rate limit hit. Retry processing in a minute.';
+  }
   if (/stack|ECONNREFUSED|ENOENT|secret|token|api[_-]?key/i.test(cleaned)) {
     return 'Processing failed while understanding the document.';
   }

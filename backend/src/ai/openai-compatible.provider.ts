@@ -16,7 +16,15 @@ import type {
   ConversationHistoryTurn,
 } from './ai.types';
 import { RAG_SYSTEM_PROMPT } from './rag.prompt';
+
 type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+
+/** Prefer one request for typical docs; map-reduce only when needed. */
+const SINGLE_PASS_MAX_CHARS = 24_000;
+const MAP_REDUCE_MAX_CHUNKS = 6;
+const MAP_REDUCE_CHUNK_CHARS = 4_000;
+const INTER_REQUEST_DELAY_MS = 350;
+const MAX_RETRIES = 4;
 
 @Injectable()
 export class OpenAICompatibleProvider implements AIProvider {
@@ -61,45 +69,12 @@ export class OpenAICompatibleProvider implements AIProvider {
       throw new Error('No content available for analysis');
     }
 
-    const limitedChunks = chunks.slice(0, 12);
-    const chunkSummaries: string[] = [];
-
-    for (const [index, chunk] of limitedChunks.entries()) {
-      const partial = await this.chatJson([
-        {
-          role: 'system',
-          content:
-            'You summarize document excerpts for a personal memory app. Return strict JSON only: {"summary":"..."}. Be concise and factual. Do not invent facts.',
-        },
-        {
-          role: 'user',
-          content: `Chunk ${index + 1}/${limitedChunks.length}:\n${chunk.slice(0, 6000)}`,
-        },
-      ]);
-      chunkSummaries.push(validateSummary(partial.summary));
+    const joined = chunks.join('\n\n').trim();
+    if (joined.length <= SINGLE_PASS_MAX_CHARS) {
+      return this.analyzeSinglePass(joined);
     }
 
-    const combined = await this.chatJson([
-      {
-        role: 'system',
-        content: `You analyze personal documents. Return strict JSON only with this shape:
-{"summary":"string","topics":[{"name":"string","confidence":0.0}],"entities":[{"name":"string","type":"PERSON|ORGANIZATION|TECHNOLOGY|PRODUCT|LOCATION|CONCEPT","confidence":0.0}]}
-Rules:
-- Be conservative. Do not hallucinate.
-- Topics should be short labels (2-4 words).
-- Entities must use only the allowed types.
-- Prefer precision over recall.`,
-      },
-      {
-        role: 'user',
-        content: `Combine these chunk summaries into one analysis:\n${chunkSummaries.map((s, i) => `${i + 1}. ${s}`).join('\n')}`,
-      },
-    ]);
-
-    return validateDocumentAnalysis(combined, {
-      provider: this.name,
-      model: this.model,
-    });
+    return this.analyzeMapReduce(chunks);
   }
 
   async generateGroundedAnswer(params: {
@@ -145,8 +120,97 @@ Rules:
     };
   }
 
+  private async analyzeSinglePass(text: string): Promise<DocumentAnalysis> {
+    const combined = await this.chatJson([
+      {
+        role: 'system',
+        content: DOCUMENT_ANALYSIS_SYSTEM_PROMPT,
+      },
+      {
+        role: 'user',
+        content: `Analyze this document:\n${text}`,
+      },
+    ]);
+
+    return validateDocumentAnalysis(combined, {
+      provider: this.name,
+      model: this.model,
+    });
+  }
+
+  private async analyzeMapReduce(chunks: string[]): Promise<DocumentAnalysis> {
+    const limitedChunks = chunks.slice(0, MAP_REDUCE_MAX_CHUNKS);
+    const chunkSummaries: string[] = [];
+
+    for (const [index, chunk] of limitedChunks.entries()) {
+      if (index > 0) {
+        await sleep(INTER_REQUEST_DELAY_MS);
+      }
+      const partial = await this.chatJson([
+        {
+          role: 'system',
+          content:
+            'You summarize document excerpts for a personal memory app. Return strict JSON only: {"summary":"..."}. Be concise and factual. Do not invent facts.',
+        },
+        {
+          role: 'user',
+          content: `Chunk ${index + 1}/${limitedChunks.length}:\n${chunk.slice(0, MAP_REDUCE_CHUNK_CHARS)}`,
+        },
+      ]);
+      chunkSummaries.push(validateSummary(partial.summary));
+    }
+
+    await sleep(INTER_REQUEST_DELAY_MS);
+
+    const combined = await this.chatJson([
+      {
+        role: 'system',
+        content: DOCUMENT_ANALYSIS_SYSTEM_PROMPT,
+      },
+      {
+        role: 'user',
+        content: `Combine these chunk summaries into one analysis:\n${chunkSummaries.map((s, i) => `${i + 1}. ${s}`).join('\n')}`,
+      },
+    ]);
+
+    return validateDocumentAnalysis(combined, {
+      provider: this.name,
+      model: this.model,
+    });
+  }
+
   private async chatJson(
     messages: ChatMessage[],
+  ): Promise<Record<string, unknown>> {
+    let attempt = 0;
+    let lastError: Error | undefined;
+
+    while (attempt <= MAX_RETRIES) {
+      try {
+        return await this.chatJsonOnce(messages, attempt);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const retryAfterMs =
+          error instanceof RateLimitError ? error.retryAfterMs : undefined;
+        if (!isRetryableAiError(lastError) || attempt === MAX_RETRIES) {
+          throw lastError;
+        }
+        const delayMs =
+          retryAfterMs ?? Math.min(1000 * 2 ** attempt, 12_000);
+        this.logger.warn(
+          `AI call failed (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${lastError.message}. Retrying in ${delayMs}ms`,
+        );
+        await sleep(delayMs);
+        attempt += 1;
+      }
+    }
+
+    throw lastError ?? new Error('AI request failed');
+  }
+
+  private async chatJsonOnce(
+    messages: ChatMessage[],
+    attempt: number,
   ): Promise<Record<string, unknown>> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 45_000);
@@ -168,7 +232,11 @@ Rules:
       });
 
       if (response.status === 429) {
-        throw new Error('AI rate limit exceeded');
+        await this.logRateLimitDiagnostics(response, attempt);
+        throw new RateLimitError(
+          'AI rate limit exceeded',
+          parseRetryAfterMs(response.headers.get('retry-after')),
+        );
       }
       if (!response.ok) {
         let detail = '';
@@ -182,9 +250,11 @@ Rules:
         } catch {
           // ignore body parse errors
         }
-        throw new Error(
-          `AI request failed with status ${response.status} (model=${this.model})${detail}`,
-        );
+        const message = `AI request failed with status ${response.status} (model=${this.model})${detail}`;
+        if (response.status === 502 || response.status === 503 || response.status === 504) {
+          throw new Error(message);
+        }
+        throw new Error(message);
       }
 
       const body = (await response.json()) as {
@@ -204,14 +274,151 @@ Rules:
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error('AI request timed out');
       }
-      this.logger.warn(
-        `AI call failed: ${error instanceof Error ? error.message : 'unknown'}`,
-      );
       throw error;
     } finally {
       clearTimeout(timeout);
     }
   }
+
+  /** Safe 429 diagnostics only — never logs keys, prompts, or document text. */
+  private async logRateLimitDiagnostics(
+    response: Response,
+    attempt: number,
+  ): Promise<void> {
+    const providerError = await readProviderErrorMeta(response);
+    const rateLimitHeaders = collectRateLimitHeaders(response.headers);
+    const requestId =
+      response.headers.get('x-request-id') ||
+      response.headers.get('x-groq-request-id') ||
+      response.headers.get('cf-ray') ||
+      undefined;
+
+    this.logger.warn(
+      `AI_REQUEST_FAILED ${JSON.stringify({
+        operation: 'chat/completions',
+        event: 'rate_limited',
+        provider: this.name,
+        model: this.model,
+        baseUrlHost: hostnameOf(this.baseUrl),
+        status: 429,
+        attempt: attempt + 1,
+        maxAttempts: MAX_RETRIES + 1,
+        retryAfter: response.headers.get('retry-after') ?? undefined,
+        providerErrorCode: providerError.code,
+        providerErrorMessage: providerError.message,
+        requestId,
+        rateLimitHeaders,
+      })}`,
+    );
+  }
+}
+
+const DOCUMENT_ANALYSIS_SYSTEM_PROMPT = `You analyze personal documents. Return strict JSON only with this shape:
+{"summary":"string","topics":[{"name":"string","confidence":0.0}],"entities":[{"name":"string","type":"PERSON|ORGANIZATION|TECHNOLOGY|PRODUCT|LOCATION|CONCEPT","confidence":0.0}]}
+Rules:
+- Be conservative. Do not hallucinate.
+- Topics should be short labels (2-4 words).
+- Entities must use only the allowed types.
+- Prefer precision over recall.`;
+
+class RateLimitError extends Error {
+  constructor(
+    message: string,
+    readonly retryAfterMs?: number,
+  ) {
+    super(message);
+    this.name = 'RateLimitError';
+  }
+}
+
+function isRetryableAiError(error: Error): boolean {
+  return /timeout|rate limit|429|502|503|504|network|ECONNRESET|fetch failed/i.test(
+    error.message,
+  );
+}
+
+function parseRetryAfterMs(header: string | null): number | undefined {
+  if (!header) return undefined;
+  const asSeconds = Number(header);
+  if (Number.isFinite(asSeconds) && asSeconds >= 0) {
+    return Math.min(asSeconds * 1000, 30_000);
+  }
+  const asDate = Date.parse(header);
+  if (Number.isFinite(asDate)) {
+    return Math.min(Math.max(0, asDate - Date.now()), 30_000);
+  }
+  return undefined;
+}
+
+function hostnameOf(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).hostname;
+  } catch {
+    return 'invalid-base-url';
+  }
+}
+
+const RATE_LIMIT_HEADER_NAMES = [
+  'retry-after',
+  'x-ratelimit-limit-requests',
+  'x-ratelimit-remaining-requests',
+  'x-ratelimit-reset-requests',
+  'x-ratelimit-limit-tokens',
+  'x-ratelimit-remaining-tokens',
+  'x-ratelimit-reset-tokens',
+  'x-ratelimit-limit-tokens-minute',
+  'x-ratelimit-remaining-tokens-minute',
+  'x-ratelimit-reset-tokens-minute',
+] as const;
+
+function collectRateLimitHeaders(
+  headers: Headers,
+): Record<string, string> | undefined {
+  const out: Record<string, string> = {};
+  for (const name of RATE_LIMIT_HEADER_NAMES) {
+    const value = headers.get(name);
+    if (value) {
+      out[name] = value;
+    }
+  }
+  // Capture any other x-ratelimit-* headers without guessing vendor names.
+  headers.forEach((value, key) => {
+    const lower = key.toLowerCase();
+    if (lower.startsWith('x-ratelimit-') && !(lower in out)) {
+      out[lower] = value;
+    }
+  });
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+async function readProviderErrorMeta(
+  response: Response,
+): Promise<{ code?: string; message?: string }> {
+  try {
+    const clone = response.clone();
+    const body = (await clone.json()) as {
+      error?: { code?: unknown; message?: unknown; type?: unknown };
+    };
+    const err = body.error;
+    if (!err || typeof err !== 'object') {
+      return {};
+    }
+    const code =
+      typeof err.code === 'string'
+        ? err.code.slice(0, 120)
+        : typeof err.type === 'string'
+          ? err.type.slice(0, 120)
+          : undefined;
+    const message =
+      typeof err.message === 'string' ? err.message.slice(0, 400) : undefined;
+    return { code, message };
+  } catch {
+    return {};
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // Re-export validators for unit tests that don't need the provider.

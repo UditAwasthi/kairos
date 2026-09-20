@@ -49,7 +49,7 @@ export function ThemeToggleButton({ onToggle }: ThemeToggleButtonProps) {
       accessibilityLabel="Toggle theme"
       accessibilityRole="button"
     >
-      <Animated.Text style={[styles.icon, { color: colors.text }]}>◐</Animated.Text>
+      <Animated.Text style={[styles.icon, { color: colors.buttonText }]}>◐</Animated.Text>
     </AnimatedPressable>
   );
 }
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   icon: {
-    fontFamily: 'DotGothic16_400Regular',
+    fontFamily: 'Inter_400Regular',
     fontSize: 16,
     lineHeight: 18,
   },

@@ -1,66 +1,68 @@
 import { ColorSchemeName, ImageSourcePropType } from 'react-native';
 
 /**
- * Kairos Signal — product theme for trust, habit, and conversion.
- *
- * Principles (user POV):
- * 1. Trust first — personal memory needs calm neutrals + clear contrast
- * 2. One hero job — Ask is the flagship; accent color is reserved for CTAs
- * 3. Habit loop — Capture → see value → return tomorrow (soft “today” signal)
- * 4. Explore without overwhelm — secondary actions stay quieter than Ask
- * 5. Premium restraint — no rainbow chrome; color = meaning, not decoration
+ * Kairos — Equilibrium "Serene Sanctuary" Design System
+ * Rooted in ethereal minimalism, organic tactility, gentle lavender mists,
+ * grounded deep plum anchors, and poetic Playfair Display editorial typography.
  */
 
-const ink = {
-  50: '#F9FAFB',
-  100: '#F3F4F6',
-  200: '#E5E7EB',
-  300: '#D1D5DB',
-  400: '#9CA3AF',
-  500: '#6B7280',
-  600: '#4B5563',
-  700: '#374151',
-  800: '#1F2937',
-  900: '#111827',
-  950: '#0B0D10',
+export const plum = {
+  50: '#FBF7FA',
+  100: '#F5EDF4',
+  200: '#EBDCE8',
+  300: '#DEC2D8',
+  400: '#C984A2', // Dusty Rose
+  500: '#7D5070',
+  600: '#511F39',
+  700: '#4A2341', // Signature Plum Container
+  800: '#380923',
+  900: '#320E2B', // Deep Plum Primary
+  950: '#1D0819',
 } as const;
 
-const signal = {
-  /** Brand CTA — teal reads as calm intelligence, not “AI purple” */
-  50: '#F0FDFA',
-  100: '#CCFBF1',
-  200: '#99F6E4',
-  300: '#5EEAD4',
-  400: '#2DD4BF',
-  500: '#14B8A6',
-  600: '#0D9488',
-  700: '#0F766E',
-  800: '#115E59',
+export const mist = {
+  50: '#FAF9FB', // Canvas base
+  100: '#F4F3F5', // Container low
+  200: '#EEEDEF', // Container mid
+  300: '#E9E8EA', // Container high
+  400: '#E3E2E4',
+  500: '#E7E0EF', // Lavender interactive fill
+  600: '#CAC4D2',
+  700: '#80747A',
+  800: '#615C69', // Secondary text
+  900: '#1A1C1D', // Primary text
+  950: '#0F1011',
 } as const;
+
+/** Retained for backwards compatibility where ink / signal were imported */
+export const ink = mist;
+export const signal = plum;
 
 export type FontWeight = '400' | '500' | '600' | '700';
 
 export type TypographyScale = {
-  display: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number };
-  title1: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number };
-  title2: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number };
-  title3: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number };
-  body: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number };
-  bodySmall: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number };
-  caption: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number };
-  overline: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number };
+  display: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number; fontFamily: string };
+  title1: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number; fontFamily: string };
+  title2: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number; fontFamily: string };
+  title3: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number; fontFamily: string };
+  body: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number; fontFamily: string };
+  bodySmall: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number; fontFamily: string };
+  caption: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number; fontFamily: string };
+  overline: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number; fontFamily: string };
 };
 
-/** Readable product type — hierarchy over decoration */
+/**
+ * Poetic editorial headings in Playfair Display paired with legible Inter body
+ */
 export const typography: TypographyScale = {
-  display: { size: 32, lineHeight: 38, weight: '600', letterSpacing: -0.6 },
-  title1: { size: 24, lineHeight: 30, weight: '600', letterSpacing: -0.4 },
-  title2: { size: 20, lineHeight: 26, weight: '600', letterSpacing: -0.3 },
-  title3: { size: 17, lineHeight: 22, weight: '600', letterSpacing: -0.2 },
-  body: { size: 16, lineHeight: 24, weight: '400', letterSpacing: -0.1 },
-  bodySmall: { size: 14, lineHeight: 20, weight: '400', letterSpacing: -0.05 },
-  caption: { size: 12, lineHeight: 16, weight: '500', letterSpacing: 0.1 },
-  overline: { size: 11, lineHeight: 14, weight: '600', letterSpacing: 0.5 },
+  display: { size: 36, lineHeight: 44, weight: '400', letterSpacing: -0.8, fontFamily: 'PlayfairDisplay_400Regular' },
+  title1: { size: 28, lineHeight: 36, weight: '400', letterSpacing: -0.4, fontFamily: 'PlayfairDisplay_400Regular' },
+  title2: { size: 22, lineHeight: 30, weight: '500', letterSpacing: -0.25, fontFamily: 'PlayfairDisplay_500Medium' },
+  title3: { size: 18, lineHeight: 25, weight: '500', letterSpacing: -0.12, fontFamily: 'PlayfairDisplay_500Medium' },
+  body: { size: 16, lineHeight: 25, weight: '400', letterSpacing: -0.05, fontFamily: 'Inter_400Regular' },
+  bodySmall: { size: 14, lineHeight: 21, weight: '400', letterSpacing: 0, fontFamily: 'Inter_400Regular' },
+  caption: { size: 12, lineHeight: 17, weight: '500', letterSpacing: 0.1, fontFamily: 'Inter_500Medium' },
+  overline: { size: 11, lineHeight: 15, weight: '600', letterSpacing: 1.0, fontFamily: 'Inter_600SemiBold' },
 };
 
 export const spacing = {
@@ -82,14 +84,28 @@ export const spacing = {
 
 export type SpacingToken = keyof typeof spacing;
 
-/** Soft product radii — cards 16–20, pills only for chips/CTAs */
+/** Motion tokens — keep interactions soft and deliberate rather than springy or abrupt. */
+export const motion = {
+  instant: 120,
+  fast: 180,
+  normal: 260,
+  smooth: 360,
+  expressive: 480,
+  page: 520,
+  pressScale: 0.985,
+  subtleScale: 0.992,
+} as const;
+
+export type MotionToken = keyof typeof motion;
+
+/** Sweeping pebble contours (28px - 32px) and circular pills (full) */
 export const radius = {
   none: 0,
   sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  '2xl': 28,
+  md: 14,
+  lg: 20,
+  xl: 28,
+  '2xl': 32,
   full: 9999,
 } as const;
 
@@ -101,6 +117,7 @@ export type ShadowToken = {
   elevation: number;
 };
 
+/** Hyper-diffused plum-tinted ambient soft shadows */
 export const shadows = {
   none: {
     shadowColor: 'transparent',
@@ -110,43 +127,42 @@ export const shadows = {
     elevation: 0,
   },
   sm: {
-    shadowColor: ink[950],
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
+    shadowColor: '#4A2341',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
     elevation: 1,
   },
   md: {
-    shadowColor: ink[950],
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
+    shadowColor: '#4A2341',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 28,
     elevation: 3,
   },
   lg: {
-    shadowColor: ink[950],
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
+    shadowColor: '#4A2341',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.08,
+    shadowRadius: 36,
     elevation: 6,
   },
   xl: {
-    shadowColor: ink[950],
-    shadowOffset: { width: 0, height: 12 },
+    shadowColor: '#4A2341',
+    shadowOffset: { width: 0, height: 18 },
     shadowOpacity: 0.12,
-    shadowRadius: 28,
+    shadowRadius: 44,
     elevation: 10,
   },
   glow: {
-    shadowColor: signal[500],
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 14,
-    elevation: 0,
+    shadowColor: '#4A2341',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 2,
   },
 } as const;
 
-/** Multi-stop color sets for LinearGradient — prefer these over flat fills */
 export type ThemeGradients = {
   background: readonly [string, string, string];
   surface: readonly [string, string];
@@ -154,6 +170,7 @@ export type ThemeGradients = {
   accentSoft: readonly [string, string];
   glass: readonly [string, string];
   composer: readonly [string, string];
+  vitality: readonly [string, string];
 };
 
 export type AppTheme = {
@@ -161,6 +178,10 @@ export type AppTheme = {
   surface: string;
   surfaceElevated: string;
   surfaceGlass: string;
+  surfaceContainerLowest: string;
+  surfaceContainerLow: string;
+  surfaceContainer: string;
+  surfaceContainerHigh: string;
 
   /** Glassmorphism tokens */
   glassFill: string;
@@ -173,8 +194,28 @@ export type AppTheme = {
   textMuted: string;
   textDisabled: string;
 
+  primary: string;
+  primaryContainer: string;
+  onPrimary: string;
+  onPrimaryContainer: string;
+
+  secondary: string;
+  secondaryContainer: string;
+  onSecondary: string;
+  onSecondaryContainer: string;
+
+  tertiary: string;
+  tertiaryContainer: string;
+  onTertiaryContainer: string;
+
   accent: string;
   accentGlow: string;
+  accentRose: string;
+  accentLavender: string;
+  accentPeach: string;
+  accentMorningBlue: string;
+  accentLilac: string;
+
   accentTeal: string;
   accentGreen: string;
   accentPurple: string;
@@ -224,178 +265,228 @@ export type AppTheme = {
 };
 
 export const lightGradients: ThemeGradients = {
-  background: ['#EEF2F7', '#F3F4F6', '#E8F5F2'],
-  surface: ['rgba(255,255,255,0.72)', 'rgba(255,255,255,0.42)'],
-  accent: [signal[600], signal[800]],
-  accentSoft: [`${signal[500]}33`, `${signal[700]}18`],
-  glass: ['rgba(255,255,255,0.55)', 'rgba(240,253,250,0.28)'],
-  composer: ['rgba(255,255,255,0.78)', 'rgba(243,244,246,0.55)'],
+  background: ['#FAF9FB', '#F4EFF6', '#F8F5FA'],
+  surface: ['rgba(255,255,255,0.92)', 'rgba(255,255,255,0.72)'],
+  accent: [plum[700], plum[900]],
+  accentSoft: ['rgba(231,224,239,0.7)', 'rgba(250,249,251,0.5)'],
+  glass: ['rgba(255,255,255,0.85)', 'rgba(244,239,247,0.65)'],
+  composer: ['rgba(255,255,255,0.92)', 'rgba(244,243,245,0.8)'],
+  vitality: ['#E7E0EF', '#F5EDF4'],
 };
 
 export const darkGradients: ThemeGradients = {
-  background: ['#0B0D10', '#101820', '#0D1A18'],
-  surface: ['rgba(28,34,44,0.72)', 'rgba(20,24,31,0.4)'],
-  accent: [signal[500], signal[700]],
-  accentSoft: [`${signal[400]}28`, `${signal[600]}12`],
-  glass: ['rgba(255,255,255,0.1)', 'rgba(45,212,191,0.06)'],
-  composer: ['rgba(20,24,31,0.82)', 'rgba(11,13,16,0.55)'],
+  background: ['#100C12', '#18111A', '#120E14'],
+  surface: ['rgba(35,27,38,0.90)', 'rgba(21,16,23,0.78)'],
+  accent: ['#D28EAA', '#6A3454'],
+  accentSoft: ['rgba(210,142,170,0.18)', 'rgba(81,39,63,0.12)'],
+  glass: ['rgba(36,28,40,0.78)', 'rgba(20,15,22,0.56)'],
+  composer: ['rgba(35,27,38,0.92)', 'rgba(20,15,22,0.78)'],
+  vitality: ['#2D202F', '#1B141D'],
 };
 
 export const lightTheme: AppTheme = {
-  background: '#EEF2F7',
-  surface: 'rgba(255,255,255,0.72)',
-  surfaceElevated: 'rgba(255,255,255,0.88)',
-  surfaceGlass: 'rgba(255,255,255,0.48)',
+  background: '#FAF9FB',
+  surface: '#FAF9FB',
+  surfaceElevated: '#FFFFFF',
+  surfaceGlass: 'rgba(255,255,255,0.85)',
+  surfaceContainerLowest: '#FFFFFF',
+  surfaceContainerLow: '#F4F3F5',
+  surfaceContainer: '#EEEDEF',
+  surfaceContainerHigh: '#E9E8EA',
 
-  glassFill: 'rgba(255,255,255,0.42)',
-  glassBorder: 'rgba(255,255,255,0.65)',
-  glassHighlight: 'rgba(255,255,255,0.9)',
-  glassIntensity: 48,
+  glassFill: 'rgba(255,255,255,0.82)',
+  glassBorder: 'rgba(255,255,255,0.8)',
+  glassHighlight: 'rgba(255,255,255,0.95)',
+  glassIntensity: 28,
 
-  text: ink[900],
-  textSecondary: ink[600],
-  textMuted: ink[500],
-  textDisabled: ink[300],
+  text: mist[900], // #1A1C1D
+  textSecondary: mist[800], // #615C69
+  textMuted: mist[700], // #80747A
+  textDisabled: '#D2C2CA',
 
-  accent: signal[700],
-  accentGlow: 'rgba(15,118,110,0.14)',
-  accentTeal: signal[600],
-  accentGreen: '#15803D',
-  accentPurple: '#5B6C8F',
-  accentOrange: '#C2410C',
-  accentYellow: '#A16207',
-  accentCoral: '#BE123C',
+  primary: plum[900], // #320E2B
+  primaryContainer: plum[700], // #4A2341
+  onPrimary: '#FFFFFF',
+  onPrimaryContainer: plum[400], // #C984A2
 
-  tintFrost: 'rgba(15,118,110,0.1)',
-  tintTeal: 'rgba(13,148,136,0.1)',
-  tintGreen: 'rgba(21,128,61,0.1)',
-  tintPurple: 'rgba(91,108,143,0.1)',
-  tintOrange: 'rgba(194,65,12,0.1)',
-  tintYellow: 'rgba(161,98,7,0.1)',
-  tintCoral: 'rgba(190,18,60,0.1)',
+  secondary: mist[800], // #615C69
+  secondaryContainer: '#E7E0EF',
+  onSecondary: '#FFFFFF',
+  onSecondaryContainer: '#67626F',
 
-  border: 'rgba(17,24,39,0.08)',
-  borderActive: signal[600],
-  borderAccent: signal[500],
+  tertiary: plum[800], // #380923
+  tertiaryContainer: plum[600], // #511F39
+  onTertiaryContainer: '#C984A2',
 
-  buttonFill: 'transparent',
-  buttonText: ink[900],
-  buttonPressedFill: signal[800],
+  accent: plum[700], // #4A2341
+  accentGlow: 'rgba(74,35,65,0.06)',
+  accentRose: '#C783A1',
+  accentLavender: '#EAE3F2',
+  accentPeach: '#F6DDD9',
+  accentMorningBlue: '#DDE7F5',
+  accentLilac: '#E5DCF2',
+
+  accentTeal: '#4A2341',
+  accentGreen: '#427055',
+  accentPurple: '#7D5070',
+  accentOrange: '#B85D43',
+  accentYellow: '#A6732B',
+  accentCoral: '#C783A1',
+
+  tintFrost: 'rgba(74,35,65,0.06)',
+  tintTeal: 'rgba(74,35,65,0.06)',
+  tintGreen: 'rgba(66,112,85,0.08)',
+  tintPurple: 'rgba(125,80,112,0.08)',
+  tintOrange: 'rgba(184,93,67,0.08)',
+  tintYellow: 'rgba(166,115,43,0.08)',
+  tintCoral: 'rgba(199,131,161,0.08)',
+
+  border: 'rgba(74,35,65,0.06)',
+  borderActive: plum[700],
+  borderAccent: plum[400],
+
+  buttonFill: plum[700],
+  buttonText: '#FFFFFF',
+  buttonPressedFill: plum[900],
   buttonPressedText: '#FFFFFF',
-  buttonDisabledFill: ink[200],
-  buttonDisabledText: ink[400],
+  buttonDisabledFill: '#E9E8EA',
+  buttonDisabledText: '#9CA3AF',
 
-  inputFill: 'rgba(255,255,255,0.55)',
-  inputBorder: 'rgba(17,24,39,0.1)',
-  inputBorderFocused: signal[600],
-  inputPlaceholder: ink[400],
+  inputFill: '#FFFFFF',
+  inputBorder: 'rgba(74,35,65,0.08)',
+  inputBorderFocused: plum[700],
+  inputPlaceholder: '#9A8E94',
 
-  dot: signal[600],
-  dotInactive: ink[300],
-  divider: 'rgba(17,24,39,0.06)',
-  overlay: 'rgba(15,118,110,0.04)',
+  dot: plum[700],
+  dotInactive: '#D2C2CA',
+  divider: 'rgba(74,35,65,0.06)',
+  overlay: 'rgba(74,35,65,0.04)',
 
-  success: '#15803D',
-  warning: '#A16207',
-  error: '#BE123C',
-  errorSurface: 'rgba(190,18,60,0.08)',
+  success: '#3B6B4F',
+  warning: '#A6732B',
+  error: '#BA1A1A',
+  errorSurface: '#FFDAD6',
 
   shadow: shadows.sm,
   shadowElevated: shadows.md,
 
-  scrim: 'rgba(11,13,16,0.4)',
+  scrim: 'rgba(29,8,25,0.35)',
   inverseText: '#FFFFFF',
 };
 
 export const darkTheme: AppTheme = {
-  background: '#0B0D10',
-  surface: 'rgba(28,34,44,0.72)',
-  surfaceElevated: 'rgba(28,34,44,0.88)',
-  surfaceGlass: 'rgba(20,24,31,0.45)',
+  background: '#100C12',
+  surface: '#151016',
+  surfaceElevated: '#211923',
+  surfaceGlass: 'rgba(31,24,34,0.78)',
+  surfaceContainerLowest: '#151016',
+  surfaceContainerLow: '#1C151F',
+  surfaceContainer: '#241A27',
+  surfaceContainerHigh: '#302232',
 
-  glassFill: 'rgba(20,24,31,0.45)',
-  glassBorder: 'rgba(255,255,255,0.12)',
-  glassHighlight: 'rgba(255,255,255,0.22)',
-  glassIntensity: 56,
+  glassFill: 'rgba(32,25,35,0.76)',
+  glassBorder: 'rgba(255,255,255,0.075)',
+  glassHighlight: 'rgba(255,255,255,0.12)',
+  glassIntensity: 42,
 
-  text: ink[50],
-  textSecondary: ink[300],
-  textMuted: ink[400],
-  textDisabled: ink[600],
+  text: '#F8F2F7',
+  textSecondary: '#D2C8D1',
+  textMuted: '#9E919B',
+  textDisabled: '#5B4F58',
 
-  accent: signal[400],
-  accentGlow: 'rgba(45,212,191,0.16)',
-  accentTeal: signal[300],
-  accentGreen: '#4ADE80',
-  accentPurple: '#94A3B8',
-  accentOrange: '#FB923C',
-  accentYellow: '#FBBF24',
-  accentCoral: '#FB7185',
+  primary: '#D28EAA', // #C984A2
+  primaryContainer: '#51273F', // #4A2341
+  onPrimary: '#FFFFFF',
+  onPrimaryContainer: '#F0D7E3',
 
-  tintFrost: 'rgba(45,212,191,0.12)',
-  tintTeal: 'rgba(94,234,212,0.1)',
-  tintGreen: 'rgba(74,222,128,0.1)',
-  tintPurple: 'rgba(148,163,184,0.12)',
-  tintOrange: 'rgba(251,146,60,0.1)',
-  tintYellow: 'rgba(251,191,36,0.1)',
-  tintCoral: 'rgba(251,113,133,0.1)',
+  secondary: '#CAC4D2',
+  secondaryContainer: '#302332',
+  onSecondary: '#141016',
+  onSecondaryContainer: plum[300],
 
-  border: 'rgba(243,244,246,0.1)',
-  borderActive: signal[400],
-  borderAccent: signal[300],
+  tertiary: '#E0B7C8',
+  tertiaryContainer: '#51273F',
+  onTertiaryContainer: plum[200],
 
-  buttonFill: 'transparent',
-  buttonText: ink[50],
-  buttonPressedFill: signal[300],
-  buttonPressedText: ink[950],
-  buttonDisabledFill: '#1C222C',
-  buttonDisabledText: ink[600],
+  accent: '#D28EAA',
+  accentGlow: 'rgba(210,142,170,0.20)',
+  accentRose: '#C783A1',
+  accentLavender: '#35283D',
+  accentPeach: '#472B31',
+  accentMorningBlue: '#263747',
+  accentLilac: '#3A2A45',
 
-  inputFill: 'rgba(20,24,31,0.55)',
-  inputBorder: 'rgba(243,244,246,0.12)',
-  inputBorderFocused: signal[400],
-  inputPlaceholder: ink[500],
+  accentTeal: plum[400],
+  accentGreen: '#72A888',
+  accentPurple: '#C984A2',
+  accentOrange: '#DE8B72',
+  accentYellow: '#D4A459',
+  accentCoral: '#FBB1D1',
 
-  dot: signal[400],
-  dotInactive: ink[700],
-  divider: 'rgba(243,244,246,0.08)',
-  overlay: 'rgba(45,212,191,0.05)',
+  tintFrost: 'rgba(210,142,170,0.11)',
+  tintTeal: 'rgba(210,142,170,0.10)',
+  tintGreen: 'rgba(114,168,136,0.12)',
+  tintPurple: 'rgba(210,142,170,0.11)',
+  tintOrange: 'rgba(222,139,114,0.12)',
+  tintYellow: 'rgba(212,164,89,0.12)',
+  tintCoral: 'rgba(251,177,209,0.12)',
 
-  success: '#4ADE80',
-  warning: '#FBBF24',
-  error: '#FB7185',
-  errorSurface: 'rgba(251,113,133,0.12)',
+  border: 'rgba(255,255,255,0.075)',
+  borderActive: plum[400],
+  borderAccent: '#DDAFC2',
+
+  buttonFill: '#5A2A45',
+  buttonText: '#FFFFFF',
+  buttonPressedFill: '#6C3655',
+  buttonPressedText: '#FFFFFF',
+  buttonDisabledFill: '#29202C',
+  buttonDisabledText: '#615C69',
+
+  inputFill: '#1D1720',
+  inputBorder: 'rgba(255,255,255,0.085)',
+  inputBorderFocused: plum[400],
+  inputPlaceholder: '#756A74',
+
+  dot: plum[400],
+  dotInactive: '#4E444A',
+  divider: 'rgba(255,255,255,0.055)',
+  overlay: 'rgba(210,142,170,0.045)',
+
+  success: '#72A888',
+  warning: '#D4A459',
+  error: '#FFB4AB',
+  errorSurface: '#93000A',
 
   shadow: {
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 6,
+    shadowRadius: 18,
+    elevation: 4,
   },
   shadowElevated: {
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.45,
-    shadowRadius: 24,
-    elevation: 12,
+    shadowRadius: 28,
+    elevation: 8,
   },
 
   scrim: 'rgba(0,0,0,0.6)',
-  inverseText: ink[950],
+  inverseText: '#141016',
 };
 
 export function getThemeGradients(isLight: boolean): ThemeGradients {
   return isLight ? lightGradients : darkGradients;
 }
 
-/** Semantic tones — muted on purpose; used for status/categories, not decoration */
 export type AuroraTone = 'frost' | 'teal' | 'green' | 'purple' | 'orange' | 'yellow' | 'coral';
 
 export function auroraToneColors(theme: AppTheme, tone: AuroraTone) {
   switch (tone) {
     case 'teal':
-      return { accent: theme.accentTeal, tint: theme.tintTeal };
+    case 'frost':
+      return { accent: theme.accent, tint: theme.tintFrost };
     case 'green':
       return { accent: theme.accentGreen, tint: theme.tintGreen };
     case 'purple':
@@ -406,7 +497,6 @@ export function auroraToneColors(theme: AppTheme, tone: AuroraTone) {
       return { accent: theme.accentYellow, tint: theme.tintYellow };
     case 'coral':
       return { accent: theme.accentCoral, tint: theme.tintCoral };
-    case 'frost':
     default:
       return { accent: theme.accent, tint: theme.tintFrost };
   }
@@ -450,7 +540,7 @@ export function getGlassSurface(scheme: ColorSchemeName) {
 }
 
 export function shouldUseAccent(isInterrupt: boolean): string | undefined {
-  return isInterrupt ? signal[500] : undefined;
+  return isInterrupt ? plum[700] : undefined;
 }
 
 export function getTextColor(
@@ -469,48 +559,46 @@ export function getTextColor(
   }
 }
 
-/** @deprecated Prefer `colors.accent`. */
 export const nothing = {
-  red: signal[500],
+  red: plum[700],
 } as const;
 
-/** Soft aurora / dots — brand signal only */
 export const nordPalette = {
   frost: {
-    0: signal[300],
-    1: signal[400],
-    2: signal[500],
-    3: signal[600],
+    0: plum[300],
+    1: plum[400],
+    2: plum[600],
+    3: plum[700],
   },
   aurora: {
-    red: '#FB7185',
-    orange: '#FB923C',
-    yellow: '#FBBF24',
-    green: '#4ADE80',
-    purple: '#94A3B8',
+    red: '#C783A1',
+    orange: '#DE8B72',
+    yellow: '#D4A459',
+    green: '#72A888',
+    purple: '#7D5070',
   },
   polarNight: {
-    0: ink[950],
-    1: '#14181F',
-    2: '#1C222C',
-    3: ink[500],
+    0: mist[950],
+    1: '#1F1A22',
+    2: '#28212C',
+    3: mist[700],
   },
 } as const;
 
 export const tokyoPalette = {
   accent: {
-    blue: signal[500],
-    cyan: signal[300],
-    magenta: '#94A3B8',
-    green: '#4ADE80',
-    orange: '#FB923C',
-    red: '#FB7185',
-    yellow: '#FBBF24',
-    teal: signal[400],
+    blue: plum[700],
+    cyan: plum[400],
+    magenta: '#7D5070',
+    green: '#72A888',
+    orange: '#DE8B72',
+    red: '#C783A1',
+    yellow: '#D4A459',
+    teal: plum[500],
   },
 } as const;
 
-export const kairosPalette = { ink, signal } as const;
+export const kairosPalette = { ink: mist, signal: plum } as const;
 
 export type ThemeColorKey = {
   [K in keyof AppTheme]: AppTheme[K] extends string ? K : never;

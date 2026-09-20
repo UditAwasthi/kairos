@@ -1,12 +1,53 @@
 import { useAuth } from '@clerk/expo';
 import { Redirect, Stack } from 'expo-router';
-import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
+import { useEffect } from 'react';
+import { ActivityIndicator, AppState, Platform, StyleSheet, View } from 'react-native';
 
+import { fetchRecallEntitlement } from '../../lib/api';
+import { apiBaseUrl } from '../../lib/config';
 import { useAppTheme } from '../../providers/ThemeProvider';
+import Recall from 'kairos-recall';
 
 export default function AppLayout() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
   const { colors } = useAppTheme();
+
+  // Keep a fresh auth token in the native Recall service so background uploads
+  // do not 401 and (previously) tear down MediaProjection.
+  useEffect(() => {
+    if (!isSignedIn || Platform.OS !== 'android' || !Recall.isAvailable()) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const sync = async () => {
+      try {
+        const token = await getToken();
+        if (cancelled || !token) return;
+        await Recall.setAuthToken(token);
+        const ent = await fetchRecallEntitlement(token).catch(() => null);
+        await Recall.setConfig({
+          apiBaseUrl: apiBaseUrl.replace(/\/+$/, ''),
+          ...(ent ? { entitlementAllowed: ent.allowed } : {}),
+        });
+      } catch {
+        // Ignore — capture should keep running; uploads retry later.
+      }
+    };
+
+    void sync();
+    const interval = setInterval(() => void sync(), 3 * 60_000);
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void sync();
+    });
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      sub.remove();
+    };
+  }, [isSignedIn, getToken]);
 
   if (!isLoaded) {
     return (

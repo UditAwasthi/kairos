@@ -296,12 +296,12 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   glyphLabel: {
-    fontFamily: 'DotGothic16_400Regular',
+    fontFamily: 'PlayfairDisplay_400Regular',
     fontSize: 11,
     letterSpacing: 2.5,
   },
   stepCounter: {
-    fontFamily: 'DotGothic16_400Regular',
+    fontFamily: 'Inter_500Medium',
     fontSize: 11,
     letterSpacing: 1,
   },
@@ -317,9 +317,9 @@ const styles = StyleSheet.create({
     height: 1,
   },
   title: {
-    fontFamily: 'DotGothic16_400Regular',
+    fontFamily: 'PlayfairDisplay_400Regular',
     fontSize: 40,
-    letterSpacing: 8,
+    letterSpacing: 4,
   },
   carouselArea: {
     flex: 1,
@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 20,
     textAlign: 'center',
-    fontFamily: 'DotGothic16_400Regular',
+    fontFamily: 'Inter_500Medium',
     fontSize: 10,
     letterSpacing: 3,
   },

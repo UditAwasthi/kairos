@@ -16,6 +16,16 @@ import { apiBaseUrl } from '../../lib/config';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import Recall, { type RecallStatus } from 'kairos-recall';
 
+function statusLabel(status: RecallStatus | null): string {
+  if (!status) return '—';
+  if (status.capturing || status.on) return 'On — running in background';
+  if (status.state === 'needs_consent' || status.userEnabled) {
+    return 'Interrupted — turn on again';
+  }
+  if (status.state === 'paused') return 'Paused';
+  return 'Off';
+}
+
 export default function RecallScreen() {
   const insets = useSafeAreaInsets();
   const { themeProgress } = useAppTheme();
@@ -37,8 +47,8 @@ export default function RecallScreen() {
       await Recall.setConfig({
         apiBaseUrl: apiBaseUrl.replace(/\/+$/, ''),
         entitlementAllowed: ent.allowed,
-        sampleIntervalMs: 1000,
-        maxOcrPerMinute: 6,
+        sampleIntervalMs: 800,
+        maxOcrPerMinute: 8,
       });
       const st = await Recall.getStatus();
       setStatus(st);
@@ -61,7 +71,7 @@ export default function RecallScreen() {
       setMessage(null);
       await action();
       await refresh();
-      setMessage(`${label} ok`);
+      setMessage(label);
     } catch (err) {
       Alert.alert(
         'Recall',
@@ -71,6 +81,10 @@ export default function RecallScreen() {
       setBusy(false);
     }
   };
+
+  const isOn = Recall.isOn(status);
+  const canUse =
+    Recall.isAvailable() && entitlement?.allowed === true && !busy;
 
   const entitlementLabel = entitlement
     ? entitlement.allowed
@@ -82,35 +96,25 @@ export default function RecallScreen() {
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
       <SectionHeader
         title="Recall"
-        subtitle="Android screen memory — derived text only"
+        subtitle="Remembers what you see on screen as searchable text"
       />
       <SurfaceCard>
         <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
-          Raw screen pixels stay on this device in temporary memory, are processed
-          locally, and are discarded. Derived OCR text may be uploaded to Kairos
-          when you are signed in with an active Recall entitlement. Durable memory
-          and embeddings live on the server.
-        </ThemedText>
-      </SurfaceCard>
-
-      <SectionHeader title="Entitlement" />
-      <SurfaceCard>
-        <ThemedText themeProgress={themeProgress} colorKey="text" style={styles.row}>
-          {entitlementLabel}
-        </ThemedText>
-        <ThemedText themeProgress={themeProgress} colorKey="textMuted" style={styles.meta}>
-          Source: {entitlement?.source ?? '—'} · Server is authoritative
+          When Recall is on, Kairos keeps reading your screen in the background
+          (other apps included) until you turn it off. Raw pixels stay on this
+          device; only derived text may be uploaded.
         </ThemedText>
       </SurfaceCard>
 
       <SectionHeader title="Status" />
       <SurfaceCard>
-        <Row label="Platform" value={Platform.OS} />
-        <Row label="Native module" value={Recall.isAvailable() ? 'available' : 'unavailable'} />
-        <Row label="State" value={status?.state ?? '—'} />
-        <Row label="Permission" value={status?.permission ?? '—'} />
-        <Row label="Capturing" value={String(status?.capturing ?? false)} />
-        <Row label="Queued" value={String(status?.queuedCount ?? 0)} />
+        <ThemedText themeProgress={themeProgress} colorKey="text" style={styles.row}>
+          {statusLabel(status)}
+        </ThemedText>
+        <ThemedText themeProgress={themeProgress} colorKey="textMuted" style={styles.meta}>
+          Entitlement: {entitlementLabel}
+        </ThemedText>
+        <Row label="Queued uploads" value={String(status?.queuedCount ?? 0)} />
         <Row
           label="Last upload"
           value={
@@ -119,87 +123,78 @@ export default function RecallScreen() {
               : '—'
           }
         />
-        <Row label="Last error" value={status?.lastError ?? '—'} />
+        {status?.lastError ? (
+          <Row label="Note" value={status.lastError} />
+        ) : null}
+        {Platform.OS !== 'android' || !Recall.isAvailable() ? (
+          <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
+            Recall requires an Android development build with the Kairos Recall
+            native module.
+          </ThemedText>
+        ) : null}
+        {entitlement && !entitlement.allowed ? (
+          <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
+            Recall entitlement is not active, so capture cannot start.
+          </ThemedText>
+        ) : null}
       </SurfaceCard>
 
       <SectionHeader title="Controls" />
-      {!Recall.isAvailable() ? (
-        <SurfaceCard>
-          <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
-            Recall capture requires a development build with the Kairos Recall
-            Android native module. Expo Go cannot run MediaProjection capture.
-          </ThemedText>
-        </SurfaceCard>
-      ) : null}
+      {isOn ? (
+        <ThemedButton
+          label="Turn off"
+          disabled={busy || !Recall.isAvailable()}
+          onPress={() =>
+            void run('Recall is off', async () => {
+              await Recall.turnOff();
+            })
+          }
+        />
+      ) : (
+        <ThemedButton
+          label="Turn on"
+          disabled={!canUse}
+          onPress={() =>
+            void run('Recall is on', async () => {
+              await Recall.turnOn();
+            })
+          }
+        />
+      )}
+      <SurfaceCard>
+        <ThemedText themeProgress={themeProgress} colorKey="textMuted" style={styles.meta}>
+          Turn on asks for notification and screen-capture permission once, then
+          keeps running while the Kairos notification is shown. Turn off ends
+          capture completely.
+        </ThemedText>
+      </SurfaceCard>
 
       <ThemedButton
         label="Refresh status"
         variant="outline"
         disabled={busy}
-        onPress={() => void run('Refresh', refresh)}
-      />
-      <ThemedButton
-        label="Request screen capture consent"
-        variant="outline"
-        disabled={busy || !Recall.isAvailable() || !entitlement?.allowed}
-        onPress={() =>
-          void run('Consent', async () => {
-            const result = await Recall.requestConsent();
-            if (!result.granted) {
-              throw new Error('Screen capture permission was denied.');
-            }
-          })
-        }
-      />
-      <ThemedButton
-        label="Start Recall"
-        disabled={busy || !Recall.isAvailable() || !entitlement?.allowed}
-        onPress={() => void run('Start', () => Recall.start())}
-      />
-      <View style={styles.rowBtns}>
-        <ThemedButton
-          label="Pause"
-          variant="outline"
-          disabled={busy || !Recall.isAvailable()}
-          onPress={() => void run('Pause', () => Recall.pause())}
-          style={styles.half}
-        />
-        <ThemedButton
-          label="Resume"
-          variant="outline"
-          disabled={busy || !Recall.isAvailable()}
-          onPress={() => void run('Resume', () => Recall.resume())}
-          style={styles.half}
-        />
-      </View>
-      <ThemedButton
-        label="Stop Recall"
-        variant="outline"
-        disabled={busy || !Recall.isAvailable()}
-        onPress={() => void run('Stop', () => Recall.stop())}
+        onPress={() => void run('Status updated', refresh)}
       />
 
-      <SectionHeader title="Local transport buffer" />
+      <SectionHeader title="Data" />
       <SurfaceCard>
         <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
-          The encrypted outbox only holds derived events waiting to upload. It is
-          not a local memory database. Clearing it does not delete server memories.
+          Clearing local data only removes the upload queue on this device. Server
+          delete removes Recall observations from your account.
         </ThemedText>
       </SurfaceCard>
       <ThemedButton
-        label="Clear local Recall data"
+        label="Clear local upload queue"
         variant="outline"
         disabled={busy || !Recall.isAvailable()}
         onPress={() =>
-          void run('Clear local', async () => {
+          void run('Local queue cleared', async () => {
             await Recall.clearLocalData();
           })
         }
       />
-
-      <SectionHeader title="Server Recall data" />
       <ThemedButton
-        label="Delete Recall observations on server"
+        label="Delete Recall memories on server"
         variant="outline"
         disabled={busy}
         onPress={() => {
@@ -212,13 +207,15 @@ export default function RecallScreen() {
                 text: 'Delete',
                 style: 'destructive',
                 onPress: () =>
-                  void run('Delete server Recall', async () => {
+                  void run('Server Recall data deleted', async () => {
                     const token = await getToken();
                     if (!token) throw new ApiError('Sign in required.', 401);
-                    await Recall.stop().catch(() => undefined);
+                    await Recall.turnOff().catch(() => undefined);
                     await Recall.clearLocalData().catch(() => undefined);
                     const result = await deleteRecallData(token);
-                    setMessage(`Deleted ${result.deletedObservations} Recall observation(s).`);
+                    setMessage(
+                      `Deleted ${result.deletedObservations} Recall observation(s).`,
+                    );
                   }),
               },
             ],
@@ -259,6 +256,4 @@ const styles = StyleSheet.create({
   kv: { paddingVertical: 6, gap: 2 },
   k: { fontFamily: 'Inter_400Regular', fontSize: 12 },
   v: { fontFamily: 'Inter_500Medium', fontSize: 14 },
-  rowBtns: { flexDirection: 'row', gap: 10 },
-  half: { flex: 1 },
 });

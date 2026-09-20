@@ -51,9 +51,10 @@ export function AuthScreenLayout({
           <ThemedText
             colorKey="text"
             style={{
-              fontFamily: 'DotGothic16_400Regular',
+              fontFamily: typography.title1.fontFamily,
               fontSize: typography.title1.size,
-              letterSpacing: 2,
+              letterSpacing: typography.title1.letterSpacing,
+              lineHeight: typography.title1.lineHeight,
             }}
           >
             {title}
@@ -61,9 +62,10 @@ export function AuthScreenLayout({
           <ThemedText
             colorKey="textSecondary"
             style={{
-              fontFamily: 'Inter_400Regular',
+              fontFamily: typography.bodySmall.fontFamily,
               fontSize: typography.bodySmall.size + 1,
               lineHeight: typography.body.lineHeight,
+              letterSpacing: typography.bodySmall.letterSpacing,
             }}
           >
             {subtitle}
@@ -101,7 +103,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   glyphLabel: {
-    fontFamily: 'DotGothic16_400Regular',
+    fontFamily: 'PlayfairDisplay_400Regular',
     fontSize: 13,
     letterSpacing: 2,
   },

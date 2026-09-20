@@ -38,13 +38,13 @@ export function ThemedButton({
 
   const isPrimary = variant === 'primary';
 
-  const restingBg = isPrimary ? colors.accent : colors.surface;
-  const restingBorder = isPrimary ? colors.accent : colors.border;
-  const restingText = isPrimary ? colors.inverseText : colors.buttonText;
+  const restingBg = isPrimary ? colors.buttonFill : colors.surface;
+  const restingBorder = isPrimary ? colors.buttonFill : colors.border;
+  const restingText = isPrimary ? colors.buttonText : colors.text;
 
-  const pressedBg = isPrimary ? colors.borderActive : colors.accentGlow;
-  const pressedBorder = isPrimary ? colors.borderActive : colors.borderAccent;
-  const pressedText = isPrimary ? colors.inverseText : colors.text;
+  const pressedBg = isPrimary ? colors.buttonPressedFill : colors.accentGlow;
+  const pressedBorder = isPrimary ? colors.buttonPressedFill : colors.borderAccent;
+  const pressedText = isPrimary ? colors.buttonPressedText : colors.text;
 
   const currentBg = disabled ? colors.buttonDisabledFill : restingBg;
   const currentBorder = disabled ? colors.border : restingBorder;

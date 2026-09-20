@@ -39,10 +39,11 @@ export function SectionHeader({
         <ThemedText
           colorKey="text"
           style={{
-            fontFamily: 'Inter_600SemiBold',
+            fontFamily: typography.overline.fontFamily,
             fontSize: typography.overline.size + 1,
             lineHeight: typography.overline.lineHeight + 2,
-            letterSpacing: 0.4,
+            letterSpacing: typography.overline.letterSpacing,
+            fontWeight: typography.overline.weight,
           }}
         >
           {title}
@@ -51,10 +52,10 @@ export function SectionHeader({
           <ThemedText
             colorKey="textSecondary"
             style={{
-              fontFamily: 'Inter_400Regular',
+              fontFamily: typography.bodySmall.fontFamily,
               fontSize: typography.bodySmall.size,
               lineHeight: typography.bodySmall.lineHeight,
-              letterSpacing: -0.1,
+              letterSpacing: typography.bodySmall.letterSpacing,
             }}
           >
             {subtitle}
