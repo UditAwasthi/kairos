@@ -1,11 +1,17 @@
 import { useAuth } from '@clerk/expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '../../../components/ThemedText';
-import { EmptyState, ErrorState, FadeInContent, LoadingSkeleton, SoftRefreshBar } from '../../../components/ui/EmptyState';
-import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
+import {
+  EmptyState,
+  ErrorState,
+  FadeInContent,
+  LoadingSkeleton,
+  SoftRefreshBar,
+} from '../../../components/ui/EmptyState';
+import { GlassPanel } from '../../../components/ui/Glass';
+import { SoftPage } from '../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { useAsync } from '../../../hooks/useAsync';
 import { fetchObservation, semanticSearch } from '../../../lib/api';
@@ -13,13 +19,12 @@ import { fetchObservation, semanticSearch } from '../../../lib/api';
 export default function RelatedMemoriesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
 
   const { data, error, loading, refreshing, reload } = useAsync(
     async () => {
       const token = await getToken();
-      if (!token) throw new Error('Sign in to view related items.');
+      if (!token) throw new Error('Sign in required');
       const observation = await fetchObservation(token, String(id));
       const query =
         observation.summary?.trim() ||
@@ -41,83 +46,77 @@ export default function RelatedMemoriesScreen() {
 
   if (loading) return <LoadingSkeleton rows={8} />;
   if ((error && !data) || !data) {
-    return (
-      <ErrorState
-        title="Unable to load related memories"
-        message={error ?? undefined}
-        onRetry={reload}
-      />
-    );
+    return <ErrorState title="Unable to load" onRetry={reload} />;
   }
 
   if (data.results.length === 0) {
     return (
-      <EmptyState
-        title="No related memories"
-        message="Search your library to find more related observations."
-        actionLabel="Search"
-        onAction={() => router.push('/(app)/search')}
-      />
+      <SoftPage>
+        <EmptyState
+          title="None yet"
+          actionLabel="Search"
+          onAction={() => router.push('/(app)/search')}
+        />
+      </SoftPage>
     );
   }
 
   return (
     <FadeInContent>
       <SoftRefreshBar active={refreshing} />
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <SurfaceCard>
-        <ThemedText colorKey="textMuted" style={styles.kicker}>
-          Current observation
-        </ThemedText>
-        <ThemedText colorKey="text" style={styles.title}>
-          {data.observation.filename}
-        </ThemedText>
-      </SurfaceCard>
+      <SoftPage>
+        <GlassPanel padded={false} contentStyle={styles.current}>
+          <ThemedText colorKey="text" style={styles.currentTitle} numberOfLines={2}>
+            {data.observation.filename}
+          </ThemedText>
+        </GlassPanel>
 
-      <SectionHeader title="Related" subtitle="Semantic neighbors from your library" />
-      {data.results.map((result) => (
-        <Pressable
-          key={result.chunkId}
-          onPress={() =>
-            router.push({
-              pathname: '/(app)/observation/[id]',
-              params: {
-                id: result.observationId,
-                highlight: result.content.slice(0, 280),
-              },
-            })
-          }
-        >
-          <SurfaceCard>
-            <ThemedText colorKey="text" style={styles.cardTitle}>
-              {result.observation.filename}
-            </ThemedText>
-            <ThemedText colorKey="textSecondary" style={styles.body} numberOfLines={3}>
-              {result.content}
-            </ThemedText>
-          </SurfaceCard>
-        </Pressable>
-      ))}
+        {data.results.map((result) => (
+          <Pressable
+            key={result.chunkId}
+            onPress={() =>
+              router.push({
+                pathname: '/(app)/observation/[id]',
+                params: {
+                  id: result.observationId,
+                  highlight: result.content.slice(0, 280),
+                },
+              })
+            }
+            style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
+          >
+            <GlassPanel padded={false} contentStyle={styles.row}>
+              <ThemedText colorKey="text" style={styles.rowTitle} numberOfLines={1}>
+                {result.observation.filename}
+              </ThemedText>
+              <ThemedText colorKey="textMuted" style={styles.snippet} numberOfLines={2}>
+                {result.content}
+              </ThemedText>
+            </GlassPanel>
+          </Pressable>
+        ))}
 
-      <ThemedButton
-        label="Open observation"
-        variant="outline"
-        onPress={() => router.push(`/(app)/observation/${data.observation.id}`)}
-      />
-    </ScrollView>
+        <ThemedButton
+          label="Open"
+          variant="outline"
+          onPress={() => router.push(`/(app)/observation/${data.observation.id}`)}
+        />
+      </SoftPage>
     </FadeInContent>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 12 },
-  kicker: {
-    fontFamily: 'DotGothic16_400Regular',
-    fontSize: 10,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
+  current: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  title: { fontFamily: 'Inter_600SemiBold', fontSize: 18 },
-  cardTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
-  body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20, marginTop: 4 },
+  currentTitle: { fontFamily: 'Inter_500Medium', fontSize: 15 },
+  row: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 6,
+  },
+  rowTitle: { fontFamily: 'Inter_500Medium', fontSize: 15 },
+  snippet: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18 },
 });

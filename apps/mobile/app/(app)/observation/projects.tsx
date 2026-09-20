@@ -1,12 +1,18 @@
 import { useAuth } from '@clerk/expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '../../../components/ThemedText';
-import { ErrorState, FadeInContent, LoadingSkeleton, SoftRefreshBar } from '../../../components/ui/EmptyState';
-import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
+import {
+  EmptyState,
+  ErrorState,
+  FadeInContent,
+  LoadingSkeleton,
+  SoftRefreshBar,
+} from '../../../components/ui/EmptyState';
+import { GlassPanel } from '../../../components/ui/Glass';
+import { SoftPage } from '../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { useAsync } from '../../../hooks/useAsync';
 import {
@@ -21,14 +27,13 @@ import { useAppTheme } from '../../../providers/ThemeProvider';
 export default function ManageObservationProjectsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const { getToken } = useAuth();
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const token = await getToken();
-    if (!token) throw new Error('Sign in to manage projects.');
+    if (!token) throw new Error('Sign in required');
     const [observation, projects] = await Promise.all([
       fetchObservation(token, String(id)),
       fetchProjects({ token, limit: 100 }),
@@ -47,9 +52,7 @@ export default function ManageObservationProjectsScreen() {
 
   if (loading) return <LoadingSkeleton rows={8} />;
   if ((error && !data) || !data) {
-    return (
-      <ErrorState title="Unable to load projects" message={error ?? undefined} onRetry={reload} />
-    );
+    return <ErrorState title="Unable to load" onRetry={reload} />;
   }
 
   const toggle = async (projectId: string, currentlyMember: boolean) => {
@@ -84,34 +87,27 @@ export default function ManageObservationProjectsScreen() {
   return (
     <FadeInContent>
       <SoftRefreshBar active={refreshing} />
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <SectionHeader
-        title="Add to project"
-        subtitle={data.observation.filename}
-      />
-
-      {data.projects.length === 0 ? (
-        <SurfaceCard>
-          <ThemedText colorKey="textMuted" style={styles.meta}>
-            No projects yet.
-          </ThemedText>
-          <ThemedButton
-            label="Create project"
-            onPress={() => router.push('/(app)/projects/new')}
-          />
-        </SurfaceCard>
-      ) : (
-        data.projects.map((project) => {
-          const isMember = memberIds.has(project.id);
-          const busy = busyId === project.id;
-          return (
-            <Pressable
-              key={project.id}
-              disabled={busy}
-              onPress={() => void toggle(project.id, isMember)}
-            >
-              <SurfaceCard>
-                <View style={styles.row}>
+      <SoftPage>
+        {data.projects.length === 0 ? (
+          <>
+            <EmptyState title="None yet" />
+            <ThemedButton
+              label="New"
+              onPress={() => router.push('/(app)/projects/new')}
+            />
+          </>
+        ) : (
+          data.projects.map((project) => {
+            const isMember = memberIds.has(project.id);
+            const busy = busyId === project.id;
+            return (
+              <Pressable
+                key={project.id}
+                disabled={busy}
+                onPress={() => void toggle(project.id, isMember)}
+                style={({ pressed }) => [{ opacity: busy ? 0.5 : pressed ? 0.88 : 1 }]}
+              >
+                <GlassPanel padded={false} contentStyle={styles.row}>
                   <View
                     style={[
                       styles.check,
@@ -122,35 +118,39 @@ export default function ManageObservationProjectsScreen() {
                     ]}
                   />
                   <View style={styles.flex}>
-                    <ThemedText colorKey="text" style={styles.title}>
+                    <ThemedText colorKey="text" style={styles.title} numberOfLines={1}>
                       {project.name}
                     </ThemedText>
                     <ThemedText colorKey="textMuted" style={styles.meta}>
-                      {project.observationCount} observations
-                      {busy ? ' · Updating…' : ''}
+                      {project.observationCount}
+                      {busy ? ' · …' : ''}
                     </ThemedText>
                   </View>
-                </View>
-              </SurfaceCard>
-            </Pressable>
-          );
-        })
-      )}
-    </ScrollView>
+                </GlassPanel>
+              </Pressable>
+            );
+          })
+        )}
+      </SoftPage>
     </FadeInContent>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 12 },
-  row: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
   check: {
     width: 20,
     height: 20,
-    borderRadius: 4,
+    borderRadius: 6,
     borderWidth: 1.5,
   },
   flex: { flex: 1 },
-  title: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
+  title: { fontFamily: 'Inter_500Medium', fontSize: 15 },
   meta: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 2 },
 });

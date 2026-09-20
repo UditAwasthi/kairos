@@ -143,7 +143,7 @@ export function OnboardingCarousel({
         <View style={styles.glyphRow}>
           <View style={[styles.redDot, { backgroundColor: colors.accent }]} />
           <ThemedText colorKey="textSecondary" style={styles.glyphLabel}>
-            ONBOARDING
+            Kairos
           </ThemedText>
         </View>
         <View style={styles.headerRight}>
@@ -159,7 +159,7 @@ export function OnboardingCarousel({
         <ThemedLogo themeProgress={themeProgress} logoStyle={logoStyle} />
         <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         <ThemedText colorKey="text" style={styles.title}>
-          KAIROS
+          Kairos
         </ThemedText>
       </View>
 
@@ -212,8 +212,8 @@ export function OnboardingCarousel({
           style={[
             styles.button,
             {
-              borderRadius: radius.md,
-              borderColor: colors.borderActive,
+              borderRadius: radius.xl,
+              borderColor: colors.glassBorder,
               backgroundColor: isLastSlide ? colors.buttonPressedFill : colors.buttonFill,
             },
             buttonScaleStyle,
@@ -228,13 +228,9 @@ export function OnboardingCarousel({
               },
             ]}
           >
-            {isLastSlide ? 'GET STARTED' : 'NEXT'}
+            {isLastSlide ? 'Begin' : 'Next'}
           </Text>
         </AnimatedPressable>
-
-        <ThemedText colorKey="textMuted" style={styles.footer}>
-          WELCOME TO KAIROS
-        </ThemedText>
       </View>
     </View>
   );
@@ -318,8 +314,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 40,
-    letterSpacing: 4,
+    fontSize: 36,
+    letterSpacing: -0.5,
   },
   carouselArea: {
     flex: 1,
@@ -343,12 +339,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
   },
   slogan: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
+    fontFamily: 'PlayfairDisplay_400Regular',
+    fontSize: 28,
     textAlign: 'center',
-    lineHeight: 24,
-    maxWidth: 300,
-    letterSpacing: -0.2,
+    lineHeight: 36,
+    letterSpacing: -0.4,
   },
   dotsRow: {
     flexDirection: 'row',
@@ -365,14 +360,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: {
-    fontFamily: 'Inter_600SemiBold',
-    letterSpacing: 1.5,
-  },
-  footer: {
-    marginTop: 20,
-    textAlign: 'center',
     fontFamily: 'Inter_500Medium',
-    fontSize: 10,
-    letterSpacing: 3,
+    letterSpacing: 0.3,
   },
 });

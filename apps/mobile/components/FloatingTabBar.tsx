@@ -6,12 +6,10 @@ import { LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
-  Extrapolation,
   interpolate,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -20,13 +18,12 @@ import { useKeyboardState } from 'react-native-keyboard-controller';
 
 import { GlassPanel } from './ui/Glass';
 import { useAppTheme } from '../providers/ThemeProvider';
-import { kairosPalette } from '../theme';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
 
 const TAB_META: Record<string, { label: string; icon: IconName }> = {
   index: { label: 'Home', icon: 'home' },
-  timeline: { label: 'Timeline', icon: 'clock' },
+  recall: { label: 'Recall', icon: 'eye' },
   ask: { label: 'Ask', icon: 'message-circle' },
   capture: { label: 'Capture', icon: 'plus' },
   profile: { label: 'Profile', icon: 'user' },
@@ -36,102 +33,6 @@ const TAB_META: Record<string, { label: string; icon: IconName }> = {
 export const FLOATING_TAB_BAR_CONTENT = 64;
 
 const SPRING = { damping: 18, stiffness: 220, mass: 0.7 };
-
-function FlowLayer({ width }: { width: number }) {
-  const { isLight } = useAppTheme();
-  const s = kairosPalette.signal;
-  const drift = useSharedValue(0);
-  const pulse = useSharedValue(0);
-
-  useEffect(() => {
-    drift.value = withRepeat(
-      withTiming(1, { duration: 7200, easing: Easing.inOut(Easing.sin) }),
-      -1,
-      true,
-    );
-    pulse.value = withRepeat(
-      withTiming(1, { duration: 3400, easing: Easing.inOut(Easing.quad) }),
-      -1,
-      true,
-    );
-  }, [drift, pulse]);
-
-  const blobA = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: interpolate(drift.value, [0, 1], [-18, width * 0.42], Extrapolation.CLAMP) },
-      { translateY: interpolate(drift.value, [0, 1], [4, -10], Extrapolation.CLAMP) },
-      { scale: interpolate(pulse.value, [0, 1], [0.92, 1.12]) },
-    ],
-    opacity: interpolate(pulse.value, [0, 1], [0.35, 0.55]),
-  }));
-
-  const blobB = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX: interpolate(drift.value, [0, 1], [width * 0.55, width * 0.12], Extrapolation.CLAMP),
-      },
-      { translateY: interpolate(drift.value, [0, 1], [-6, 8], Extrapolation.CLAMP) },
-      { scale: interpolate(pulse.value, [0, 1], [1.08, 0.9]) },
-    ],
-    opacity: interpolate(pulse.value, [0, 1], [0.28, 0.48]),
-  }));
-
-  const blobC = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX: interpolate(drift.value, [0, 1], [width * 0.2, width * 0.68], Extrapolation.CLAMP),
-      },
-      { translateY: interpolate(pulse.value, [0, 1], [10, -4], Extrapolation.CLAMP) },
-      { scale: interpolate(drift.value, [0, 1], [0.85, 1.15]) },
-    ],
-    opacity: interpolate(drift.value, [0, 1], [0.22, 0.4]),
-  }));
-
-  const shimmer = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX: interpolate(drift.value, [0, 1], [-width * 0.35, width * 0.75], Extrapolation.CLAMP),
-      },
-    ],
-    opacity: interpolate(pulse.value, [0, 1], [0.12, 0.28]),
-  }));
-
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Animated.View
-        style={[
-          styles.flowBlob,
-          styles.flowA,
-          { backgroundColor: isLight ? `${s[500]}33` : `${s[400]}28` },
-          blobA,
-        ]}
-      />
-      <Animated.View
-        style={[
-          styles.flowBlob,
-          styles.flowB,
-          { backgroundColor: isLight ? `${s[600]}28` : `${s[300]}22` },
-          blobB,
-        ]}
-      />
-      <Animated.View
-        style={[
-          styles.flowBlob,
-          styles.flowC,
-          { backgroundColor: isLight ? `${s[400]}24` : `${s[500]}1A` },
-          blobC,
-        ]}
-      />
-      <Animated.View
-        style={[
-          styles.shimmer,
-          { backgroundColor: isLight ? `${s[300]}40` : `${s[400]}30` },
-          shimmer,
-        ]}
-      />
-    </View>
-  );
-}
 
 function TabItem({
   icon,
@@ -198,7 +99,6 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const keyboardVisible = useKeyboardState((s) => s.isVisible);
-  const [barWidth, setBarWidth] = useState(0);
   const [layouts, setLayouts] = useState<Record<number, { x: number; width: number }>>({});
 
   const visibility = useSharedValue(1);
@@ -272,10 +172,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
       ]}
     >
       <GestureDetector gesture={swipe}>
-        <View
-          onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
-          collapsable={false}
-        >
+        <View collapsable={false}>
           <GlassPanel
             elevated
             padded={false}
@@ -283,8 +180,6 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
             style={styles.bar}
             contentStyle={styles.inner}
           >
-            {barWidth > 0 ? <FlowLayer width={barWidth} /> : null}
-
             <Animated.View
               pointerEvents="none"
               style={[
@@ -378,34 +273,5 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  flowBlob: {
-    position: 'absolute',
-    borderRadius: 999,
-  },
-  flowA: {
-    width: 90,
-    height: 90,
-    top: -28,
-    left: 0,
-  },
-  flowB: {
-    width: 70,
-    height: 70,
-    top: 18,
-    left: 0,
-  },
-  flowC: {
-    width: 56,
-    height: 56,
-    top: -8,
-    left: 0,
-  },
-  shimmer: {
-    position: 'absolute',
-    top: -10,
-    bottom: -10,
-    width: 56,
-    borderRadius: 28,
   },
 });

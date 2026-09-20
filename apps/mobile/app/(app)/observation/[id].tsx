@@ -1,13 +1,13 @@
 import { useAuth } from '@clerk/expo';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '../../../components/ThemedText';
 import { ErrorState, FadeInContent, LoadingSkeleton } from '../../../components/ui/EmptyState';
 import { Badge } from '../../../components/ui/MetricCard';
-import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
+import { GlassPanel } from '../../../components/ui/Glass';
+import { SoftLinkList, SoftPage, SoftTitle } from '../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { SOURCE_TYPE_LABELS } from '../../../constants/source-labels';
 import {
@@ -22,6 +22,7 @@ import {
   reprocessObservation,
   type ApiObservation,
 } from '../../../lib/api';
+import { useAppTheme } from '../../../providers/ThemeProvider';
 import type { Observation, ProcessingStatus, SourceType } from '../../../types';
 
 const POLL_MS = 2000;
@@ -86,13 +87,9 @@ function extractedTextMessage(
   apiObs: ApiObservation | null,
 ): string {
   if (data.status !== 'COMPLETED' && data.status !== 'READY') {
-    if (data.status === 'FAILED') {
-      return 'Processing failed. Extracted text is unavailable until retry succeeds.';
-    }
-    if (data.status === 'PENDING' || data.status === 'EXTRACTING') {
-      return 'Extraction has not finished yet.';
-    }
-    return 'Extraction in progress…';
+    if (data.status === 'FAILED') return 'Unavailable';
+    if (data.status === 'PENDING' || data.status === 'EXTRACTING') return 'Pending';
+    return 'Processing…';
   }
   if (data.extractedText) return data.extractedText;
 
@@ -103,9 +100,26 @@ function extractedTextMessage(
   if (processingNote) return processingNote;
 
   if (data.sourceType === 'photo' || data.sourceType === 'screenshot') {
-    return 'No text was extracted from this image yet. Try Reprocess after OCR is configured.';
+    return 'No text yet';
   }
-  return 'No extracted text available.';
+  return 'None';
+}
+
+function summaryText(
+  data: Observation,
+  ready: boolean,
+  processing: boolean,
+  failed: boolean,
+  stage: string,
+): string {
+  if (ready) {
+    if (data.summary) return data.summary;
+    if (data.analysisNote) return data.analysisNote;
+    return 'None';
+  }
+  if (processing) return stage;
+  if (failed) return 'Unavailable';
+  return 'Pending';
 }
 
 export default function ObservationDetailScreen() {
@@ -114,7 +128,7 @@ export default function ObservationDetailScreen() {
     highlight?: string;
   }>();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
   const { getToken } = useAuth();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const loadedIdRef = useRef<string | null>(null);
@@ -135,7 +149,7 @@ export default function ObservationDetailScreen() {
     const observationId = String(id);
     const token = await getToken();
     if (!token) {
-      setError('Sign in to view this observation.');
+      setError('Sign in required');
       setData(null);
       setApiObs(null);
       loadedIdRef.current = null;
@@ -150,11 +164,11 @@ export default function ObservationDetailScreen() {
       loadedIdRef.current = observationId;
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        setError('Observation not found.');
+        setError('Not found');
       } else if (err instanceof ApiError && err.status === 401) {
-        setError('Your session expired. Sign in again.');
+        setError('Session expired');
       } else {
-        setError('Unable to load observation.');
+        setError('Unable to load');
       }
       setData(null);
       setApiObs(null);
@@ -227,7 +241,7 @@ export default function ObservationDetailScreen() {
       setApiObs(api);
       setData(mapApiObservation(api));
     } catch {
-      setError('Retry failed. Please try again.');
+      setError('Retry failed');
     } finally {
       setRetrying(false);
     }
@@ -235,8 +249,8 @@ export default function ObservationDetailScreen() {
 
   const onDelete = () => {
     Alert.alert(
-      'Delete observation?',
-      'This permanently deletes the observation, its chunks, embeddings, and cloud file. Projects stay; only membership is removed.',
+      'Delete?',
+      data?.title ?? 'Observation',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -249,7 +263,7 @@ export default function ObservationDetailScreen() {
                 const token = await getToken();
                 if (!token) throw new ApiError('Sign in required.', 401);
                 await deleteObservation(token, String(id));
-                router.replace('/(app)/(tabs)/timeline');
+                router.replace('/(app)/timeline');
               } catch (err) {
                 Alert.alert(
                   'Unable to delete',
@@ -269,8 +283,7 @@ export default function ObservationDetailScreen() {
   if ((error && !data) || !data) {
     return (
       <ErrorState
-        title="Observation unavailable"
-        message={error ?? undefined}
+        title="Unable to load"
         onRetry={() => void load()}
       />
     );
@@ -298,220 +311,224 @@ export default function ObservationDetailScreen() {
     data.status as ApiObservation['status'],
   );
 
+  const statusDetail = [
+    stage,
+    ready && apiObs
+      ? formatObservationReadyTime(apiObs.processedAt || apiObs.updatedAt)
+      : null,
+    failed && data.processingError ? data.processingError : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const sourceMeta = [
+    data.metadata?.mimeType ?? '',
+    data.metadata?.fileSizeBytes
+      ? `${Math.round(data.metadata.fileSizeBytes / 1024)} KB`
+      : '',
+    ready && data.metadata?.chunkCount != null ? `${data.metadata.chunkCount} chunks` : '',
+    ready && data.metadata?.wordCount != null ? `${data.metadata.wordCount} words` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
     <FadeInContent>
-    <ScrollView
-      contentContainerStyle={[
-        styles.content,
-        { paddingBottom: insets.bottom + 24 },
-      ]}
-    >
-      <Badge label={headline} tone={statusTone(data.status)} />
-      <ThemedText colorKey="text" style={styles.title}>
-        {data.title}
-      </ThemedText>
-      <ThemedText colorKey="textMuted" style={styles.meta}>
-        {SOURCE_TYPE_LABELS[data.sourceType]} · {captured}
-      </ThemedText>
+      <SoftPage>
+        <View style={styles.titleBlock}>
+          <Badge label={headline} tone={statusTone(data.status)} />
+          <SoftTitle>{data.title}</SoftTitle>
+          <ThemedText colorKey="textMuted" style={styles.meta}>
+            {SOURCE_TYPE_LABELS[data.sourceType]} · {captured}
+          </ThemedText>
+        </View>
 
-      {matchedSnippet ? (
-        <>
-          <SectionHeader title="Matched snippet" />
-          <SurfaceCard>
+        {matchedSnippet ? (
+          <GlassPanel>
+            <ThemedText colorKey="textMuted" style={styles.kicker}>
+              Match
+            </ThemedText>
             <ThemedText colorKey="textSecondary" style={styles.body}>
               {matchedSnippet}
             </ThemedText>
-          </SurfaceCard>
-        </>
-      ) : null}
+          </GlassPanel>
+        ) : null}
 
-      <SectionHeader title="Processing status" />
-      <SurfaceCard>
-        <ThemedText colorKey="text" style={styles.cardTitle}>
-          {headline}
-        </ThemedText>
-        <ThemedText colorKey="textSecondary" style={styles.body}>
-          {stage}
-          {ready && apiObs
-            ? `\n${formatObservationReadyTime(apiObs.processedAt || apiObs.updatedAt)}`
-            : ''}
-          {failed && data.processingError ? `\n${data.processingError}` : ''}
-        </ThemedText>
-        {failed ? (
-          <View style={styles.retryWrap}>
+        <GlassPanel>
+          <ThemedText colorKey="textMuted" style={styles.kicker}>
+            Status
+          </ThemedText>
+          {statusDetail ? (
+            <ThemedText colorKey="textSecondary" style={styles.body}>
+              {statusDetail}
+            </ThemedText>
+          ) : null}
+          {failed ? (
             <ThemedButton
               label={retrying ? 'Retrying…' : 'Retry'}
               onPress={() => void onRetry()}
               disabled={retrying}
+              style={styles.inlineBtn}
             />
-          </View>
-        ) : null}
-      </SurfaceCard>
+          ) : null}
+        </GlassPanel>
 
-      <SectionHeader title="Summary" />
-      <SurfaceCard>
-        <ThemedText colorKey="textSecondary" style={styles.body}>
-          {ready
-            ? data.summary
-              ? data.summary
-              : data.analysisNote
-                ? data.analysisNote
-                : 'No summary available for this observation.'
-            : processing
-              ? stage
-              : failed
-                ? 'Summary unavailable until processing succeeds.'
-                : 'Summary appears when analysis completes.'}
-        </ThemedText>
-      </SurfaceCard>
-
-      <SectionHeader title="Topics" />
-      <SurfaceCard>
-        {ready && data.topics && data.topics.length > 0 ? (
-          <View style={styles.chipRow}>
-            {data.topics.map((topic) => (
-              <Pressable
-                key={topic.id}
-                onPress={() => router.push(`/(app)/topics/${topic.id}`)}
-                style={styles.chip}
-              >
-                <ThemedText colorKey="text" style={styles.chipText}>
-                  {topic.name}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-        ) : (
-          <ThemedText colorKey="textMuted" style={styles.meta}>
-            {ready
-              ? 'No topics extracted yet.'
-              : processing
-                ? 'Topics appear when processing finishes.'
-                : 'No topics available.'}
+        <GlassPanel>
+          <ThemedText colorKey="textMuted" style={styles.kicker}>
+            Summary
           </ThemedText>
-        )}
-      </SurfaceCard>
-
-      <SectionHeader title="Entities" />
-      <SurfaceCard>
-        {ready && data.entities && data.entities.length > 0 ? (
-          <View style={styles.chipRow}>
-            {data.entities.map((entity) => (
-              <Pressable
-                key={entity.id}
-                onPress={() => router.push(`/(app)/entities/${entity.id}`)}
-                style={styles.chip}
-              >
-                <ThemedText colorKey="text" style={styles.chipText}>
-                  {entity.name}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-        ) : (
-          <ThemedText colorKey="textMuted" style={styles.meta}>
-            {ready
-              ? 'No entities extracted yet.'
-              : processing
-                ? 'Entities appear when processing finishes.'
-                : 'No entities available.'}
+          <ThemedText colorKey="textSecondary" style={styles.body}>
+            {summaryText(data, ready, processing, failed, stage)}
           </ThemedText>
-        )}
-      </SurfaceCard>
+        </GlassPanel>
 
-      <SectionHeader title="Projects" />
-      <SurfaceCard>
-        {data.projects && data.projects.length > 0 ? (
-          <View style={styles.chipRow}>
-            {data.projects.map((project) => (
-              <Pressable
-                key={project.id}
-                onPress={() => router.push(`/(app)/projects/${project.id}`)}
-                style={styles.chip}
-              >
-                <ThemedText colorKey="text" style={styles.chipText}>
-                  {project.name}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-        ) : (
-          <ThemedText colorKey="textMuted" style={styles.meta}>
-            Not in any project yet.
+        <GlassPanel>
+          <ThemedText colorKey="textMuted" style={styles.kicker}>
+            Topics
           </ThemedText>
-        )}
-      </SurfaceCard>
-      <ThemedButton
-        label="Add to project"
-        variant="outline"
-        onPress={() =>
-          router.push({
-            pathname: '/(app)/observation/projects',
-            params: { id: String(id) },
-          })
-        }
-      />
+          {ready && data.topics && data.topics.length > 0 ? (
+            <View style={styles.chipRow}>
+              {data.topics.map((topic) => (
+                <Pressable
+                  key={topic.id}
+                  onPress={() => router.push(`/(app)/topics/${topic.id}`)}
+                  style={[styles.chip, { borderColor: colors.glassBorder }]}
+                >
+                  <ThemedText colorKey="text" style={styles.chipText}>
+                    {topic.name}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <ThemedText colorKey="textMuted" style={styles.placeholder}>
+              {processing ? '…' : 'None yet'}
+            </ThemedText>
+          )}
+        </GlassPanel>
 
-      <SectionHeader title="Source" />
-      <SurfaceCard>
-        <ThemedText colorKey="text" style={styles.cardTitle}>
-          {data.sourceLabel}
-        </ThemedText>
-        <ThemedText colorKey="textMuted" style={styles.meta}>
-          {data.metadata?.mimeType ?? ''}
-          {data.metadata?.fileSizeBytes
-            ? ` · ${Math.round(data.metadata.fileSizeBytes / 1024)} KB`
-            : ''}
-          {ready && data.metadata?.chunkCount != null
-            ? ` · ${data.metadata.chunkCount} chunks`
-            : ''}
-          {ready && data.metadata?.wordCount != null
-            ? ` · ${data.metadata.wordCount} words`
-            : ''}
-        </ThemedText>
-      </SurfaceCard>
+        <GlassPanel>
+          <ThemedText colorKey="textMuted" style={styles.kicker}>
+            Entities
+          </ThemedText>
+          {ready && data.entities && data.entities.length > 0 ? (
+            <View style={styles.chipRow}>
+              {data.entities.map((entity) => (
+                <Pressable
+                  key={entity.id}
+                  onPress={() => router.push(`/(app)/entities/${entity.id}`)}
+                  style={[styles.chip, { borderColor: colors.glassBorder }]}
+                >
+                  <ThemedText colorKey="text" style={styles.chipText}>
+                    {entity.name}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <ThemedText colorKey="textMuted" style={styles.placeholder}>
+              {processing ? '…' : 'None yet'}
+            </ThemedText>
+          )}
+        </GlassPanel>
 
-      <SectionHeader title="Extracted text" />
-      <SurfaceCard>
-        <ThemedText colorKey="textSecondary" style={styles.body}>
-          {extractedTextMessage(data, apiObs)}
-        </ThemedText>
-      </SurfaceCard>
+        <GlassPanel>
+          <ThemedText colorKey="textMuted" style={styles.kicker}>
+            Projects
+          </ThemedText>
+          {data.projects && data.projects.length > 0 ? (
+            <View style={styles.chipRow}>
+              {data.projects.map((project) => (
+                <Pressable
+                  key={project.id}
+                  onPress={() => router.push(`/(app)/projects/${project.id}`)}
+                  style={[styles.chip, { borderColor: colors.glassBorder }]}
+                >
+                  <ThemedText colorKey="text" style={styles.chipText}>
+                    {project.name}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <ThemedText colorKey="textMuted" style={styles.placeholder}>
+              None yet
+            </ThemedText>
+          )}
+        </GlassPanel>
 
-      <ThemedButton
-        label="Processing activity"
-        variant="outline"
-        onPress={() => router.push('/(app)/activity')}
-      />
-      <ThemedButton
-        label={deleting ? 'Deleting…' : 'Delete observation'}
-        variant="outline"
-        disabled={deleting || retrying}
-        onPress={onDelete}
-      />
-    </ScrollView>
+        <SoftLinkList
+          items={[
+            {
+              label: 'Add to project',
+              icon: 'folder-plus',
+              onPress: () =>
+                router.push({
+                  pathname: '/(app)/observation/projects',
+                  params: { id: String(id) },
+                }),
+            },
+            {
+              label: 'Activity',
+              icon: 'activity',
+              onPress: () => router.push('/(app)/activity'),
+            },
+          ]}
+        />
+
+        <GlassPanel>
+          <ThemedText colorKey="textMuted" style={styles.kicker}>
+            Source
+          </ThemedText>
+          <ThemedText colorKey="text" style={styles.sourceTitle} numberOfLines={2}>
+            {data.sourceLabel}
+          </ThemedText>
+          {sourceMeta ? (
+            <ThemedText colorKey="textMuted" style={styles.meta}>
+              {sourceMeta}
+            </ThemedText>
+          ) : null}
+        </GlassPanel>
+
+        <GlassPanel>
+          <ThemedText colorKey="textMuted" style={styles.kicker}>
+            Text
+          </ThemedText>
+          <ThemedText colorKey="textSecondary" style={styles.body}>
+            {extractedTextMessage(data, apiObs)}
+          </ThemedText>
+        </GlassPanel>
+
+        <ThemedButton
+          label={deleting ? 'Deleting…' : 'Delete'}
+          variant="outline"
+          disabled={deleting || retrying}
+          onPress={onDelete}
+        />
+      </SoftPage>
     </FadeInContent>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 12 },
-  title: {
-    fontFamily: 'DotGothic16_400Regular',
-    fontSize: 24,
-    letterSpacing: 1,
-  },
+  titleBlock: { gap: 8 },
   meta: { fontFamily: 'Inter_400Regular', fontSize: 12 },
+  kicker: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
   body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21 },
-  cardTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+  placeholder: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+  sourceTitle: { fontFamily: 'Inter_500Medium', fontSize: 15 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
-    borderWidth: 1,
-    borderColor: 'rgba(127,127,127,0.35)',
+    borderWidth: StyleSheet.hairlineWidth * 2,
     borderRadius: 999,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  chipText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
-  retryWrap: { marginTop: 12 },
+  chipText: { fontFamily: 'Inter_500Medium', fontSize: 12 },
+  inlineBtn: { marginTop: 8 },
 });

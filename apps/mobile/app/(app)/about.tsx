@@ -1,44 +1,44 @@
-import { ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { SurfaceCard } from '../../components/ui/SectionHeader';
+import { SoftPage } from '../../components/ui/SoftScreen';
+import { GlassPanel } from '../../components/ui/Glass';
 import { ThemedText } from '../../components/ThemedText';
-import { useAppTheme } from '../../providers/ThemeProvider';
+import { StyleSheet } from 'react-native';
 
 export default function AboutScreen() {
-  const insets = useSafeAreaInsets();
-  const { themeProgress } = useAppTheme();
-
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <ThemedText themeProgress={themeProgress} colorKey="text" style={styles.title}>
-        KAIROS
-      </ThemedText>
-      <SurfaceCard>
-        <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
-          Personal AI memory for your digital life. Capture observations, browse a timeline, search
-          what you saved, and ask Kairos questions grounded in your own memories.
+    <SoftPage>
+      <GlassPanel contentStyle={styles.card} padded={false}>
+        <ThemedText colorKey="text" style={styles.brand}>
+          Kairos
         </ThemedText>
-        <ThemedText themeProgress={themeProgress} colorKey="textMuted" style={styles.meta}>
-          Version 1.0.0 · Connected to Kairos backend
+        <ThemedText colorKey="textMuted" style={styles.meta}>
+          Personal memory
         </ThemedText>
-      </SurfaceCard>
-    </ScrollView>
+        <ThemedText colorKey="textMuted" style={styles.version}>
+          1.0.0
+        </ThemedText>
+      </GlassPanel>
+    </SoftPage>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 12 },
-  title: {
-    fontFamily: 'DotGothic16_400Regular',
-    fontSize: 32,
-    letterSpacing: 4,
+  card: {
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 36,
+    paddingHorizontal: 20,
   },
-  body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21 },
+  brand: {
+    fontFamily: 'PlayfairDisplay_400Regular',
+    fontSize: 28,
+    letterSpacing: -0.3,
+  },
   meta: {
-    fontFamily: 'DotGothic16_400Regular',
-    fontSize: 10,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+  },
+  version: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
   },
 });

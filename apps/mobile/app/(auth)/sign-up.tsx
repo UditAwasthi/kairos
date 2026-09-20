@@ -127,10 +127,10 @@ export default function SignUpScreen() {
     <View style={styles.footerRow}>
       <ThemedText
         themeProgress={themeProgress}
-        colorKey="textSecondary"
+        colorKey="textMuted"
         style={styles.footer}
       >
-        Already have an account?{' '}
+        Have an account?{' '}
       </ThemedText>
       <ThemedLink href="/(auth)/sign-in" label="Sign in" />
     </View>
@@ -138,15 +138,11 @@ export default function SignUpScreen() {
 
   if (isVerifying) {
     return (
-      <AuthScreenLayout
-        title="Verify email"
-        subtitle="Enter the verification code sent to your email address."
-        footer={footer}
-      >
+      <AuthScreenLayout title="Verify" footer={footer}>
         <ThemedInput
           editable={!isSubmitting}
           keyboardType="number-pad"
-          placeholder="Verification code"
+          placeholder="Code"
           value={verificationCode}
           onChangeText={setVerificationCode}
         />
@@ -159,7 +155,7 @@ export default function SignUpScreen() {
 
         <ThemedButton
           disabled={isSubmitting}
-          label={isSubmitting ? 'Verifying…' : 'Verify and continue'}
+          label={isSubmitting ? '…' : 'Continue'}
           onPress={() => void handleVerify()}
         />
         <View nativeID="clerk-captcha" />
@@ -168,11 +164,7 @@ export default function SignUpScreen() {
   }
 
   return (
-    <AuthScreenLayout
-      title="Create account"
-      subtitle="Sign up with email and username, or continue with a connected provider."
-      footer={footer}
-    >
+    <AuthScreenLayout title="Sign up" footer={footer}>
       <ThemedInput
         autoCapitalize="none"
         autoCorrect={false}
@@ -206,7 +198,7 @@ export default function SignUpScreen() {
 
       <ThemedButton
         disabled={isSubmitting}
-        label={isSubmitting ? 'Creating account…' : 'Sign up'}
+        label={isSubmitting ? '…' : 'Sign up'}
         onPress={() => void handleSignUp()}
       />
 

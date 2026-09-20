@@ -1,13 +1,15 @@
 import { useAuth } from '@clerk/expo';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ThemedText } from '../../components/ThemedText';
-import { EmptyState, ErrorState, FadeInContent, LoadingSkeleton } from '../../components/ui/EmptyState';
+import { SoftPage } from '../../components/ui/SoftScreen';
+import {
+  EmptyState,
+  ErrorState,
+  FadeInContent,
+  LoadingSkeleton,
+} from '../../components/ui/EmptyState';
 import { ObservationStatusCard } from '../../components/ui/ObservationStatusCard';
-import { SectionHeader, SurfaceCard } from '../../components/ui/SectionHeader';
 import { ThemedButton } from '../../components/ui/ThemedButton';
 import {
   fetchObservations,
@@ -20,7 +22,6 @@ const POLL_MS = 3000;
 
 export default function ActivityScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
   const [observations, setObservations] = useState<ApiObservation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +41,7 @@ export default function ActivityScreen() {
       setObservations(data);
       hasDataRef.current = true;
     } catch {
-      setError('Unable to load activity.');
+      setError('Unable to load');
     }
   }, [getToken]);
 
@@ -57,9 +58,7 @@ export default function ActivityScreen() {
       const timer = setInterval(() => {
         if (!focusedRef.current) return;
         if (
-          observationsRef.current.some((o) =>
-            isProcessingObservationStatus(o.status),
-          )
+          observationsRef.current.some((o) => isProcessingObservationStatus(o.status))
         ) {
           void load();
         }
@@ -73,13 +72,9 @@ export default function ActivityScreen() {
     }, [load]),
   );
 
-  const active = observations.filter((o) =>
-    isProcessingObservationStatus(o.status),
-  );
+  const active = observations.filter((o) => isProcessingObservationStatus(o.status));
   const failed = observations.filter((o) => o.status === 'FAILED');
-  const recentReady = observations
-    .filter((o) => o.status === 'COMPLETED')
-    .slice(0, 5);
+  const recentReady = observations.filter((o) => o.status === 'COMPLETED').slice(0, 5);
   const visible = [...active, ...failed, ...recentReady];
 
   const onRetry = async (id: string) => {
@@ -88,11 +83,9 @@ export default function ActivityScreen() {
       const token = await getToken();
       if (!token) return;
       const updated = await reprocessObservation(token, id);
-      setObservations((prev) =>
-        prev.map((item) => (item.id === id ? updated : item)),
-      );
+      setObservations((prev) => prev.map((item) => (item.id === id ? updated : item)));
     } catch {
-      setError('Retry failed. Try again.');
+      setError('Retry failed');
     } finally {
       setRetryingId(null);
     }
@@ -100,58 +93,42 @@ export default function ActivityScreen() {
 
   if (loading && observations.length === 0) return <LoadingSkeleton rows={8} />;
   if (error && observations.length === 0) {
-    return <ErrorState title="Unable to load activity" message={error} onRetry={() => void load()} />;
+    return <ErrorState title="Unable to load" onRetry={() => void load()} />;
   }
   if (visible.length === 0) {
     return (
-      <EmptyState
-        title="Nothing processing"
-        message="New captures show live processing status here while Kairos extracts, chunks, and embeds them."
-        actionLabel="Capture"
-        onAction={() => router.push('/(app)/(tabs)/capture')}
-      />
+      <SoftPage>
+        <EmptyState
+          title="Quiet"
+          actionLabel="Capture"
+          onAction={() => router.push('/(app)/(tabs)/capture')}
+        />
+      </SoftPage>
     );
   }
 
   return (
     <FadeInContent>
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <SurfaceCard>
-        <ThemedText colorKey="text" style={styles.hero}>
-          Processing {active.length} observation{active.length === 1 ? '' : 's'}
-        </ThemedText>
-        <ThemedText colorKey="textSecondary" style={styles.body}>
-          Status comes from the real observation pipeline. No fake percentages.
-        </ThemedText>
-      </SurfaceCard>
+      <SoftPage>
+        {visible.map((observation) => (
+          <ObservationStatusCard
+            key={observation.id}
+            observation={observation}
+            retrying={retryingId === observation.id}
+            onPress={() => router.push(`/(app)/observation/${observation.id}`)}
+            onRetry={
+              observation.status === 'FAILED'
+                ? () => void onRetry(observation.id)
+                : undefined
+            }
+          />
+        ))}
 
-      <SectionHeader title="Activity" />
-      {visible.map((observation) => (
-        <ObservationStatusCard
-          key={observation.id}
-          observation={observation}
-          retrying={retryingId === observation.id}
-          onPress={() => router.push(`/(app)/observation/${observation.id}`)}
-          onRetry={
-            observation.status === 'FAILED'
-              ? () => void onRetry(observation.id)
-              : undefined
-          }
+        <ThemedButton
+          label="Capture"
+          onPress={() => router.push('/(app)/(tabs)/capture')}
         />
-      ))}
-
-      <ThemedButton label="Refresh" variant="outline" onPress={() => void load()} />
-      <ThemedButton
-        label="Capture another"
-        onPress={() => router.push('/(app)/(tabs)/capture')}
-      />
-    </ScrollView>
+      </SoftPage>
     </FadeInContent>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { padding: 20, gap: 12 },
-  hero: { fontFamily: 'DotGothic16_400Regular', fontSize: 20, letterSpacing: 1 },
-  body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20 },
-});

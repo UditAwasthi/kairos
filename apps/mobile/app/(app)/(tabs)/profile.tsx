@@ -1,41 +1,27 @@
 import { useAuth, useUser } from '@clerk/expo';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image, StyleSheet, View } from 'react-native';
 
 import { ThemeToggleButton } from '../../../components/ThemeToggleButton';
+import { SoftLinkList, SoftPage } from '../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
-import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
 import { ThemedText } from '../../../components/ThemedText';
 import { useOnboarding } from '../../../providers/OnboardingProvider';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import Recall from 'kairos-recall';
 
-const LINKS = [
-  { label: 'Settings', href: '/(app)/settings' },
-  { label: 'Recall', href: '/(app)/recall' },
-  { label: 'Notifications', href: '/(app)/notifications' },
-  { label: 'Connected devices', href: '/(app)/devices' },
-  { label: 'Privacy', href: '/(app)/privacy' },
-  { label: 'Data controls', href: '/(app)/data' },
-  { label: 'Topics', href: '/(app)/topics' },
-  { label: 'Projects', href: '/(app)/projects' },
-  { label: 'Processing activity', href: '/(app)/activity' },
-  { label: 'About', href: '/(app)/about' },
-] as const;
-
 export default function ProfileScreen() {
   const { user } = useUser();
   const { signOut } = useAuth();
   const { resetOnboarding } = useOnboarding();
-  const { themeProgress, toggleTheme } = useAppTheme();
+  const { colors, themeProgress, toggleTheme } = useAppTheme();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
-  const name = user?.fullName || user?.firstName || 'Kairos user';
-  const email = user?.primaryEmailAddress?.emailAddress ?? 'No email';
+  const name = user?.fullName || user?.firstName || 'Kairos';
+  const email = user?.primaryEmailAddress?.emailAddress;
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -51,106 +37,76 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 108 }]}
-      showsVerticalScrollIndicator={false}
-    >
+    <SoftPage tabBar safeTop>
       <View style={styles.header}>
         {user?.imageUrl ? (
           <Image source={{ uri: user.imageUrl }} style={styles.avatar} />
         ) : (
-          <View style={styles.avatarFallback}>
-            <ThemedText themeProgress={themeProgress} colorKey="text" style={styles.avatarLetter}>
+          <View style={[styles.avatarFallback, { backgroundColor: colors.accentGlow }]}>
+            <ThemedText colorKey="accent" style={styles.avatarLetter}>
               {name.slice(0, 1).toUpperCase()}
             </ThemedText>
           </View>
         )}
         <View style={styles.headerText}>
-          <ThemedText themeProgress={themeProgress} colorKey="text" style={styles.name}>
+          <ThemedText colorKey="text" style={styles.name} numberOfLines={1}>
             {name}
           </ThemedText>
-          <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.email}>
-            {email}
-          </ThemedText>
+          {email ? (
+            <ThemedText colorKey="textMuted" style={styles.email} numberOfLines={1}>
+              {email}
+            </ThemedText>
+          ) : null}
         </View>
         <ThemeToggleButton themeProgress={themeProgress} onToggle={toggleTheme} />
       </View>
 
-      <SurfaceCard>
-        <ThemedText themeProgress={themeProgress} colorKey="textMuted" style={styles.kicker}>
-          Account
-        </ThemedText>
-        <ThemedText themeProgress={themeProgress} colorKey="text" style={styles.row}>
-          Authenticated with Clerk
-        </ThemedText>
-        <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.meta}>
-          Personal AI memory · connected to Kairos API
-        </ThemedText>
-      </SurfaceCard>
-
-      <SectionHeader title="Manage" />
-      <SurfaceCard style={styles.linkCard}>
-        {LINKS.map((link) => (
-          <Pressable
-            key={link.href}
-            onPress={() => router.push(link.href)}
-            style={styles.linkRow}
-            accessibilityRole="button"
-          >
-            <ThemedText themeProgress={themeProgress} colorKey="text" style={styles.linkLabel}>
-              {link.label}
-            </ThemedText>
-            <ThemedText themeProgress={themeProgress} colorKey="textMuted" style={styles.chevron}>
-              →
-            </ThemedText>
-          </Pressable>
-        ))}
-      </SurfaceCard>
+      <SoftLinkList
+        items={[
+          { label: 'Settings', icon: 'settings', onPress: () => router.push('/(app)/settings') },
+          { label: 'Timeline', icon: 'clock', onPress: () => router.push('/(app)/timeline') },
+          {
+            label: 'Notifications',
+            icon: 'bell',
+            onPress: () => router.push('/(app)/notifications'),
+          },
+          { label: 'Devices', icon: 'smartphone', onPress: () => router.push('/(app)/devices') },
+          { label: 'Privacy', icon: 'shield', onPress: () => router.push('/(app)/privacy') },
+          { label: 'Data', icon: 'database', onPress: () => router.push('/(app)/data') },
+          { label: 'Topics', icon: 'hash', onPress: () => router.push('/(app)/topics') },
+          { label: 'Projects', icon: 'folder', onPress: () => router.push('/(app)/projects') },
+          { label: 'Activity', icon: 'layers', onPress: () => router.push('/(app)/activity') },
+          { label: 'About', icon: 'info', onPress: () => router.push('/(app)/about') },
+        ]}
+      />
 
       <ThemedButton
         disabled={isSigningOut}
-        label={isSigningOut ? 'Signing out…' : 'Sign out'}
+        label={isSigningOut ? '…' : 'Sign out'}
         onPress={() => void handleSignOut()}
         style={styles.signOut}
       />
-    </ScrollView>
+    </SoftPage>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 16 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  avatar: { width: 64, height: 64, borderRadius: 32 },
+  avatar: { width: 56, height: 56, borderRadius: 28 },
   avatarFallback: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    borderWidth: 1,
-    borderColor: 'rgba(128,128,128,0.35)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarLetter: { fontFamily: 'Inter_600SemiBold', fontSize: 22 },
-  headerText: { flex: 1, gap: 4 },
-  name: { fontFamily: 'DotGothic16_400Regular', fontSize: 22, letterSpacing: 1 },
-  email: { fontFamily: 'Inter_400Regular', fontSize: 14 },
-  kicker: {
-    fontFamily: 'DotGothic16_400Regular',
-    fontSize: 10,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
+  avatarLetter: { fontFamily: 'Inter_600SemiBold', fontSize: 20 },
+  headerText: { flex: 1, gap: 2 },
+  name: {
+    fontFamily: 'PlayfairDisplay_400Regular',
+    fontSize: 24,
+    letterSpacing: -0.3,
   },
-  row: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
-  meta: { fontFamily: 'Inter_400Regular', fontSize: 13 },
-  linkCard: { paddingVertical: 4 },
-  linkRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    minHeight: 48,
-    paddingVertical: 8,
-  },
-  linkLabel: { fontFamily: 'Inter_400Regular', fontSize: 15 },
-  chevron: { fontFamily: 'Inter_400Regular', fontSize: 16 },
-  signOut: { marginTop: 8 },
+  email: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+  signOut: { marginTop: 4 },
 });

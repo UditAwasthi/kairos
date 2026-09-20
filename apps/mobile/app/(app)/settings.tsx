@@ -1,83 +1,78 @@
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemeToggleButton } from '../../components/ThemeToggleButton';
-import { SectionHeader, SurfaceCard } from '../../components/ui/SectionHeader';
+import { SoftLinkList, SoftPage } from '../../components/ui/SoftScreen';
+import { GlassPanel } from '../../components/ui/Glass';
 import { ThemedText } from '../../components/ThemedText';
 import { useAppTheme } from '../../providers/ThemeProvider';
-
-const LINKS = [
-  { label: 'Account', href: '/(app)/(tabs)/profile' },
-  { label: 'Recall', href: '/(app)/recall' },
-  { label: 'Activity updates', href: '/(app)/notifications' },
-  { label: 'Connected devices', href: '/(app)/devices' },
-  { label: 'Privacy', href: '/(app)/privacy' },
-  { label: 'Data controls', href: '/(app)/data' },
-  { label: 'About', href: '/(app)/about' },
-] as const;
+import { StyleSheet } from 'react-native';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { themeProgress, toggleTheme } = useAppTheme();
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <SurfaceCard style={styles.appearance}>
-        <ThemedText themeProgress={themeProgress} colorKey="text" style={styles.rowLabel}>
-          Appearance
+    <SoftPage>
+      <GlassPanel contentStyle={styles.appearance} padded={false}>
+        <ThemedText colorKey="text" style={styles.rowLabel}>
+          Theme
         </ThemedText>
         <ThemeToggleButton themeProgress={themeProgress} onToggle={toggleTheme} />
-      </SurfaceCard>
+      </GlassPanel>
 
-      <SectionHeader
-        title="Preferences"
-        subtitle="Server-backed preference APIs are not available yet"
+      <SoftLinkList
+        items={[
+          {
+            label: 'Account',
+            icon: 'user',
+            onPress: () => router.push('/(app)/(tabs)/profile'),
+          },
+          {
+            label: 'Recall',
+            icon: 'eye',
+            onPress: () => router.push('/(app)/(tabs)/recall'),
+          },
+          {
+            label: 'Notifications',
+            icon: 'bell',
+            onPress: () => router.push('/(app)/notifications'),
+          },
+          {
+            label: 'Devices',
+            icon: 'smartphone',
+            onPress: () => router.push('/(app)/devices'),
+          },
+          {
+            label: 'Privacy',
+            icon: 'shield',
+            onPress: () => router.push('/(app)/privacy'),
+          },
+          {
+            label: 'Data',
+            icon: 'database',
+            onPress: () => router.push('/(app)/data'),
+          },
+          {
+            label: 'About',
+            icon: 'info',
+            onPress: () => router.push('/(app)/about'),
+          },
+        ]}
       />
-      <SurfaceCard>
-        <ThemedText colorKey="textSecondary" style={styles.body}>
-          AI and notification preference toggles will appear here when the backend
-          supports them. Theme preference is stored on this device.
-        </ThemedText>
-      </SurfaceCard>
-
-      <SectionHeader title="More" />
-      <SurfaceCard>
-        {LINKS.map((item) => (
-          <Pressable
-            key={item.label}
-            style={styles.row}
-            onPress={() => router.push(item.href)}
-            accessibilityRole="button"
-          >
-            <ThemedText themeProgress={themeProgress} colorKey="text" style={styles.rowLabel}>
-              {item.label}
-            </ThemedText>
-            <ThemedText themeProgress={themeProgress} colorKey="textMuted" style={styles.chevron}>
-              →
-            </ThemedText>
-          </Pressable>
-        ))}
-      </SurfaceCard>
-    </ScrollView>
+    </SoftPage>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 12 },
   appearance: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  row: {
-    minHeight: 52,
-    justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 8,
+  rowLabel: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 15,
   },
-  rowLabel: { fontFamily: 'Inter_600SemiBold', fontSize: 15, flex: 1 },
-  body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21 },
-  chevron: { fontFamily: 'Inter_400Regular', fontSize: 16, position: 'absolute', right: 0 },
 });

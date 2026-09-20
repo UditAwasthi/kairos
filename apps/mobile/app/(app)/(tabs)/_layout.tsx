@@ -14,8 +14,8 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.text,
         headerTitleStyle: {
-          fontFamily: 'Inter_600SemiBold',
-          fontSize: 17,
+          fontFamily: 'PlayfairDisplay_400Regular',
+          fontSize: 18,
         },
         headerShadowVisible: false,
         tabBarStyle: {
@@ -49,23 +49,25 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="timeline"
+        name="recall"
         options={{
-          title: 'Timeline',
-          tabBarAccessibilityLabel: 'Timeline',
+          title: 'Recall',
+          headerShown: false,
+          tabBarAccessibilityLabel: 'Recall',
         }}
       />
       <Tabs.Screen
         name="ask"
         options={{
-          title: 'Ask Kairos',
-          tabBarAccessibilityLabel: 'Ask Kairos',
+          title: 'Ask',
+          tabBarAccessibilityLabel: 'Ask',
         }}
       />
       <Tabs.Screen
         name="capture"
         options={{
           title: 'Capture',
+          headerShown: false,
           tabBarAccessibilityLabel: 'Capture',
         }}
       />
@@ -73,6 +75,7 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Profile',
+          headerShown: false,
           tabBarAccessibilityLabel: 'Profile',
         }}
       />

@@ -1,3 +1,4 @@
+import { Feather } from '@expo/vector-icons';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '../ThemedText';
@@ -5,10 +6,10 @@ import {
   formatObservationReadyTime,
   isProcessingObservationStatus,
   observationStageLabel,
-  observationStatusHeadline,
   type ApiObservation,
 } from '../../lib/api';
 import { useAppTheme } from '../../providers/ThemeProvider';
+import { GlassPanel } from './Glass';
 
 type Props = {
   observation: ApiObservation;
@@ -27,67 +28,80 @@ export function ObservationStatusCard({
   const processing = isProcessingObservationStatus(observation.status);
   const failed = observation.status === 'FAILED';
   const ready = observation.status === 'COMPLETED';
-  const glyph = ready ? '✓' : failed ? '⚠' : '⟳';
-  const headline = observationStatusHeadline(observation.status);
-  const detail = ready
-    ? formatObservationReadyTime(
-        observation.processedAt || observation.updatedAt,
-      )
+
+  const meta = retrying
+    ? '…'
+    : ready
+      ? formatObservationReadyTime(observation.processedAt || observation.updatedAt)
+      : failed
+        ? 'Failed'
+        : observationStageLabel(observation);
+
+  const icon: React.ComponentProps<typeof Feather>['name'] = ready
+    ? 'check'
     : failed
-      ? onRetry
-        ? 'Tap to retry'
-        : observation.processingError || 'Tap for details'
-      : observationStageLabel(observation);
+      ? 'alert-circle'
+      : 'loader';
 
   return (
     <Pressable
       onPress={failed && onRetry ? onRetry : onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${observation.filename}, ${headline}`}
-      style={({ pressed }) => [
-        styles.row,
-        {
-          opacity: pressed ? 0.85 : 1,
-          borderBottomColor: colors.border,
-        },
-      ]}
+      accessibilityLabel={observation.filename}
+      style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
     >
-      <ThemedText colorKey="text" style={styles.title} numberOfLines={1}>
-        {observation.filename}
-      </ThemedText>
-      <View style={styles.statusRow}>
-        <ThemedText
-          colorKey={ready ? 'success' : failed ? 'accent' : 'textMuted'}
-          style={styles.glyph}
-        >
-          {glyph}
-        </ThemedText>
-        <View style={styles.statusCopy}>
-          <ThemedText
-            colorKey={ready ? 'success' : failed ? 'accent' : 'text'}
-            style={styles.headline}
-          >
-            {retrying ? 'Retrying…' : headline}
+      <GlassPanel padded={false} contentStyle={styles.inner}>
+        <View style={[styles.icon, { backgroundColor: colors.accentGlow }]}>
+          <Feather
+            name={icon}
+            size={16}
+            color={ready ? colors.success : failed ? colors.error : colors.accent}
+          />
+        </View>
+        <View style={styles.copy}>
+          <ThemedText colorKey="text" style={styles.title} numberOfLines={1}>
+            {observation.filename}
           </ThemedText>
-          <ThemedText colorKey="textMuted" style={styles.detail}>
-            {processing && !retrying ? detail : retrying ? 'Processing…' : detail}
+          <ThemedText colorKey="textMuted" style={styles.meta} numberOfLines={1}>
+            {meta}
           </ThemedText>
         </View>
-      </View>
+        {processing ? (
+          <View style={[styles.dot, { backgroundColor: colors.accent }]} />
+        ) : null}
+      </GlassPanel>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  row: {
-    gap: 8,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  inner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
-  title: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
-  statusRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  glyph: { fontFamily: 'Inter_600SemiBold', fontSize: 14, marginTop: 1 },
-  statusCopy: { flex: 1, gap: 2 },
-  headline: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
-  detail: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18 },
+  icon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  copy: { flex: 1, gap: 2 },
+  title: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 15,
+    letterSpacing: -0.1,
+  },
+  meta: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
 });

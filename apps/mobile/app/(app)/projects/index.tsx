@@ -1,9 +1,9 @@
 import { useAuth } from '@clerk/expo';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { ThemedText } from '../../../components/ThemedText';
+import { SoftPage } from '../../../components/ui/SoftScreen';
+import { GlassPanel } from '../../../components/ui/Glass';
 import {
   EmptyState,
   ErrorState,
@@ -11,79 +11,76 @@ import {
   LoadingSkeleton,
   SoftRefreshBar,
 } from '../../../components/ui/EmptyState';
-import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
+import { ThemedText } from '../../../components/ThemedText';
 import { useAsync } from '../../../hooks/useAsync';
 import { fetchProjects } from '../../../lib/api';
 
 export default function ProjectsScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
   const { data, error, loading, refreshing, reload } = useAsync(async () => {
     const token = await getToken();
-    if (!token) throw new Error('Sign in to view projects.');
+    if (!token) throw new Error('Sign in required');
     return fetchProjects({ token, limit: 100 });
   }, [getToken]);
 
   if (loading) return <LoadingSkeleton rows={8} />;
   if (error && !data) {
-    return <ErrorState title="Unable to load projects" message={error} onRetry={reload} />;
+    return <ErrorState title="Unable to load" onRetry={reload} />;
   }
 
   return (
     <FadeInContent>
       <SoftRefreshBar active={refreshing} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-        <SectionHeader title="Projects" subtitle="Group observations by workstream" />
+      <SoftPage>
         <ThemedButton
-          label="New project"
+          label="New"
           onPress={() => router.push('/(app)/projects/new')}
+          style={styles.newBtn}
         />
 
         {!data || data.items.length === 0 ? (
           <EmptyState
-            title="No projects yet"
-            message="Create a project to organize related observations."
+            title="None yet"
+            actionLabel="New"
+            onAction={() => router.push('/(app)/projects/new')}
           />
         ) : (
           data.items.map((project) => (
             <Pressable
               key={project.id}
               onPress={() => router.push(`/(app)/projects/${project.id}`)}
+              style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
             >
-              <SurfaceCard>
-                <View style={styles.row}>
-                  <ThemedText colorKey="text" style={styles.title}>
+              <GlassPanel padded={false} contentStyle={styles.row}>
+                <View style={styles.copy}>
+                  <ThemedText colorKey="text" style={styles.title} numberOfLines={1}>
                     {project.name}
                   </ThemedText>
-                  <ThemedText colorKey="textMuted" style={styles.count}>
-                    {project.observationCount}
-                  </ThemedText>
                 </View>
-                {project.description ? (
-                  <ThemedText colorKey="textSecondary" style={styles.body} numberOfLines={2}>
-                    {project.description}
-                  </ThemedText>
-                ) : null}
-              </SurfaceCard>
+                <ThemedText colorKey="textMuted" style={styles.meta}>
+                  {project.observationCount}
+                </ThemedText>
+              </GlassPanel>
             </Pressable>
           ))
         )}
-      </ScrollView>
+      </SoftPage>
     </FadeInContent>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 12 },
+  newBtn: { alignSelf: 'flex-start', minWidth: 88, paddingHorizontal: 18 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     gap: 12,
   },
-  title: { fontFamily: 'Inter_600SemiBold', fontSize: 17, flex: 1 },
-  count: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
-  body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20, marginTop: 4 },
+  copy: { flex: 1 },
+  title: { fontFamily: 'Inter_500Medium', fontSize: 15 },
+  meta: { fontFamily: 'Inter_400Regular', fontSize: 13 },
 });

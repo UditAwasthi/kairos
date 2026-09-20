@@ -1,9 +1,9 @@
 import { useAuth } from '@clerk/expo';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { ThemedText } from '../../../components/ThemedText';
+import { SoftPage } from '../../../components/ui/SoftScreen';
+import { GlassPanel } from '../../../components/ui/Glass';
 import {
   EmptyState,
   ErrorState,
@@ -11,7 +11,7 @@ import {
   LoadingSkeleton,
   SoftRefreshBar,
 } from '../../../components/ui/EmptyState';
-import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
+import { ThemedText } from '../../../components/ThemedText';
 import { useAsync } from '../../../hooks/useAsync';
 import { fetchEntities, type ApiEntitySummary } from '../../../lib/api';
 
@@ -28,11 +28,11 @@ function groupByType(items: ApiEntitySummary[]) {
 function typeLabel(type: string): string {
   switch (type) {
     case 'TECHNOLOGY':
-      return 'Technologies';
+      return 'Tech';
     case 'PERSON':
       return 'People';
     case 'ORGANIZATION':
-      return 'Organizations';
+      return 'Orgs';
     case 'PRODUCT':
       return 'Products';
     case 'LOCATION':
@@ -46,24 +46,22 @@ function typeLabel(type: string): string {
 
 export default function EntitiesScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
   const { data, error, loading, refreshing, reload } = useAsync(async () => {
     const token = await getToken();
-    if (!token) throw new Error('Sign in to view entities.');
+    if (!token) throw new Error('Sign in required');
     return fetchEntities({ token, limit: 100 });
   }, [getToken]);
 
   if (loading) return <LoadingSkeleton rows={8} />;
   if (error && !data) {
-    return <ErrorState title="Unable to load entities" message={error} onRetry={reload} />;
+    return <ErrorState title="Unable to load" onRetry={reload} />;
   }
   if (!data || data.items.length === 0) {
     return (
-      <EmptyState
-        title="No entities yet"
-        message="Entities appear after Kairos analyzes your uploaded documents."
-      />
+      <SoftPage>
+        <EmptyState title="None yet" />
+      </SoftPage>
     );
   }
 
@@ -72,8 +70,7 @@ export default function EntitiesScreen() {
   return (
     <FadeInContent>
       <SoftRefreshBar active={refreshing} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-        <SectionHeader title="Entities" subtitle="People, tools, and concepts you captured" />
+      <SoftPage>
         {groups.map(([type, items]) => (
           <View key={type} style={styles.group}>
             <ThemedText colorKey="textMuted" style={styles.kicker}>
@@ -83,33 +80,41 @@ export default function EntitiesScreen() {
               <Pressable
                 key={entity.id}
                 onPress={() => router.push(`/(app)/entities/${entity.id}`)}
+                style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
               >
-                <SurfaceCard>
-                  <ThemedText colorKey="text" style={styles.title}>
+                <GlassPanel padded={false} contentStyle={styles.row}>
+                  <ThemedText colorKey="text" style={styles.title} numberOfLines={1}>
                     {entity.name}
                   </ThemedText>
                   <ThemedText colorKey="textMuted" style={styles.meta}>
-                    {entity.observationCount} observations
+                    {entity.observationCount}
                   </ThemedText>
-                </SurfaceCard>
+                </GlassPanel>
               </Pressable>
             ))}
           </View>
         ))}
-      </ScrollView>
+      </SoftPage>
     </FadeInContent>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 12 },
   group: { gap: 8 },
   kicker: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_500Medium',
     fontSize: 11,
-    letterSpacing: 0.4,
-    marginTop: 8,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginTop: 4,
   },
-  title: { fontFamily: 'Inter_600SemiBold', fontSize: 17 },
-  meta: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  title: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 15 },
+  meta: { fontFamily: 'Inter_400Regular', fontSize: 13 },
 });

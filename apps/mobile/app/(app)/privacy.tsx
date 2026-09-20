@@ -1,63 +1,35 @@
-import { ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-import { SectionHeader, SurfaceCard } from '../../components/ui/SectionHeader';
-import { ThemedButton } from '../../components/ui/ThemedButton';
-import { ThemedText } from '../../components/ThemedText';
-import { useAppTheme } from '../../providers/ThemeProvider';
+import { SoftLinkList, SoftPage, SoftRow } from '../../components/ui/SoftScreen';
 
 export default function PrivacyScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { themeProgress } = useAppTheme();
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <SectionHeader title="What Kairos stores" />
-      <SurfaceCard>
-        <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
-          Observations you upload (documents, images, notes), extracted text,
-          summaries, topics, entities, project memberships, conversation history,
-          and your Clerk account identity.
-        </ThemedText>
-      </SurfaceCard>
+    <SoftPage>
+      <SoftRow icon="archive" label="Stores uploads & memory" />
+      <SoftRow icon="cpu" label="Processes on Kairos" />
+      <SoftRow icon="eye" label="Recall stays on-device first" />
 
-      <SectionHeader title="What is processed" />
-      <SurfaceCard>
-        <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
-          Uploads move through extraction, chunking, metadata analysis, and
-          embedding on the Kairos backend. Search and Ask use your completed
-          observations only.
-        </ThemedText>
-      </SurfaceCard>
-
-      <SectionHeader title="Recall" />
-      <SurfaceCard>
-        <ThemedText themeProgress={themeProgress} colorKey="textSecondary" style={styles.body}>
-          When Recall is enabled on Android, raw screen pixels stay on-device and
-          are discarded after local processing. Derived text may upload to Kairos
-          as observations. Manage capture from Settings → Recall.
-        </ThemedText>
-      </SurfaceCard>
-      <ThemedButton
-        label="Open Recall"
-        variant="outline"
-        onPress={() => router.push('/(app)/recall')}
+      <SoftLinkList
+        items={[
+          {
+            label: 'Recall',
+            icon: 'eye',
+            onPress: () => router.push('/(app)/(tabs)/recall'),
+          },
+          {
+            label: 'Data',
+            icon: 'database',
+            onPress: () => router.push('/(app)/data'),
+          },
+          {
+            label: 'Devices',
+            icon: 'smartphone',
+            onPress: () => router.push('/(app)/devices'),
+          },
+        ]}
       />
-
-      <SectionHeader title="Controls" />
-      <ThemedButton label="Manage data" variant="outline" onPress={() => router.push('/(app)/data')} />
-      <ThemedButton
-        label="Connected devices"
-        variant="outline"
-        onPress={() => router.push('/(app)/devices')}
-      />
-    </ScrollView>
+    </SoftPage>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { padding: 20, gap: 12 },
-  body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21 },
-});

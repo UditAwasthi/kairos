@@ -1,4 +1,5 @@
 import { useAuth } from '@clerk/expo';
+import { Feather } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
@@ -7,16 +8,15 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ThemedText } from '../../../components/ThemedText';
-import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
+import { SoftPage, SoftTitle } from '../../../components/ui/SoftScreen';
+import { GlassPanel } from '../../../components/ui/Glass';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { ThemedInput } from '../../../components/ui/ThemedInput';
+import { ThemedText } from '../../../components/ThemedText';
 import {
   ApiError,
   createNoteObservation,
@@ -29,17 +29,21 @@ import {
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import type { SourceType } from '../../../types';
 
-const CAPTURE_TYPES: { type: SourceType; label: string; hint: string }[] = [
-  { type: 'screenshot', label: 'Screenshot', hint: 'Image upload' },
-  { type: 'photo', label: 'Photo', hint: 'Image upload' },
-  { type: 'document', label: 'Document', hint: 'PDF or text file' },
-  { type: 'note', label: 'Text note', hint: 'Title optional · text required' },
-  { type: 'link', label: 'URL', hint: 'Fetch page text into Kairos' },
-  { type: 'audio', label: 'Audio', hint: 'Not supported yet' },
+type CaptureItem = {
+  type: SourceType;
+  label: string;
+  icon: React.ComponentProps<typeof Feather>['name'];
+};
+
+const CAPTURE_TYPES: CaptureItem[] = [
+  { type: 'screenshot', label: 'Shot', icon: 'tablet' },
+  { type: 'photo', label: 'Photo', icon: 'camera' },
+  { type: 'document', label: 'File', icon: 'file-text' },
+  { type: 'note', label: 'Note', icon: 'edit-3' },
+  { type: 'link', label: 'Link', icon: 'link' },
 ];
 
 const FILE_CAPTURE_TYPES: SourceType[] = ['document', 'photo', 'screenshot'];
-const TEXT_CAPTURE_TYPES: SourceType[] = ['note', 'link'];
 
 function statusLabel(status: ApiObservation['status'] | 'UPLOADING'): string {
   if (status === 'UPLOADING') return 'Uploading…';
@@ -59,7 +63,6 @@ function guessMimeType(name: string, fallback?: string | null): string {
 
 export default function CaptureScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const { getToken } = useAuth();
   const [selected, setSelected] = useState<SourceType | null>(null);
@@ -89,10 +92,7 @@ export default function CaptureScreen() {
     });
     setStageLabel(statusLabel(settled.status));
     if (settled.status === 'FAILED') {
-      setError(
-        settled.processingError ||
-          'Kairos could not process this file. Try another supported file.',
-      );
+      setError(settled.processingError || 'Failed');
     }
   };
 
@@ -100,7 +100,7 @@ export default function CaptureScreen() {
     setBusy(true);
     setError(null);
     setObservationId(null);
-    setStageLabel('Choose a file…');
+    setStageLabel('…');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
@@ -120,9 +120,7 @@ export default function CaptureScreen() {
 
       const asset = picked.assets[0];
       const token = await getToken();
-      if (!token) {
-        throw new ApiError('You must be signed in to upload.', 401);
-      }
+      if (!token) throw new ApiError('Sign in required.', 401);
 
       setStageLabel(statusLabel('UPLOADING'));
       const uploaded = await uploadObservation({
@@ -136,16 +134,10 @@ export default function CaptureScreen() {
       await settle(token, uploaded.id);
     } catch (err) {
       if (err instanceof ApiError && err.status === 499) {
-        setStageLabel('Upload saved. Open the observation to follow processing.');
+        setStageLabel('Saved');
         return;
       }
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Upload failed. Check your connection and try again.';
-      setError(message);
+      setError(err instanceof ApiError ? err.message : 'Upload failed');
       setStageLabel(null);
     } finally {
       setBusy(false);
@@ -160,17 +152,13 @@ export default function CaptureScreen() {
 
     try {
       const token = await getToken();
-      if (!token) {
-        throw new ApiError('You must be signed in to upload.', 401);
-      }
+      if (!token) throw new ApiError('Sign in required.', 401);
 
       setStageLabel(statusLabel('UPLOADING'));
       let uploaded: ApiObservation;
       if (type === 'note') {
         const text = note.trim();
-        if (!text) {
-          throw new ApiError('Write a note before uploading.', 400);
-        }
+        if (!text) throw new ApiError('Write a note first.', 400);
         uploaded = await createNoteObservation({
           token,
           text,
@@ -178,9 +166,7 @@ export default function CaptureScreen() {
         });
       } else {
         const link = url.trim();
-        if (!link) {
-          throw new ApiError('Enter a URL before capturing.', 400);
-        }
+        if (!link) throw new ApiError('Enter a URL.', 400);
         uploaded = await createUrlObservation({ token, url: link });
       }
 
@@ -189,16 +175,10 @@ export default function CaptureScreen() {
       await settle(token, uploaded.id);
     } catch (err) {
       if (err instanceof ApiError && err.status === 499) {
-        setStageLabel('Capture saved. Open the observation to follow processing.');
+        setStageLabel('Saved');
         return;
       }
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Capture failed. Check your connection and try again.';
-      setError(message);
+      setError(err instanceof ApiError ? err.message : 'Failed');
       setStageLabel(null);
     } finally {
       setBusy(false);
@@ -207,151 +187,157 @@ export default function CaptureScreen() {
 
   const onSelect = (type: SourceType) => {
     setSelected(type);
-    if (type === 'audio') {
-      Alert.alert(
-        'Audio not supported yet',
-        'Kairos currently accepts PDF, text, and image uploads.',
-      );
+    if (FILE_CAPTURE_TYPES.includes(type)) {
+      void runFileUpload(type);
       return;
     }
-
-    const isFile = FILE_CAPTURE_TYPES.includes(type);
-    const isText = TEXT_CAPTURE_TYPES.includes(type);
-    Alert.alert(
-      `Capture ${CAPTURE_TYPES.find((c) => c.type === type)?.label}?`,
-      isFile
-        ? 'Pick a file to upload to Kairos.'
-        : isText
-          ? type === 'link'
-            ? 'Kairos will fetch readable text from the URL and process it.'
-            : 'This creates a real note observation on the Kairos backend.'
-          : 'Unsupported capture type.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: isFile ? 'Choose file' : 'Upload',
-          onPress: () => {
-            if (isFile) void runFileUpload(type);
-            else if (type === 'note' || type === 'link') void runTextUpload(type);
-          },
-        },
-      ],
-    );
+    if (type === 'note' || type === 'link') {
+      // show inputs below
+      return;
+    }
+    Alert.alert('Not supported');
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 108 }]}
-      keyboardShouldPersistTaps="handled"
-    >
-      <SectionHeader
-        title="Capture"
-        subtitle="Save an observation into Kairos"
-      />
-      <SurfaceCard>
-        <ThemedText colorKey="textSecondary" style={styles.body}>
-          Documents, photos, screenshots, notes, and URLs go through the Kairos
-          observation pipeline. Audio is not supported yet.
-        </ThemedText>
-      </SurfaceCard>
-
-      <ThemedInput
-        value={title}
-        onChangeText={setTitle}
-        placeholder="Optional note title"
-        accessibilityLabel="Note title"
-      />
-      <ThemedInput
-        value={note}
-        onChangeText={setNote}
-        placeholder="Note text"
-        accessibilityLabel="Capture note"
-      />
-      <ThemedInput
-        value={url}
-        onChangeText={setUrl}
-        placeholder="https://example.com/article"
-        autoCapitalize="none"
-        accessibilityLabel="Capture URL"
-      />
+    <SoftPage tabBar safeTop>
+      <SoftTitle>Capture</SoftTitle>
 
       <View style={styles.grid}>
-        {CAPTURE_TYPES.map((item) => (
-          <Pressable
-            key={item.type}
-            disabled={busy}
-            onPress={() => onSelect(item.type)}
-            style={[
-              styles.tile,
-              {
-                borderColor: selected === item.type ? colors.text : colors.border,
-                backgroundColor: colors.surface,
-                opacity: busy || item.type === 'audio' ? 0.55 : 1,
-              },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={item.label}
-          >
-            <ThemedText colorKey="text" style={styles.tileTitle}>
-              {item.label}
-            </ThemedText>
-            <ThemedText colorKey="textMuted" style={styles.tileHint}>
-              {item.hint}
-            </ThemedText>
-          </Pressable>
-        ))}
+        {CAPTURE_TYPES.map((item) => {
+          const active = selected === item.type;
+          return (
+            <Pressable
+              key={item.type}
+              disabled={busy}
+              onPress={() => onSelect(item.type)}
+              accessibilityRole="button"
+              accessibilityLabel={item.label}
+              style={({ pressed }) => [
+                styles.tileWrap,
+                { opacity: busy ? 0.5 : pressed ? 0.9 : 1 },
+              ]}
+            >
+              <GlassPanel
+                padded={false}
+                contentStyle={[
+                  styles.tile,
+                  active && { borderColor: colors.accent, borderWidth: 1 },
+                ]}
+              >
+                <View style={[styles.tileIcon, { backgroundColor: colors.accentGlow }]}>
+                  <Feather name={item.icon} size={20} color={colors.accent} />
+                </View>
+                <ThemedText colorKey="text" style={styles.tileLabel}>
+                  {item.label}
+                </ThemedText>
+              </GlassPanel>
+            </Pressable>
+          );
+        })}
       </View>
 
+      {selected === 'note' ? (
+        <View style={styles.form}>
+          <ThemedInput
+            value={title}
+            onChangeText={setTitle}
+            placeholder="Title"
+            accessibilityLabel="Note title"
+          />
+          <ThemedInput
+            value={note}
+            onChangeText={setNote}
+            placeholder="Note"
+            accessibilityLabel="Note"
+          />
+          <ThemedButton
+            label={busy ? '…' : 'Save'}
+            disabled={busy || !note.trim()}
+            onPress={() => void runTextUpload('note')}
+          />
+        </View>
+      ) : null}
+
+      {selected === 'link' ? (
+        <View style={styles.form}>
+          <ThemedInput
+            value={url}
+            onChangeText={setUrl}
+            placeholder="https://"
+            autoCapitalize="none"
+            accessibilityLabel="URL"
+          />
+          <ThemedButton
+            label={busy ? '…' : 'Save'}
+            disabled={busy || !url.trim()}
+            onPress={() => void runTextUpload('link')}
+          />
+        </View>
+      ) : null}
+
       {busy || stageLabel ? (
-        <SurfaceCard>
-          <View style={styles.statusRow}>
-            {busy ? <ActivityIndicator color={colors.text} /> : null}
-            <ThemedText colorKey="text" style={styles.status}>
-              {stageLabel}
-            </ThemedText>
-          </View>
-        </SurfaceCard>
+        <GlassPanel contentStyle={styles.statusRow} padded={false}>
+          {busy ? <ActivityIndicator color={colors.accent} /> : null}
+          <ThemedText colorKey="textMuted" style={styles.status}>
+            {stageLabel}
+          </ThemedText>
+        </GlassPanel>
       ) : null}
 
       {error ? (
-        <SurfaceCard>
-          <ThemedText colorKey="error" style={styles.body}>
-            {error}
-          </ThemedText>
-        </SurfaceCard>
+        <ThemedText colorKey="error" style={styles.error}>
+          {error}
+        </ThemedText>
       ) : null}
 
       {observationId ? (
         <ThemedButton
-          label="View observation"
+          label="Open"
           onPress={() => router.push(`/(app)/observation/${observationId}`)}
         />
       ) : null}
-
-      <ThemedButton
-        label="Processing activity"
-        variant="outline"
-        onPress={() => router.push('/(app)/activity')}
-      />
-    </ScrollView>
+    </SoftPage>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 12 },
-  body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  tile: {
-    width: '48%',
-    flexGrow: 1,
-    minHeight: 88,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    gap: 6,
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
   },
-  tileTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
-  tileHint: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  status: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+  tileWrap: {
+    width: '30%',
+    flexGrow: 1,
+    minWidth: 96,
+  },
+  tile: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 20,
+    paddingHorizontal: 12,
+    minHeight: 100,
+  },
+  tileIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileLabel: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+  },
+  form: { gap: 12 },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  status: { fontFamily: 'Inter_400Regular', fontSize: 14 },
+  error: { fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center' },
 });

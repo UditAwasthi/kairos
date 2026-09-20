@@ -36,10 +36,10 @@ import {
 import type { AskMessage } from '../../../types';
 
 const STARTERS = [
-  'What did I learn about Redis?',
-  'What was I working on recently?',
-  'Show me things related to databases',
-  'What did I save about mobile development?',
+  'What did I learn recently?',
+  'What was I working on?',
+  'Show me databases',
+  'Mobile development',
 ];
 
 const INPUT_MIN = 22;
@@ -318,16 +318,13 @@ export default function AskScreen() {
         <View style={[styles.flex, { paddingBottom: FLOATING_TAB_BAR_CONTENT + insets.bottom }]}>
           <View style={styles.listHeader}>
             <ThemedText colorKey="text" style={styles.emptyTitle}>
-              Ask Kairos
-            </ThemedText>
-            <ThemedText colorKey="textMuted" style={styles.emptyHint}>
-              Grounded conversations over your memories
+              Ask
             </ThemedText>
             <Pressable onPress={startNewConversation} accessibilityRole="button">
               <GlassPanel contentStyle={styles.starterInner} padded={false}>
                 <Feather name="plus" size={16} color={colors.accent} />
                 <ThemedText colorKey="text" style={styles.starter}>
-                  New conversation
+                  New
                 </ThemedText>
               </GlassPanel>
             </Pressable>
@@ -341,7 +338,7 @@ export default function AskScreen() {
               <ScrollView contentContainerStyle={styles.listContent}>
                 {conversations.length === 0 ? (
                   <ThemedText colorKey="textMuted" style={styles.emptyHint}>
-                    No conversations yet. Ask a question to start one.
+                    Nothing yet
                   </ThemedText>
                 ) : null}
                 {conversations.map((item) => (
@@ -355,7 +352,7 @@ export default function AskScreen() {
                         await deleteConversation({ token, id: item.id });
                         await refreshList();
                       } catch {
-                        setError('Could not delete conversation.');
+                        setError('Could not delete.');
                       }
                     }}
                   >
@@ -365,7 +362,6 @@ export default function AskScreen() {
                           {item.title}
                         </ThemedText>
                         <ThemedText colorKey="textMuted" style={styles.meta}>
-                          {item.messageCount} messages ·{' '}
                           {new Date(item.updatedAt).toLocaleDateString()}
                         </ThemedText>
                       </View>
@@ -452,9 +448,6 @@ export default function AskScreen() {
 
           {emptyThread && !loadingThread ? (
             <Pressable style={styles.empty} onPress={() => inputRef.current?.focus()}>
-              <ThemedText colorKey="textMuted" style={styles.emptyHint}>
-                Ask a follow-up anytime. Answers stay grounded in your saved memories.
-              </ThemedText>
               <View style={styles.starters}>
                 {STARTERS.map((q) => (
                   <Pressable key={q} onPress={() => void send(q)} accessibilityRole="button">
@@ -552,7 +545,7 @@ export default function AskScreen() {
               ref={inputRef}
               value={input}
               onChangeText={setInput}
-              placeholder="Ask about what you saved…"
+              placeholder="Ask…"
               placeholderTextColor={colors.inputPlaceholder}
               accessibilityLabel="Ask Kairos"
               multiline
@@ -656,16 +649,14 @@ const styles = StyleSheet.create({
   },
   empty: { gap: 10, paddingBottom: 24 },
   emptyTitle: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 28,
+    fontFamily: 'PlayfairDisplay_400Regular',
+    fontSize: 30,
     letterSpacing: -0.5,
-    textAlign: 'center',
   },
   emptyHint: {
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 8,
   },
   starters: { gap: 10 },
   starterInner: {

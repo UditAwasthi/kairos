@@ -623,7 +623,7 @@ function buildStore(): Store {
       body: 'Transformer research, vector databases, and a Kairos API note landed today.',
       createdAt: isoDaysAgo(0, 9, 50),
       read: false,
-      href: '/(app)/(tabs)/timeline',
+      href: '/(app)/timeline',
     },
     {
       id: 'ntf-2',

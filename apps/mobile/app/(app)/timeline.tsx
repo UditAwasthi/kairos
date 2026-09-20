@@ -16,9 +16,9 @@ import {
   FadeInContent,
   LoadingSkeleton,
   SoftRefreshBar,
-} from '../../../components/ui/EmptyState';
-import { TopicChip } from '../../../components/ui/MemoryCards';
-import { ObservationStatusCard } from '../../../components/ui/ObservationStatusCard';
+} from '../../components/ui/EmptyState';
+import { TopicChip } from '../../components/ui/MemoryCards';
+import { ObservationStatusCard } from '../../components/ui/ObservationStatusCard';
 import {
   fetchEntities,
   fetchObservations,
@@ -30,8 +30,8 @@ import {
   type ApiObservation,
   type ApiProjectSummary,
   type ApiTopicSummary,
-} from '../../../lib/api';
-import { useAppTheme } from '../../../providers/ThemeProvider';
+} from '../../lib/api';
+import { useAppTheme } from '../../providers/ThemeProvider';
 
 type FilterMode = 'all' | 'project' | 'topic' | 'entity';
 
@@ -196,8 +196,7 @@ export default function TimelineScreen() {
   if (error && observations.length === 0) {
     return (
       <ErrorState
-        title="Timeline unavailable"
-        message={error}
+        title="Unavailable"
         onRetry={() => {
           setLoading(true);
           void loadObservations()
@@ -275,12 +274,7 @@ export default function TimelineScreen() {
 
       {observations.length === 0 ? (
         <EmptyState
-          title="No observations"
-          message={
-            mode === 'all'
-              ? 'Capture documents and they will appear here chronologically.'
-              : 'Nothing matches this filter yet.'
-          }
+          title="Empty"
           actionLabel="Capture"
           onAction={() => router.push('/(app)/(tabs)/capture')}
         />

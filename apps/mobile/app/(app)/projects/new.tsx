@@ -1,11 +1,11 @@
 import { useAuth } from '@clerk/expo';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, StyleSheet } from 'react-native';
 
 import { ThemedText } from '../../../components/ThemedText';
-import { SectionHeader, SurfaceCard } from '../../../components/ui/SectionHeader';
+import { GlassPanel } from '../../../components/ui/Glass';
+import { SoftPage } from '../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { ThemedInput } from '../../../components/ui/ThemedInput';
 import { ApiError, createProject } from '../../../lib/api';
@@ -13,7 +13,6 @@ import { useAppTheme } from '../../../providers/ThemeProvider';
 
 export default function NewProjectScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const { getToken } = useAuth();
   const [name, setName] = useState('');
@@ -24,7 +23,7 @@ export default function NewProjectScreen() {
   const save = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      setError('Project name is required.');
+      setError('Name required');
       return;
     }
     setSaving(true);
@@ -39,39 +38,32 @@ export default function NewProjectScreen() {
       });
       router.replace(`/(app)/projects/${project.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create project.');
+      setError(err instanceof ApiError ? err.message : 'Could not save');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <View style={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <SectionHeader title="New project" subtitle="Name a workspace for related observations" />
-      <SurfaceCard>
-        <ThemedText colorKey="textMuted" style={styles.label}>
-          Name
-        </ThemedText>
+    <SoftPage>
+      <GlassPanel contentStyle={styles.form}>
         <ThemedInput
           value={name}
           onChangeText={setName}
-          placeholder="Final Year Project"
+          placeholder="Name"
           accessibilityLabel="Project name"
           maxLength={120}
         />
-        <ThemedText colorKey="textMuted" style={[styles.label, styles.spaced]}>
-          Description (optional)
-        </ThemedText>
         <ThemedInput
           value={description}
           onChangeText={setDescription}
-          placeholder="Everything related to the project"
+          placeholder="Note (optional)"
           accessibilityLabel="Project description"
           multiline
-          style={{ minHeight: 88, textAlignVertical: 'top' }}
+          style={styles.noteInput}
           maxLength={2000}
         />
-      </SurfaceCard>
+      </GlassPanel>
 
       {error ? (
         <ThemedText colorKey="text" style={[styles.error, { color: colors.accent }]}>
@@ -80,7 +72,7 @@ export default function NewProjectScreen() {
       ) : null}
 
       <ThemedButton
-        label={saving ? 'Saving…' : 'Save project'}
+        label={saving ? '…' : 'Save'}
         disabled={saving || name.trim().length === 0}
         onPress={() => {
           void save().catch((err) => {
@@ -88,13 +80,12 @@ export default function NewProjectScreen() {
           });
         }}
       />
-    </View>
+    </SoftPage>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: 20, gap: 12 },
-  label: { fontFamily: 'Inter_600SemiBold', fontSize: 12, marginBottom: 6 },
-  spaced: { marginTop: 14 },
+  form: { gap: 12 },
+  noteInput: { minHeight: 72, textAlignVertical: 'top' },
   error: { fontFamily: 'Inter_400Regular', fontSize: 13 },
 });

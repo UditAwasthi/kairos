@@ -1,12 +1,18 @@
 import { useAuth } from '@clerk/expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '../../../../components/ThemedText';
-import { EmptyState, ErrorState, FadeInContent, LoadingSkeleton, SoftRefreshBar } from '../../../../components/ui/EmptyState';
-import { SectionHeader, SurfaceCard } from '../../../../components/ui/SectionHeader';
+import {
+  EmptyState,
+  ErrorState,
+  FadeInContent,
+  LoadingSkeleton,
+  SoftRefreshBar,
+} from '../../../../components/ui/EmptyState';
+import { GlassPanel } from '../../../../components/ui/Glass';
+import { SoftPage, SoftTitle } from '../../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../../components/ui/ThemedButton';
 import { useAsync } from '../../../../hooks/useAsync';
 import {
@@ -20,7 +26,6 @@ import { useAppTheme } from '../../../../providers/ThemeProvider';
 export default function AddProjectObservationsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const { getToken } = useAuth();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -28,7 +33,7 @@ export default function AddProjectObservationsScreen() {
 
   const load = useCallback(async () => {
     const token = await getToken();
-    if (!token) throw new Error('Sign in to manage project membership.');
+    if (!token) throw new Error('Sign in required');
     const [project, observations] = await Promise.all([
       fetchProject({ token, id: String(id), limit: 200 }),
       fetchObservations(token),
@@ -55,9 +60,7 @@ export default function AddProjectObservationsScreen() {
 
   if (loading) return <LoadingSkeleton rows={10} />;
   if ((error && !data) || !data) {
-    return (
-      <ErrorState title="Unable to load observations" message={error ?? undefined} onRetry={reload} />
-    );
+    return <ErrorState title="Unable to load" onRetry={reload} />;
   }
 
   const toggle = (observationId: string) => {
@@ -93,27 +96,27 @@ export default function AddProjectObservationsScreen() {
     }
   };
 
+  const addLabel =
+    saving ? 'Adding…' : selected.size > 0 ? `Add (${selected.size})` : 'Add';
+
   return (
     <FadeInContent>
       <SoftRefreshBar active={refreshing} />
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <SectionHeader
-        title={`Add to ${data.project.name}`}
-        subtitle="Select completed observations"
-      />
+      <SoftPage>
+        <SoftTitle>{data.project.name}</SoftTitle>
 
-      {candidates.length === 0 ? (
-        <EmptyState
-          title="Nothing to add"
-          message="All completed observations are already in this project, or you have none yet."
-        />
-      ) : (
-        candidates.map((observation) => {
-          const isOn = selected.has(observation.id);
-          return (
-            <Pressable key={observation.id} onPress={() => toggle(observation.id)}>
-              <SurfaceCard>
-                <View style={styles.row}>
+        {candidates.length === 0 ? (
+          <EmptyState title="None yet" />
+        ) : (
+          candidates.map((observation) => {
+            const isOn = selected.has(observation.id);
+            return (
+              <Pressable
+                key={observation.id}
+                onPress={() => toggle(observation.id)}
+                style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
+              >
+                <GlassPanel padded={false} contentStyle={styles.row}>
                   <View
                     style={[
                       styles.check,
@@ -123,42 +126,38 @@ export default function AddProjectObservationsScreen() {
                       },
                     ]}
                   />
-                  <View style={styles.flex}>
-                    <ThemedText colorKey="text" style={styles.title}>
-                      {observation.filename}
-                    </ThemedText>
-                    <ThemedText colorKey="textSecondary" style={styles.body} numberOfLines={2}>
-                      {observation.summary || observation.extractedText || observation.mimeType}
-                    </ThemedText>
-                  </View>
-                </View>
-              </SurfaceCard>
-            </Pressable>
-          );
-        })
-      )}
+                  <ThemedText colorKey="text" style={styles.title} numberOfLines={2}>
+                    {observation.filename}
+                  </ThemedText>
+                </GlassPanel>
+              </Pressable>
+            );
+          })
+        )}
 
-      <ThemedButton
-        label={saving ? 'Adding…' : `Add ${selected.size || ''}`.trim()}
-        disabled={saving || selected.size === 0}
-        onPress={() => void save()}
-      />
-    </ScrollView>
+        <ThemedButton
+          label={addLabel}
+          disabled={saving || selected.size === 0}
+          onPress={() => void save()}
+        />
+      </SoftPage>
     </FadeInContent>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 12 },
-  row: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
   check: {
     width: 20,
     height: 20,
-    borderRadius: 4,
+    borderRadius: 6,
     borderWidth: 1.5,
-    marginTop: 2,
   },
-  flex: { flex: 1 },
-  title: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
-  body: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18, marginTop: 4 },
+  title: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 15 },
 });

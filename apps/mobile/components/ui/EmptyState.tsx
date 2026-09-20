@@ -15,54 +15,40 @@ import { ThemedButton } from './ThemedButton';
 
 type EmptyStateProps = {
   title: string;
-  message: string;
+  message?: string;
   actionLabel?: string;
   onAction?: () => void;
   style?: object;
 };
 
 export function EmptyState({ title, message, actionLabel, onAction, style }: EmptyStateProps) {
-  const { colors, typography, spacing, radius } = useAppTheme();
+  const { colors, spacing, radius } = useAppTheme();
 
   return (
-    <View style={[styles.container, { padding: spacing['8'], gap: spacing['4'] }, style]}>
+    <View style={[styles.container, { padding: spacing['8'], gap: spacing['3'] }, style]}>
       <View
         style={{
-          width: 8,
-          height: 8,
-          borderRadius: radius.sm,
+          width: 6,
+          height: 6,
+          borderRadius: radius.full,
           backgroundColor: colors.accent,
-          marginBottom: spacing['2'],
+          opacity: 0.55,
         }}
       />
-      <ThemedText
-        colorKey="text"
-        style={{
-          fontFamily: typography.title3.fontFamily,
-          fontSize: typography.title3.size,
-          letterSpacing: typography.title3.letterSpacing,
-          textAlign: 'center',
-          lineHeight: typography.title3.lineHeight,
-          fontWeight: typography.title3.weight,
-        }}
-      >
+      <ThemedText colorKey="textMuted" style={styles.emptyTitle}>
         {title}
       </ThemedText>
-      <ThemedText
-        colorKey="textSecondary"
-        style={{
-          fontFamily: typography.bodySmall.fontFamily,
-          fontSize: typography.bodySmall.size,
-          lineHeight: typography.bodySmall.lineHeight + 2,
-          textAlign: 'center',
-          maxWidth: 280,
-          letterSpacing: typography.bodySmall.letterSpacing,
-        }}
-      >
-        {message}
-      </ThemedText>
+      {message ? (
+        <ThemedText colorKey="textMuted" style={styles.emptyMessage}>
+          {message}
+        </ThemedText>
+      ) : null}
       {actionLabel && onAction ? (
-        <ThemedButton label={actionLabel} onPress={onAction} style={{ marginTop: spacing['2'], minWidth: 180 }} />
+        <ThemedButton
+          label={actionLabel}
+          onPress={onAction}
+          style={{ marginTop: spacing['2'], minWidth: 140 }}
+        />
       ) : null}
     </View>
   );
@@ -75,77 +61,36 @@ type ErrorStateProps = {
 };
 
 export function OfflineState({ onRetry }: { onRetry?: () => void }) {
-  return (
-    <ErrorState
-      title="You're offline"
-      message="Kairos needs a connection to load memories. Changes will sync when you are back online."
-      onRetry={onRetry}
-    />
-  );
+  return <ErrorState title="Offline" onRetry={onRetry} />;
 }
 
 export function ErrorState({
   title = 'Something went wrong',
-  message = 'Unable to load this view. Please try again.',
+  message,
   onRetry,
 }: ErrorStateProps) {
-  const { colors, typography, spacing, radius } = useAppTheme();
+  const { colors, spacing, radius } = useAppTheme();
 
   return (
     <View style={[styles.container, { padding: spacing['8'], gap: spacing['4'] }]}>
       <View
         style={{
-          padding: spacing['5'],
-          borderRadius: radius.lg,
-          backgroundColor: colors.errorSurface,
-          borderWidth: 1,
-          borderColor: colors.borderAccent,
-          gap: spacing['3'],
-          maxWidth: 320,
-          width: '100%',
-          alignItems: 'center',
+          width: 6,
+          height: 6,
+          borderRadius: radius.full,
+          backgroundColor: colors.error,
+          opacity: 0.7,
         }}
-      >
-        <View
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: radius.md,
-            backgroundColor: colors.borderAccent,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: spacing['1'],
-          }}
-        >
-          <ThemedText colorKey="inverseText" style={{ fontFamily: 'Inter_700Bold', fontSize: 16 }}>
-            !
-          </ThemedText>
-        </View>
-        <ThemedText
-          colorKey="error"
-          style={{
-            fontFamily: typography.title3.fontFamily,
-            fontSize: typography.title3.size - 2,
-            letterSpacing: typography.title3.letterSpacing,
-            textAlign: 'center',
-          }}
-        >
-          {title}
-        </ThemedText>
-        <ThemedText
-          colorKey="textSecondary"
-          style={{
-            fontFamily: typography.bodySmall.fontFamily,
-            fontSize: typography.bodySmall.size,
-            lineHeight: typography.bodySmall.lineHeight + 1,
-            textAlign: 'center',
-            letterSpacing: typography.bodySmall.letterSpacing,
-          }}
-        >
+      />
+      <ThemedText colorKey="text" style={styles.emptyTitle}>
+        {title}
+      </ThemedText>
+      {message ? (
+        <ThemedText colorKey="textMuted" style={styles.emptyMessage}>
           {message}
         </ThemedText>
-      </View>
-      {onRetry ? <ThemedButton label="Retry" onPress={onRetry} style={{ minWidth: 180 }} /> : null}
+      ) : null}
+      {onRetry ? <ThemedButton label="Retry" onPress={onRetry} style={{ minWidth: 140 }} /> : null}
     </View>
   );
 }
@@ -183,10 +128,10 @@ export function LoadingSkeleton({ rows = 4 }: LoadingSkeletonProps) {
             key={i}
             style={[
               {
-                height: isBlock ? 76 : 12,
-                borderRadius: isBlock ? radius.lg : radius.sm,
+                height: isBlock ? 64 : 10,
+                borderRadius: isBlock ? radius.xl : radius.full,
                 backgroundColor: colors.border,
-                width: isBlock ? '100%' : (`${90 - (i % 4) * 14}%` as `${number}%`),
+                width: isBlock ? '100%' : (`${88 - (i % 4) * 12}%` as `${number}%`),
               },
               pulseStyle,
             ]}
@@ -202,7 +147,6 @@ type FadeInContentProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Soft entrance once real content is ready — avoids hard pop-in. */
 export function FadeInContent({ children, style }: FadeInContentProps) {
   return (
     <Animated.View entering={FadeIn.duration(220)} style={[{ flex: 1 }, style]}>
@@ -215,7 +159,6 @@ type SoftRefreshProps = {
   active: boolean;
 };
 
-/** Tiny top indicator while stale data stays on screen. */
 export function SoftRefreshBar({ active }: SoftRefreshProps) {
   const { colors, spacing } = useAppTheme();
   if (!active) return null;
@@ -238,5 +181,19 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  emptyTitle: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 15,
+    letterSpacing: -0.1,
+    textAlign: 'center',
+  },
+  emptyMessage: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    maxWidth: 240,
+    opacity: 0.85,
   },
 });

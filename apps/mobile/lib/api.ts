@@ -88,6 +88,24 @@ function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, '');
 }
 
+/** Authenticated API GETs must not be HTTP-cached (OkHttp 304 revalidation). */
+async function apiFetch(
+  input: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'application/json');
+  }
+  headers.set('Cache-Control', 'no-cache');
+  headers.set('Pragma', 'no-cache');
+  return fetch(input, {
+    ...init,
+    headers,
+    cache: 'no-store',
+  });
+}
+
 async function parseError(response: Response): Promise<ApiError> {
   try {
     const body = (await response.json()) as {
@@ -108,7 +126,7 @@ async function parseError(response: Response): Promise<ApiError> {
 }
 
 export async function fetchAuthMe(token: string): Promise<AuthMeResponse> {
-  const response = await fetch(`${normalizeBaseUrl(apiBaseUrl)}/auth/me`, {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/auth/me`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -140,7 +158,7 @@ export async function uploadObservation(params: {
     type: params.mimeType,
   } as unknown as Blob);
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/observations/upload`,
     {
       method: 'POST',
@@ -193,7 +211,7 @@ export async function createNoteObservation(params: {
   text: string;
   title?: string;
 }): Promise<ApiObservation> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/observations/from-text`,
     {
       method: 'POST',
@@ -217,7 +235,7 @@ export async function createUrlObservation(params: {
   token: string;
   url: string;
 }): Promise<ApiObservation> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/observations/from-url`,
     {
       method: 'POST',
@@ -238,7 +256,7 @@ export async function deleteObservation(
   token: string,
   id: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/observations/${encodeURIComponent(id)}`,
     {
       method: 'DELETE',
@@ -256,7 +274,7 @@ export async function deleteObservation(
 export async function deleteMyData(token: string): Promise<{
   deletedObservations: number;
 }> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/users/me/data`,
     {
       method: 'DELETE',
@@ -277,7 +295,7 @@ export async function fetchObservation(
   token: string,
   id: string,
 ): Promise<ApiObservation> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/observations/${encodeURIComponent(id)}`,
     {
       method: 'GET',
@@ -313,7 +331,7 @@ export async function fetchObservations(
   if (filters?.topic) qs.set('topic', filters.topic);
   if (filters?.entity) qs.set('entity', filters.entity);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/observations${suffix}`,
     {
       method: 'GET',
@@ -336,7 +354,7 @@ export async function reprocessObservation(
   token: string,
   id: string,
 ): Promise<ApiObservation> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/observations/${encodeURIComponent(id)}/reprocess`,
     {
       method: 'POST',
@@ -407,7 +425,7 @@ export async function fetchTopics(params: {
   if (params.limit) qs.set('limit', String(params.limit));
   if (params.cursor) qs.set('cursor', params.cursor);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/topics${suffix}`,
     {
       method: 'GET',
@@ -428,7 +446,7 @@ export async function fetchTopic(params: {
   token: string;
   id: string;
 }): Promise<ApiTopicDetail> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/topics/${encodeURIComponent(params.id)}`,
     {
       method: 'GET',
@@ -454,7 +472,7 @@ export async function fetchEntities(params: {
   if (params.cursor) qs.set('cursor', params.cursor);
   if (params.type) qs.set('type', params.type);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/entities${suffix}`,
     {
       method: 'GET',
@@ -475,7 +493,7 @@ export async function fetchEntity(params: {
   token: string;
   id: string;
 }): Promise<ApiEntityDetail> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/entities/${encodeURIComponent(params.id)}`,
     {
       method: 'GET',
@@ -499,7 +517,7 @@ export async function fetchProjects(params: {
   if (params.limit) qs.set('limit', String(params.limit));
   if (params.cursor) qs.set('cursor', params.cursor);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/projects${suffix}`,
     {
       method: 'GET',
@@ -526,7 +544,7 @@ export async function fetchProject(params: {
   if (params.limit) qs.set('limit', String(params.limit));
   if (params.cursor) qs.set('cursor', params.cursor);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/projects/${encodeURIComponent(params.id)}${suffix}`,
     {
       method: 'GET',
@@ -546,7 +564,7 @@ export async function createProject(params: {
   name: string;
   description?: string | null;
 }): Promise<ApiProjectSummary> {
-  const response = await fetch(`${normalizeBaseUrl(apiBaseUrl)}/projects`, {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/projects`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${params.token}`,
@@ -569,7 +587,7 @@ export async function updateProject(params: {
   name?: string;
   description?: string | null;
 }): Promise<ApiProjectSummary> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/projects/${encodeURIComponent(params.id)}`,
     {
       method: 'PATCH',
@@ -593,7 +611,7 @@ export async function deleteProject(params: {
   token: string;
   id: string;
 }): Promise<void> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/projects/${encodeURIComponent(params.id)}`,
     {
       method: 'DELETE',
@@ -613,7 +631,7 @@ export async function addObservationToProject(params: {
   projectId: string;
   observationId: string;
 }): Promise<{ projectId: string; observationId: string; created: boolean }> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/projects/${encodeURIComponent(params.projectId)}/observations`,
     {
       method: 'POST',
@@ -637,7 +655,7 @@ export async function removeObservationFromProject(params: {
   projectId: string;
   observationId: string;
 }): Promise<void> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/projects/${encodeURIComponent(params.projectId)}/observations/${encodeURIComponent(params.observationId)}`,
     {
       method: 'DELETE',
@@ -778,7 +796,7 @@ export async function semanticSearch(params: {
   limit?: number;
   filters?: ApiSemanticSearchFilters;
 }): Promise<ApiSemanticSearchResponse> {
-  const response = await fetch(`${normalizeBaseUrl(apiBaseUrl)}/search`, {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/search`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${params.token}`,
@@ -855,7 +873,7 @@ export async function askKairos(params: {
   const path = params.conversationId
     ? `/conversations/${encodeURIComponent(params.conversationId)}/ask`
     : '/ask';
-  const response = await fetch(`${normalizeBaseUrl(apiBaseUrl)}${path}`, {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}${path}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${params.token}`,
@@ -890,7 +908,7 @@ export async function listConversations(params: {
   if (params.limit) qs.set('limit', String(params.limit));
   if (params.cursor) qs.set('cursor', params.cursor);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/conversations${suffix}`,
     {
       method: 'GET',
@@ -915,7 +933,7 @@ export async function fetchConversation(params: {
   const qs = new URLSearchParams();
   if (params.limit) qs.set('limit', String(params.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/conversations/${encodeURIComponent(params.id)}${suffix}`,
     {
       method: 'GET',
@@ -934,7 +952,7 @@ export async function deleteConversation(params: {
   token: string;
   id: string;
 }): Promise<void> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/conversations/${encodeURIComponent(params.id)}`,
     {
       method: 'DELETE',
@@ -968,7 +986,7 @@ export type RecallEventResult = {
 export async function fetchRecallEntitlement(
   token: string,
 ): Promise<RecallEntitlement> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/recall/entitlement`,
     {
       method: 'GET',
@@ -987,7 +1005,7 @@ export async function postRecallEvents(params: {
   token: string;
   events: Array<Record<string, unknown>>;
 }): Promise<{ results: RecallEventResult[] }> {
-  const response = await fetch(`${normalizeBaseUrl(apiBaseUrl)}/recall/events`, {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/recall/events`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${params.token}`,
@@ -1006,7 +1024,7 @@ export async function postRecallEvents(params: {
 export async function deleteRecallData(token: string): Promise<{
   deletedObservations: number;
 }> {
-  const response = await fetch(`${normalizeBaseUrl(apiBaseUrl)}/recall/data`, {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/recall/data`, {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${token}`,

@@ -79,6 +79,7 @@ class RecallUploader(private val context: Context) {
         setRequestProperty("Authorization", "Bearer $token")
         setRequestProperty("Content-Type", "application/json")
         setRequestProperty("Accept", "application/json")
+        setRequestProperty("Cache-Control", "no-cache")
       }
 
       val body = JSONObject().put("events", JSONArray(events.map { stripInternal(it) }))

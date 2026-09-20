@@ -80,15 +80,14 @@ export default function SignInScreen() {
   return (
     <AuthScreenLayout
       title="Sign in"
-      subtitle="Use your email or username, or continue with a connected provider."
       footer={
         <View style={styles.footerRow}>
           <ThemedText
             themeProgress={themeProgress}
-            colorKey="textSecondary"
+            colorKey="textMuted"
             style={styles.footerText}
           >
-            Need an account?{' '}
+            New?{' '}
           </ThemedText>
           <ThemedLink href="/(auth)/sign-up" label="Sign up" />
         </View>
