@@ -1,4 +1,5 @@
 import type {
+  CaptureSource,
   Entity,
   EntityType,
   Observation,
@@ -7,6 +8,7 @@ import type {
   Project,
   Topic,
 } from '@prisma/client';
+import { CAPTURE_SOURCE_LABELS } from './capture-source';
 
 export type ObservationTopicResponse = {
   id: string;
@@ -41,6 +43,8 @@ export type ObservationResponse = {
   filename: string;
   mimeType: string;
   type: ObservationType;
+  source: CaptureSource;
+  sourceLabel: string;
   status: ProcessingStatus;
   /** Human-readable stage derived from processingStatus — not a second state machine. */
   stageLabel: string;
@@ -125,6 +129,9 @@ export function toObservationResponse(
     filename: observation.originalFilename,
     mimeType: observation.mimeType,
     type: observation.type,
+    source: observation.source ?? 'MANUAL',
+    sourceLabel:
+      CAPTURE_SOURCE_LABELS[observation.source ?? 'MANUAL'] || 'Manual',
     status,
     stageLabel: stageLabelForStatus(status),
     createdAt: observation.createdAt.toISOString(),

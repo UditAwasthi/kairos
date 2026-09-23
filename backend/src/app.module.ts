@@ -13,6 +13,7 @@ import { StorageModule } from './storage/storage.module';
 import { TopicsModule } from './topics/topics.module';
 import { UsersModule } from './users/users.module';
 import { EntitlementsModule } from './entitlements/entitlements.module';
+import { InsightsModule } from './insights/insights.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { EntitlementsModule } from './entitlements/entitlements.module';
     EntitiesModule,
     ProjectsModule,
     EntitlementsModule,
+    InsightsModule,
     RecallModule,
   ],
   controllers: [AppController],

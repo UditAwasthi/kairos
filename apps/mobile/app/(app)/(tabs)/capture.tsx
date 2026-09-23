@@ -19,13 +19,11 @@ import { ThemedInput } from '../../../components/ui/ThemedInput';
 import { ThemedText } from '../../../components/ThemedText';
 import {
   ApiError,
-  createNoteObservation,
-  createUrlObservation,
   observationStatusLabel,
   pollObservationUntilSettled,
-  uploadObservation,
   type ApiObservation,
 } from '../../../lib/api';
+import { submitCapture } from '../../../lib/capture';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import type { SourceType } from '../../../types';
 
@@ -41,6 +39,7 @@ const CAPTURE_TYPES: CaptureItem[] = [
   { type: 'document', label: 'File', icon: 'file-text' },
   { type: 'note', label: 'Note', icon: 'edit-3' },
   { type: 'link', label: 'Link', icon: 'link' },
+  { type: 'audio', label: 'Voice', icon: 'mic' },
 ];
 
 const FILE_CAPTURE_TYPES: SourceType[] = ['document', 'photo', 'screenshot'];
@@ -123,12 +122,19 @@ export default function CaptureScreen() {
       if (!token) throw new ApiError('Sign in required.', 401);
 
       setStageLabel(statusLabel('UPLOADING'));
-      const uploaded = await uploadObservation({
+      const submitted = await submitCapture({
         token,
-        uri: asset.uri,
-        name: asset.name || `capture-${Date.now()}`,
+        source: 'MANUAL',
+        fileUri: asset.uri,
+        fileName: asset.name || `capture-${Date.now()}`,
         mimeType: guessMimeType(asset.name || '', asset.mimeType),
       });
+      if (submitted.queued) {
+        setStageLabel('Saved offline');
+        return;
+      }
+      const uploaded = submitted.observation;
+      if (!uploaded) throw new ApiError('Capture failed.', 500);
       setObservationId(uploaded.id);
       setStageLabel(statusLabel(uploaded.status));
       await settle(token, uploaded.id);
@@ -155,20 +161,36 @@ export default function CaptureScreen() {
       if (!token) throw new ApiError('Sign in required.', 401);
 
       setStageLabel(statusLabel('UPLOADING'));
-      let uploaded: ApiObservation;
+      let uploaded: ApiObservation | undefined;
       if (type === 'note') {
         const text = note.trim();
         if (!text) throw new ApiError('Write a note first.', 400);
-        uploaded = await createNoteObservation({
+        const submitted = await submitCapture({
           token,
-          text,
+          source: 'MANUAL',
+          content: text,
           title: title.trim() || undefined,
         });
+        if (submitted.queued) {
+          setStageLabel('Saved offline');
+          return;
+        }
+        uploaded = submitted.observation;
       } else {
         const link = url.trim();
         if (!link) throw new ApiError('Enter a URL.', 400);
-        uploaded = await createUrlObservation({ token, url: link });
+        const submitted = await submitCapture({
+          token,
+          source: 'MANUAL',
+          url: link,
+        });
+        if (submitted.queued) {
+          setStageLabel('Saved offline');
+          return;
+        }
+        uploaded = submitted.observation;
       }
+      if (!uploaded) throw new ApiError('Capture failed.', 500);
 
       setObservationId(uploaded.id);
       setStageLabel(statusLabel(uploaded.status));
@@ -191,8 +213,11 @@ export default function CaptureScreen() {
       void runFileUpload(type);
       return;
     }
+    if (type === 'audio') {
+      router.push('/(app)/voice-capture');
+      return;
+    }
     if (type === 'note' || type === 'link') {
-      // show inputs below
       return;
     }
     Alert.alert('Not supported');

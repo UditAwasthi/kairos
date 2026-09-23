@@ -156,6 +156,87 @@ export class OpenAICompatibleProvider implements AIProvider {
     };
   }
 
+  async transcribeAudio(
+    buffer: Buffer,
+    mimeType: string,
+  ): Promise<import('./ai.types').AudioTranscriptionResult> {
+    if (!this.isConfigured()) {
+      throw new Error(
+        'AI provider is not configured. Set AI_API_KEY to enable voice transcription.',
+      );
+    }
+    if (!buffer.byteLength) {
+      throw new Error('Audio recording is empty.');
+    }
+
+    const model = process.env.TRANSCRIPTION_MODEL?.trim() || 'whisper-1';
+    const filename = `capture.${extensionForAudioMime(mimeType)}`;
+    const selected = this.keyPool.acquire();
+    if (!selected) {
+      throw new Error('No AI API key available for transcription.');
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60_000);
+    try {
+      const form = new FormData();
+      form.append(
+        'file',
+        new Blob([new Uint8Array(buffer)], { type: mimeType || 'audio/mp4' }),
+        filename,
+      );
+      form.append('model', model);
+
+      const response = await fetch(`${this.baseUrl}/audio/transcriptions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${selected.key}`,
+        },
+        body: form,
+        signal: controller.signal,
+      });
+
+      if (response.status === 429) {
+        this.keyPool.markRateLimited(
+          selected.slot,
+          parseRetryAfterMs(response.headers.get('retry-after')) ?? 1_000,
+        );
+        throw new Error('Transcription rate-limited. Try again in a moment.');
+      }
+      if (!response.ok) {
+        let detail = '';
+        try {
+          const errBody = (await response.json()) as {
+            error?: { message?: string };
+          };
+          if (errBody.error?.message) {
+            detail = `: ${errBody.error.message}`;
+          }
+        } catch {
+          // ignore
+        }
+        throw new Error(
+          `Transcription failed with status ${response.status}${detail}`,
+        );
+      }
+
+      const body = (await response.json()) as { text?: string };
+      const text = typeof body.text === 'string' ? body.text.trim() : '';
+      if (!text) {
+        throw new Error('Transcription returned no speech.');
+      }
+      return { text, provider: this.name, model };
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Transcription timed out.');
+      }
+      throw error;
+    } finally {
+      this.keyPool.release(selected.slot);
+      clearTimeout(timeout);
+    }
+  }
+
   private async analyzeSinglePass(text: string): Promise<DocumentAnalysis> {
     const combined = await this.chatJson([
       {
@@ -519,6 +600,16 @@ async function readProviderErrorMeta(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function extensionForAudioMime(mimeType: string): string {
+  const normalized = mimeType.toLowerCase();
+  if (normalized.includes('mpeg') || normalized.includes('mp3')) return 'mp3';
+  if (normalized.includes('wav')) return 'wav';
+  if (normalized.includes('ogg') || normalized.includes('oga')) return 'ogg';
+  if (normalized.includes('webm')) return 'webm';
+  if (normalized.includes('aac')) return 'aac';
+  return 'm4a';
 }
 
 // Re-export validators for unit tests that don't need the provider.

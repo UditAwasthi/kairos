@@ -241,7 +241,7 @@ export default function HomeScreen() {
               label="Capture"
               icon="plus"
               width={COL}
-              onPress={() => router.push('/(app)/(tabs)/capture')}
+              onPress={() => router.push('/(app)/quick-capture')}
             />
             <SoftTile
               label="Search"
@@ -278,7 +278,7 @@ export default function HomeScreen() {
             <EmptyState
               title="Nothing yet"
               actionLabel="Capture"
-              onAction={() => router.push('/(app)/(tabs)/capture')}
+              onAction={() => router.push('/(app)/quick-capture')}
             />
           ) : (
             <ScrollView

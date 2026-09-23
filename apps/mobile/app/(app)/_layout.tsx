@@ -3,6 +3,9 @@ import { Redirect, Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, AppState, Platform, StyleSheet, View } from 'react-native';
 
+import { fetchTodayInsight } from '../../lib/api';
+import { flushCaptureQueue } from '../../lib/capture';
+import { consumePendingOsCapture, KairosOs } from '../../lib/osIntegrations';
 import { ensureRecallReady } from '../../lib/recallSync';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import Recall from 'kairos-recall';
@@ -14,22 +17,46 @@ export default function AppLayout() {
   // Keep a fresh auth token in the native Recall service so background uploads
   // do not 401 and (previously) tear down MediaProjection.
   useEffect(() => {
-    if (!isSignedIn || Platform.OS !== 'android' || !Recall.isAvailable()) {
-      return;
-    }
+    if (!isSignedIn) return;
 
     let cancelled = false;
 
-    const sync = (force = false) => {
+    const syncNative = (force = false) => {
       if (cancelled) return;
-      void ensureRecallReady(getToken, { force });
+      void getToken().then(async (token) => {
+        if (!token) return;
+        await KairosOs.setAuthToken(token);
+        try {
+          const insight = await fetchTodayInsight(token);
+          await KairosOs.refreshWidget(insight.body);
+        } catch {
+          // Widget keeps its last cached insight.
+        }
+      });
+      if (Platform.OS === 'android' && Recall.isAvailable()) {
+        void ensureRecallReady(getToken, { force });
+      }
     };
 
-    sync();
-    const interval = setInterval(() => sync(true), 3 * 60_000);
+    const flush = async () => {
+      try {
+        const token = await getToken();
+        if (token) await flushCaptureQueue(token);
+      } catch {
+        // Queue remains local until the next successful flush.
+      }
+    };
+
+    syncNative();
+    void consumePendingOsCapture(getToken);
+    void flush();
+    const interval = setInterval(() => syncNative(true), 3 * 60_000);
     const sub = AppState.addEventListener('change', (next) => {
-      // ensureRecallReady debounces mount + active double-fire
-      if (next === 'active') sync();
+      if (next === 'active') {
+        syncNative();
+        void consumePendingOsCapture(getToken);
+        void flush();
+      }
     });
 
     return () => {
@@ -76,6 +103,15 @@ export default function AppLayout() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="quick-capture"
+        options={{ title: 'Capture', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="voice-capture"
+        options={{ title: 'Voice', presentation: 'modal' }}
+      />
+      <Stack.Screen name="insight" options={{ title: 'Today' }} />
       <Stack.Screen name="timeline" options={{ title: 'Timeline' }} />
       <Stack.Screen name="memory/[id]" options={{ title: 'Memory' }} />
       <Stack.Screen name="observation/[id]" options={{ title: 'Memory' }} />

@@ -1,4 +1,8 @@
-import { ObservationType, ProcessingStatus } from '@prisma/client';
+import {
+  CaptureSource,
+  ObservationType,
+  ProcessingStatus,
+} from '@prisma/client';
 import {
   stageLabelForStatus,
   toObservationResponse,
@@ -20,6 +24,7 @@ describe('observation.mapper', () => {
       extractedText: null,
       summary: null,
       processingError: null,
+      source: CaptureSource.MANUAL,
       sourceMetadata: null,
       pageCount: null,
       characterCount: null,

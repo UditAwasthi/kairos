@@ -44,6 +44,10 @@ yarn-error.*
 # Keep local Expo module native sources tracked
 !apps/mobile/modules/**/android/
 !apps/mobile/modules/**/android/**
+!apps/mobile/modules/**/ios/
+!apps/mobile/modules/**/ios/**
+!apps/mobile/modules/**/ios-extensions/
+!apps/mobile/modules/**/ios-extensions/**
 # Still ignore module build outputs
 apps/mobile/modules/**/android/build/
 apps/mobile/modules/**/android/.gradle/

@@ -4,7 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ObservationType, Prisma, ProcessingStatus } from '@prisma/client';
+import {
+  CaptureSource,
+  ObservationType,
+  Prisma,
+  ProcessingStatus,
+} from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -25,6 +30,7 @@ import {
   resolveTopicFilter,
 } from '../metadata/resolve-filters';
 import { fetchUrlContent } from './url-ingest';
+import { parseCaptureSource, parseOptionalCapturedAt } from './capture-source';
 
 const observationInclude = {
   observationTopics: { include: { topic: true } },
@@ -44,9 +50,89 @@ export class ObservationsService {
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
   ) {}
 
+  async capture(params: {
+    clerkUserId: string;
+    content?: string;
+    source?: string;
+    capturedAt?: string;
+    url?: string;
+    title?: string;
+    metadata?: Record<string, unknown>;
+    projectId?: string;
+    file?: Express.Multer.File;
+  }): Promise<ObservationResponse> {
+    const source = parseCaptureSource(params.source);
+    const capturedAt = parseOptionalCapturedAt(params.capturedAt);
+    const title = params.title?.trim() || undefined;
+    const extraMeta =
+      params.metadata && typeof params.metadata === 'object'
+        ? params.metadata
+        : {};
+
+    if (params.file) {
+      return this.upload({
+        clerkUserId: params.clerkUserId,
+        file: params.file,
+        source,
+        capturedAt,
+        title,
+        extraMeta: {
+          ...extraMeta,
+          ...(params.url ? { url: params.url } : {}),
+        },
+        projectId: params.projectId,
+      });
+    }
+
+    const url = params.url?.trim() || '';
+    const content = params.content?.trim() || '';
+
+    if (url && !content) {
+      return this.createFromUrl({
+        clerkUserId: params.clerkUserId,
+        url,
+        source,
+        capturedAt,
+        extraMeta: {
+          ...extraMeta,
+          ...(title ? { title } : {}),
+        },
+        projectId: params.projectId,
+      });
+    }
+
+    if (content) {
+      const body = url ? `${content}\n\nSource: ${url}` : content;
+      return this.createFromText({
+        clerkUserId: params.clerkUserId,
+        text: body,
+        title,
+        source,
+        capturedAt,
+        extraMeta: {
+          ...extraMeta,
+          ...(url ? { url } : {}),
+        },
+        projectId: params.projectId,
+      });
+    }
+
+    throw new BadRequestException({
+      error: {
+        code: 'MISSING_CONTENT',
+        message: 'Provide content, a URL, or a file.',
+      },
+    });
+  }
+
   async upload(params: {
     clerkUserId: string;
     file: Express.Multer.File;
+    source?: CaptureSource;
+    capturedAt?: Date;
+    title?: string;
+    extraMeta?: Record<string, unknown>;
+    projectId?: string;
   }): Promise<ObservationResponse> {
     if (!params.file) {
       throw new BadRequestException({
@@ -81,26 +167,44 @@ export class ObservationsService {
       });
     }
 
+    const source = params.source ?? CaptureSource.MANUAL;
     const observation = await this.prisma.observation.create({
       data: {
         userId: user.id,
         type: validated.observationType,
+        source,
         originalFilename: validated.safeFilename,
         mimeType: validated.mimeType,
         storageKey,
         fileSizeBytes: params.file.buffer.byteLength,
         processingStatus: ProcessingStatus.PENDING,
         sourceMetadata: {
+          captureKind: source.toLowerCase(),
+          source,
           clientMimeType: params.file.mimetype ?? null,
+          ...(params.title ? { title: params.title } : {}),
+          ...(params.extraMeta ?? {}),
         },
+        ...(params.capturedAt ? { capturedAt: params.capturedAt } : {}),
       },
       include: observationInclude,
     });
+
+    if (params.projectId) {
+      await this.attachProjectIfRequested({
+        clerkUserId: params.clerkUserId,
+        observationId: observation.id,
+        projectId: params.projectId,
+      });
+    }
 
     setImmediate(() => {
       void this.processor.process(observation.id);
     });
 
+    if (params.projectId) {
+      return this.getForClerkUser(params.clerkUserId, observation.id);
+    }
     return toObservationResponse(observation);
   }
 
@@ -108,6 +212,10 @@ export class ObservationsService {
     clerkUserId: string;
     text: string;
     title?: string;
+    source?: CaptureSource;
+    capturedAt?: Date;
+    extraMeta?: Record<string, unknown>;
+    projectId?: string;
   }): Promise<ObservationResponse> {
     const text = params.text?.trim() ?? '';
     if (!text) {
@@ -128,6 +236,7 @@ export class ObservationsService {
     }
 
     const title = (params.title?.trim() || text.slice(0, 48)).slice(0, 80);
+    const source = params.source ?? CaptureSource.MANUAL;
     const safeFilename = `${slugFilename(title)}.txt`;
     const buffer = Buffer.from(text, 'utf8');
     return this.createStoredObservation({
@@ -135,11 +244,17 @@ export class ObservationsService {
       buffer,
       mimeType: 'text/plain',
       observationType: ObservationType.TEXT,
+      source,
       safeFilename,
       sourceMetadata: {
-        captureKind: 'note',
+        captureKind:
+          source === CaptureSource.MANUAL ? 'note' : source.toLowerCase(),
+        source,
         title,
+        ...(params.extraMeta ?? {}),
       },
+      capturedAt: params.capturedAt,
+      projectId: params.projectId,
     });
   }
 
@@ -184,12 +299,15 @@ export class ObservationsService {
 
     const sourceMetadata: Prisma.InputJsonValue = {
       captureKind: 'recall',
+      source: CaptureSource.RECALL,
       clientEventId: params.event.clientEventId,
       fingerprint: params.event.fingerprint,
       pipelineVersion: params.event.pipelineVersion,
       clientProcessingVersion: params.event.clientProcessingVersion,
       ...(params.event.sessionId ? { sessionId: params.event.sessionId } : {}),
-      ...(params.event.appPackage ? { appPackage: params.event.appPackage } : {}),
+      ...(params.event.appPackage
+        ? { appPackage: params.event.appPackage }
+        : {}),
       ...(params.event.appLabel ? { appLabel: params.event.appLabel } : {}),
       ...(params.event.url ? { url: params.event.url } : {}),
       ...(params.event.title ? { title: params.event.title } : {}),
@@ -203,6 +321,7 @@ export class ObservationsService {
       buffer,
       mimeType: 'text/plain',
       observationType: ObservationType.TEXT,
+      source: CaptureSource.RECALL,
       safeFilename,
       sourceMetadata,
       capturedAt: params.event.capturedAt,
@@ -212,23 +331,34 @@ export class ObservationsService {
   async createFromUrl(params: {
     clerkUserId: string;
     url: string;
+    source?: CaptureSource;
+    capturedAt?: Date;
+    extraMeta?: Record<string, unknown>;
+    projectId?: string;
   }): Promise<ObservationResponse> {
     const fetched = await fetchUrlContent(params.url);
     const body = `${fetched.title}\nSource: ${fetched.url}\n\n${fetched.text}`;
     const buffer = Buffer.from(body, 'utf8');
     const safeFilename = `${slugFilename(fetched.title)}.txt`;
+    const source = params.source ?? CaptureSource.MANUAL;
     return this.createStoredObservation({
       clerkUserId: params.clerkUserId,
       buffer,
       mimeType: 'text/plain',
       observationType: ObservationType.TEXT,
+      source,
       safeFilename,
       sourceMetadata: {
-        captureKind: 'url',
+        captureKind:
+          source === CaptureSource.MANUAL ? 'url' : source.toLowerCase(),
+        source,
         sourceUrl: fetched.url,
         title: fetched.title,
         fetchedContentType: fetched.contentType,
+        ...(params.extraMeta ?? {}),
       },
+      capturedAt: params.capturedAt,
+      projectId: params.projectId,
     });
   }
 
@@ -251,9 +381,11 @@ export class ObservationsService {
     buffer: Buffer;
     mimeType: string;
     observationType: ObservationType;
+    source?: CaptureSource;
     safeFilename: string;
     sourceMetadata: Prisma.InputJsonValue;
     capturedAt?: Date;
+    projectId?: string;
   }): Promise<ObservationResponse> {
     const user = await this.users.findOrCreateByClerkId(params.clerkUserId);
     const storageKey = buildStorageKey(user.id, params.safeFilename);
@@ -269,10 +401,12 @@ export class ObservationsService {
       });
     }
 
+    const source = params.source ?? CaptureSource.MANUAL;
     const observation = await this.prisma.observation.create({
       data: {
         userId: user.id,
         type: params.observationType,
+        source,
         originalFilename: params.safeFilename,
         mimeType: params.mimeType,
         storageKey,
@@ -284,11 +418,56 @@ export class ObservationsService {
       include: observationInclude,
     });
 
+    if (params.projectId) {
+      await this.attachProjectIfRequested({
+        clerkUserId: params.clerkUserId,
+        observationId: observation.id,
+        projectId: params.projectId,
+      });
+    }
+
     setImmediate(() => {
       void this.processor.process(observation.id);
     });
 
+    if (params.projectId) {
+      return this.getForClerkUser(params.clerkUserId, observation.id);
+    }
     return toObservationResponse(observation);
+  }
+
+  private async attachProjectIfRequested(params: {
+    clerkUserId: string;
+    observationId: string;
+    projectId?: string;
+  }): Promise<void> {
+    const projectId = params.projectId?.trim();
+    if (!projectId) return;
+    const user = await this.users.findOrCreateByClerkId(params.clerkUserId);
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, userId: user.id },
+    });
+    if (!project) {
+      throw new BadRequestException({
+        error: {
+          code: 'PROJECT_NOT_FOUND',
+          message: 'The requested project was not found.',
+        },
+      });
+    }
+    await this.prisma.projectObservation.upsert({
+      where: {
+        projectId_observationId: {
+          projectId: project.id,
+          observationId: params.observationId,
+        },
+      },
+      create: {
+        projectId: project.id,
+        observationId: params.observationId,
+      },
+      update: {},
+    });
   }
 
   async listForClerkUser(

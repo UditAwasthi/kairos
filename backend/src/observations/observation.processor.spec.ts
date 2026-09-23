@@ -60,6 +60,11 @@ describe('ObservationProcessor', () => {
           model: 'test',
         }),
       generateGroundedAnswer: jest.fn(),
+      transcribeAudio: jest.fn().mockResolvedValue({
+        text: 'transcribed speech',
+        provider: 'test-ai',
+        model: 'whisper-1',
+      }),
     };
 
     const embeddingProvider = {

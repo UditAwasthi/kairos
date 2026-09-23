@@ -18,7 +18,9 @@ describe('GeminiEmbeddingProvider helpers', () => {
       normalizeGeminiBaseUrl('https://generativelanguage.googleapis.com'),
     ).toBe('https://generativelanguage.googleapis.com/v1beta');
     expect(
-      normalizeGeminiBaseUrl('https://generativelanguage.googleapis.com/v1beta'),
+      normalizeGeminiBaseUrl(
+        'https://generativelanguage.googleapis.com/v1beta',
+      ),
     ).toBe('https://generativelanguage.googleapis.com/v1beta');
   });
 });

@@ -48,6 +48,12 @@ export type ConversationHistoryTurn = {
 
 export const AI_PROVIDER = Symbol('AI_PROVIDER');
 
+export type AudioTranscriptionResult = {
+  text: string;
+  provider: string;
+  model: string;
+};
+
 export interface AIProvider {
   readonly name: string;
   isConfigured(): boolean;
@@ -60,4 +66,8 @@ export interface AIProvider {
     context: GroundedContextItem[];
     conversationHistory?: ConversationHistoryTurn[];
   }): Promise<GroundedAnswerResult>;
+  transcribeAudio(
+    buffer: Buffer,
+    mimeType: string,
+  ): Promise<AudioTranscriptionResult>;
 }

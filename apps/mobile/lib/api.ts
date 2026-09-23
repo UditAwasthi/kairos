@@ -5,6 +5,15 @@ export type AuthMeResponse = {
   authenticated: true;
 };
 
+export type CaptureSource =
+  | 'MANUAL'
+  | 'KEYBOARD'
+  | 'SHARE'
+  | 'QUICK_CAPTURE'
+  | 'VOICE'
+  | 'WIDGET'
+  | 'RECALL';
+
 export type ApiObservationStatus =
   | 'PENDING'
   | 'PROCESSING'
@@ -54,7 +63,9 @@ export type ApiObservation = {
   id: string;
   filename: string;
   mimeType: string;
-  type: 'DOCUMENT' | 'PDF' | 'IMAGE' | 'TEXT';
+  type: 'DOCUMENT' | 'PDF' | 'IMAGE' | 'TEXT' | 'AUDIO';
+  source?: CaptureSource;
+  sourceLabel?: string;
   status: ApiObservationStatus;
   /** Present on newer backends; derived client-side when absent. */
   stageLabel?: string;
@@ -206,6 +217,99 @@ export async function uploadTextObservation(params: {
   }
 }
 
+export type CapturePayload = {
+  content?: string;
+  source: CaptureSource;
+  capturedAt?: string;
+  url?: string;
+  title?: string;
+  metadata?: Record<string, unknown>;
+  projectId?: string;
+};
+
+export async function createCapture(
+  token: string,
+  payload: CapturePayload,
+): Promise<ApiObservation> {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/capture`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      content: payload.content,
+      source: payload.source,
+      capturedAt: payload.capturedAt,
+      url: payload.url,
+      title: payload.title,
+      metadata: payload.metadata,
+      projectId: payload.projectId,
+    }),
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: ApiObservation };
+  return body.data;
+}
+
+export async function uploadCapture(params: {
+  token: string;
+  uri: string;
+  name: string;
+  mimeType: string;
+  source: CaptureSource;
+  title?: string;
+  url?: string;
+  capturedAt?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<ApiObservation> {
+  const form = new FormData();
+  form.append('file', {
+    uri: params.uri,
+    name: params.name,
+    type: params.mimeType,
+  } as unknown as Blob);
+  form.append('source', params.source);
+  if (params.title) form.append('title', params.title);
+  if (params.url) form.append('url', params.url);
+  if (params.capturedAt) form.append('capturedAt', params.capturedAt);
+  if (params.metadata) form.append('metadata', JSON.stringify(params.metadata));
+
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/capture/upload`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${params.token}`,
+      Accept: 'application/json',
+    },
+    body: form,
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: ApiObservation };
+  return body.data;
+}
+
+export type TodayInsight = {
+  title: string;
+  body: string;
+  generatedAt: string;
+  observationCount: number;
+  empty: boolean;
+};
+
+export async function fetchTodayInsight(token: string): Promise<TodayInsight> {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/insights/today`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: TodayInsight };
+  return body.data;
+}
+
 export async function createNoteObservation(params: {
   token: string;
   text: string;
@@ -223,6 +327,7 @@ export async function createNoteObservation(params: {
       body: JSON.stringify({
         text: params.text,
         title: params.title,
+        source: 'MANUAL',
       }),
     },
   );
@@ -244,7 +349,7 @@ export async function createUrlObservation(params: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ url: params.url }),
+      body: JSON.stringify({ url: params.url, source: 'MANUAL' }),
     },
   );
   if (!response.ok) throw await parseError(response);

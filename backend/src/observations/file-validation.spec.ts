@@ -23,6 +23,16 @@ describe('validateUpload', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('accepts m4a audio by declared type', async () => {
+    const result = await validateUpload({
+      buffer: Buffer.from('not-magic-but-audio-bytes-for-test'),
+      originalFilename: 'thought.m4a',
+      declaredMimeType: 'audio/mp4',
+    });
+    expect(result.observationType).toBe(ObservationType.AUDIO);
+    expect(result.mimeType).toBe('audio/mp4');
+  });
+
   it('rejects oversized buffers', async () => {
     await expect(
       validateUpload({

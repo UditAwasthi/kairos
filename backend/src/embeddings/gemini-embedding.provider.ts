@@ -116,15 +116,18 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
       })),
     });
 
-    const embeddings = (response as { embeddings?: Array<{ values?: unknown }> })
-      .embeddings;
+    const embeddings = (
+      response as { embeddings?: Array<{ values?: unknown }> }
+    ).embeddings;
     if (!Array.isArray(embeddings) || embeddings.length !== texts.length) {
       throw new Error('Gemini batch embedding response size mismatch');
     }
 
     return embeddings.map((item, index) => {
       if (!Array.isArray(item.values)) {
-        throw new Error(`Gemini batch embedding missing values at index ${index}`);
+        throw new Error(
+          `Gemini batch embedding missing values at index ${index}`,
+        );
       }
       return item.values as number[];
     });
@@ -157,9 +160,7 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
           const errBody = (await response.json()) as {
             error?: { message?: string };
           };
-          detail = errBody.error?.message
-            ? `: ${errBody.error.message}`
-            : '';
+          detail = errBody.error?.message ? `: ${errBody.error.message}` : '';
         } catch {
           // ignore body parse errors
         }
@@ -185,10 +186,9 @@ export function normalizeGeminiModel(model: string): string {
 }
 
 export function normalizeGeminiBaseUrl(baseUrl?: string): string {
-  const raw = (baseUrl?.trim() || 'https://generativelanguage.googleapis.com').replace(
-    /\/+$/,
-    '',
-  );
+  const raw = (
+    baseUrl?.trim() || 'https://generativelanguage.googleapis.com'
+  ).replace(/\/+$/, '');
   if (raw.endsWith('/v1beta')) return raw;
   if (raw.endsWith('/v1')) return `${raw}beta`;
   return `${raw}/v1beta`;

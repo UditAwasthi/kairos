@@ -79,6 +79,18 @@ enum ObservationType {
   PDF
   IMAGE
   TEXT
+  AUDIO
+}
+
+/// Origin of a memory. Every observation must have a source.
+enum CaptureSource {
+  MANUAL
+  KEYBOARD
+  SHARE
+  QUICK_CAPTURE
+  VOICE
+  WIDGET
+  RECALL
 }
 
 enum ProcessingStatus {
@@ -107,6 +119,7 @@ model Observation {
   userId           String
   user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   type             ObservationType
+  source           CaptureSource         @default(MANUAL)
   originalFilename String
   mimeType         String
   storageKey       String
@@ -130,6 +143,7 @@ model Observation {
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, processingStatus])
+  @@index([userId, source])
   @@map("observations")
 }
 

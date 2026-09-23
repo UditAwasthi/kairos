@@ -50,12 +50,20 @@ export class ObservationsController {
   @Post('from-text')
   async fromText(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { text?: string; title?: string },
+    @Body()
+    body: {
+      text?: string;
+      title?: string;
+      source?: string;
+      capturedAt?: string;
+    },
   ): Promise<{ data: ObservationResponse }> {
-    const observation = await this.observations.createFromText({
+    const observation = await this.observations.capture({
       clerkUserId: user.id,
-      text: body?.text ?? '',
+      content: body?.text ?? '',
       title: body?.title,
+      source: body?.source,
+      capturedAt: body?.capturedAt,
     });
     return { data: observation };
   }
@@ -63,11 +71,13 @@ export class ObservationsController {
   @Post('from-url')
   async fromUrl(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { url?: string },
+    @Body() body: { url?: string; source?: string; capturedAt?: string },
   ): Promise<{ data: ObservationResponse }> {
-    const observation = await this.observations.createFromUrl({
+    const observation = await this.observations.capture({
       clerkUserId: user.id,
       url: body?.url ?? '',
+      source: body?.source,
+      capturedAt: body?.capturedAt,
     });
     return { data: observation };
   }

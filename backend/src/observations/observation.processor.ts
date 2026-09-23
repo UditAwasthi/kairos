@@ -14,6 +14,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { STORAGE_SERVICE, type StorageService } from '../storage/storage.types';
 import { chunkText, computeTextStats } from './chunking';
+import { AudioExtractor } from './extractors/audio.extractor';
 import { ImageExtractor } from './extractors/image.extractor';
 import { PdfExtractor } from './extractors/pdf.extractor';
 import { TextExtractor } from './extractors/text.extractor';
@@ -40,6 +41,9 @@ export class ObservationProcessor {
       new TextExtractor(),
       new PdfExtractor(),
       new ImageExtractor(),
+      new AudioExtractor((buffer, mimeType) =>
+        this.ai.transcribeAudio(buffer, mimeType),
+      ),
     ];
   }
 

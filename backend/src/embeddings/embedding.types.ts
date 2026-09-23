@@ -70,9 +70,7 @@ export function readEmbeddingConfig(): EmbeddingConfig {
         : 3,
     apiKey:
       process.env.EMBEDDING_API_KEY?.trim() ||
-      (provider === 'gemini'
-        ? undefined
-        : process.env.AI_API_KEY?.trim()) ||
+      (provider === 'gemini' ? undefined : process.env.AI_API_KEY?.trim()) ||
       undefined,
     baseUrl: baseUrl.replace(/\/+$/, ''),
   };

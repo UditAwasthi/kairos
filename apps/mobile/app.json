@@ -19,11 +19,22 @@
     },
     "ios": {
       "bundleIdentifier": "com.kairos.mobile",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Kairos records audio only when you start voice capture."
+      },
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.kairos.mobile"
+        ]
+      }
     },
     "android": {
       "package": "com.kairos.mobile",
       "softwareKeyboardLayoutMode": "pan",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -38,7 +49,9 @@
       "@clerk/expo",
       "expo-secure-store",
       "expo-router",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-audio",
+      "./plugins/withKairosOs.js"
     ],
     "extra": {
       "router": {},

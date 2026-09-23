@@ -44,9 +44,11 @@ export function toAskHttpException(error: unknown): HttpException {
     );
   }
 
-  if (/INVALID_AI_OUTPUT|grounded answer|answer must|empty content|non-object JSON|JSON/i.test(
-    message,
-  )) {
+  if (
+    /INVALID_AI_OUTPUT|grounded answer|answer must|empty content|non-object JSON|JSON/i.test(
+      message,
+    )
+  ) {
     return new HttpException(
       {
         error: {
@@ -58,9 +60,11 @@ export function toAskHttpException(error: unknown): HttpException {
     );
   }
 
-  if (/AI request failed with status 401|unauthorized|invalid api key|incorrect api key/i.test(
-    message,
-  )) {
+  if (
+    /AI request failed with status 401|unauthorized|invalid api key|incorrect api key/i.test(
+      message,
+    )
+  ) {
     return new HttpException(
       {
         error: {

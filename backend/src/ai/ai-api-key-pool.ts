@@ -90,9 +90,8 @@ export class AiApiKeyPool {
 
   markRateLimited(slot: number, retryAfterMs: number, now = Date.now()): void {
     if (slot < 0 || slot >= this.keys.length) return;
-    const wait = Number.isFinite(retryAfterMs) && retryAfterMs > 0
-      ? retryAfterMs
-      : 1_000;
+    const wait =
+      Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : 1_000;
     const until = now + wait;
     this.cooldownUntilMs[slot] = Math.max(this.cooldownUntilMs[slot], until);
   }
@@ -115,9 +114,7 @@ export class AiApiKeyPool {
  * - AI_API_KEY_1 .. AI_API_KEY_8
  * - AI_API_KEYS=comma,separated,list
  */
-export function readAiApiKeys(
-  env: NodeJS.ProcessEnv = process.env,
-): string[] {
+export function readAiApiKeys(env: NodeJS.ProcessEnv = process.env): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
 

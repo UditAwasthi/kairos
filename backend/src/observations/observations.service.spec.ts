@@ -42,6 +42,7 @@ describe('ObservationsService', () => {
       extractedText: null,
       summary: null,
       processingError: null,
+      source: 'MANUAL',
       sourceMetadata: {},
       pageCount: null,
       characterCount: null,
@@ -253,6 +254,41 @@ describe('ObservationsService', () => {
     expect(result.projects).toEqual([{ id: 'proj_1', name: 'Alpha' }]);
     await new Promise((r) => setImmediate(r));
     expect(processor.process).toHaveBeenCalledWith('obs_1');
+  });
+
+  it('captures keyboard text through the canonical ingest path', async () => {
+    prisma.observation.create.mockResolvedValue(
+      baseObservation({
+        source: 'KEYBOARD',
+        originalFilename: 'typed-thought.txt',
+        sourceMetadata: { source: 'KEYBOARD', captureKind: 'keyboard' },
+      }),
+    );
+
+    const result = await service.capture({
+      clerkUserId,
+      content: 'A thought captured from the Kairos keyboard.',
+      source: 'keyboard',
+    });
+
+    expect(result.source).toBe('KEYBOARD');
+    expect(storage.upload).toHaveBeenCalled();
+    expect(prisma.observation.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          source: 'KEYBOARD',
+          type: ObservationType.TEXT,
+        }),
+      }),
+    );
+    await new Promise((r) => setImmediate(r));
+    expect(processor.process).toHaveBeenCalledWith('obs_1');
+  });
+
+  it('rejects empty capture payloads', async () => {
+    await expect(
+      service.capture({ clerkUserId, source: 'QUICK_CAPTURE' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('creates a note observation from text without a multipart file', async () => {

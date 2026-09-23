@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="kairos_widget_description">Capture, ask, and see today’s insight without opening the full app.</string>
+  <string name="kairos_ime_label">Kairos Keyboard</string>
+  <string name="kairos_ime_settings">Kairos Keyboard never sends keystrokes unless you tap Save.</string>
+</resources>

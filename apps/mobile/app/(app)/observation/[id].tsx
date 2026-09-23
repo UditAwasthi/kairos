@@ -22,6 +22,7 @@ import {
   reprocessObservation,
   type ApiObservation,
 } from '../../../lib/api';
+import { captureSourceLabel } from '../../../lib/capture';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import type { Observation, ProcessingStatus, SourceType } from '../../../types';
 
@@ -46,7 +47,14 @@ function mapApiObservation(api: ApiObservation): Observation {
     extractedText: api.extractedText ?? undefined,
     summary: api.summary ?? undefined,
     linkedMemoryIds: [],
-    sourceLabel: api.filename,
+    sourceLabel:
+      api.sourceLabel ||
+      captureSourceLabel(
+        api.source ||
+          (typeof api.sourceMetadata?.source === 'string'
+            ? api.sourceMetadata.source
+            : undefined),
+      ),
     topics: api.topics.map((t) => ({ id: t.id, name: t.name })),
     entities: api.entities.map((e) => ({
       id: e.id,
@@ -69,6 +77,8 @@ function mapType(type: ApiObservation['type']): SourceType {
       return 'photo';
     case 'TEXT':
       return 'note';
+    case 'AUDIO':
+      return 'audio';
     default:
       return 'document';
   }

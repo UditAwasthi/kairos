@@ -1,0 +1,52 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.INTERNET" />
+
+  <application>
+    <activity
+      android:name=".KairosShareActivity"
+      android:exported="true"
+      android:excludeFromRecents="true"
+      android:theme="@android:style/Theme.Translucent.NoTitleBar">
+      <intent-filter android:label="Kairos">
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="text/plain" />
+      </intent-filter>
+      <intent-filter android:label="Kairos">
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="image/*" />
+      </intent-filter>
+      <intent-filter android:label="Kairos">
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="application/pdf" />
+      </intent-filter>
+    </activity>
+
+    <receiver
+      android:name=".KairosWidgetProvider"
+      android:exported="true"
+      android:label="Kairos">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/kairos_widget_info" />
+    </receiver>
+
+    <service
+      android:name=".KairosImeService"
+      android:label="Kairos Keyboard"
+      android:permission="android.permission.BIND_INPUT_METHOD"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.view.InputMethod" />
+      </intent-filter>
+      <meta-data
+        android:name="android.view.im"
+        android:resource="@xml/kairos_method" />
+    </service>
+  </application>
+</manifest>

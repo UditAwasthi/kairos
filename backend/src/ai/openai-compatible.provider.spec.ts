@@ -88,7 +88,7 @@ describe('OpenAICompatibleProvider rate control', () => {
       await delay(40);
       inFlight -= 1;
       return jsonResponse(VALID_ANALYSIS);
-    }) as unknown as typeof fetch;
+    });
 
     await Promise.all([
       provider.analyzeDocument(['doc one text']),
@@ -126,7 +126,7 @@ describe('OpenAICompatibleProvider rate control', () => {
       await delay(50);
       inFlight -= 1;
       return jsonResponse(VALID_ANALYSIS);
-    }) as unknown as typeof fetch;
+    });
 
     await Promise.all([
       provider.analyzeDocument(['doc 0']),
@@ -171,7 +171,7 @@ describe('OpenAICompatibleProvider rate control', () => {
         topics: [],
         entities: [],
       });
-    }) as unknown as typeof fetch;
+    });
 
     const result = await provider.analyzeDocument(['short document']);
     expect(result.summary).toMatch(/Recovered/);
@@ -206,7 +206,7 @@ describe('OpenAICompatibleProvider rate control', () => {
         });
       }
       return jsonResponse(VALID_ANALYSIS);
-    }) as unknown as typeof fetch;
+    });
 
     const result = await provider.analyzeDocument(['rotate me']);
     expect(result.summary).toMatch(/valid document summary/i);
@@ -223,7 +223,7 @@ describe('OpenAICompatibleProvider rate control', () => {
         JSON.stringify({ error: { message: 'bad request' } }),
         { status: 400, headers: { 'content-type': 'application/json' } },
       );
-    }) as unknown as typeof fetch;
+    });
 
     await expect(provider.analyzeDocument(['x'])).rejects.toThrow(/status 400/);
     expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -240,8 +240,9 @@ describe('OpenAICompatibleProvider rate control', () => {
       const body = JSON.parse(String(init?.body ?? '{}')) as {
         messages?: Array<{ content?: string }>;
       };
-      const content = body.messages?.find((m) => m.content?.includes('Analyze'))
-        ?.content;
+      const content = body.messages?.find((m) =>
+        m.content?.includes('Analyze'),
+      )?.content;
       const key = content?.includes('doc-a')
         ? 'a'
         : content?.includes('doc-b')
@@ -264,7 +265,7 @@ describe('OpenAICompatibleProvider rate control', () => {
         });
       }
       return jsonResponse(VALID_ANALYSIS);
-    }) as unknown as typeof fetch;
+    });
 
     const [a, b] = await Promise.all([
       provider.analyzeDocument(['doc-a content here']),

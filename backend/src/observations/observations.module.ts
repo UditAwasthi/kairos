@@ -4,13 +4,14 @@ import { AuthModule } from '../auth/auth.module';
 import { EmbeddingsModule } from '../embeddings/embeddings.module';
 import { StorageModule } from '../storage/storage.module';
 import { UsersModule } from '../users/users.module';
+import { CaptureController } from './capture.controller';
 import { ObservationProcessor } from './observation.processor';
 import { ObservationsController } from './observations.controller';
 import { ObservationsService } from './observations.service';
 
 @Module({
   imports: [AuthModule, UsersModule, StorageModule, AiModule, EmbeddingsModule],
-  controllers: [ObservationsController],
+  controllers: [ObservationsController, CaptureController],
   providers: [ObservationsService, ObservationProcessor],
   exports: [ObservationsService, ObservationProcessor],
 })

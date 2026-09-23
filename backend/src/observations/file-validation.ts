@@ -18,6 +18,44 @@ const ALLOWED_BY_MIME: Record<
   'image/png': { extensions: ['.png'], type: ObservationType.IMAGE },
   'image/webp': { extensions: ['.webp'], type: ObservationType.IMAGE },
   'image/gif': { extensions: ['.gif'], type: ObservationType.IMAGE },
+  'audio/mpeg': {
+    extensions: ['.mp3', '.mpga', '.mpeg'],
+    type: ObservationType.AUDIO,
+  },
+  'audio/mp4': { extensions: ['.m4a', '.mp4'], type: ObservationType.AUDIO },
+  'audio/x-m4a': { extensions: ['.m4a'], type: ObservationType.AUDIO },
+  'audio/m4a': { extensions: ['.m4a'], type: ObservationType.AUDIO },
+  'audio/wav': { extensions: ['.wav'], type: ObservationType.AUDIO },
+  'audio/wave': { extensions: ['.wav'], type: ObservationType.AUDIO },
+  'audio/x-wav': { extensions: ['.wav'], type: ObservationType.AUDIO },
+  'audio/vnd.wave': { extensions: ['.wav'], type: ObservationType.AUDIO },
+  'audio/webm': { extensions: ['.webm'], type: ObservationType.AUDIO },
+  'audio/ogg': { extensions: ['.ogg', '.oga'], type: ObservationType.AUDIO },
+  'audio/aac': { extensions: ['.aac'], type: ObservationType.AUDIO },
+  'audio/x-aac': { extensions: ['.aac'], type: ObservationType.AUDIO },
+};
+
+const AUDIO_EXTENSIONS = new Set([
+  '.mp3',
+  '.mpga',
+  '.mpeg',
+  '.m4a',
+  '.mp4',
+  '.wav',
+  '.webm',
+  '.ogg',
+  '.oga',
+  '.aac',
+]);
+
+const MIME_ALIASES: Record<string, string> = {
+  'audio/x-m4a': 'audio/mp4',
+  'audio/m4a': 'audio/mp4',
+  'audio/wave': 'audio/wav',
+  'audio/x-wav': 'audio/wav',
+  'audio/vnd.wave': 'audio/wav',
+  'audio/x-aac': 'audio/aac',
+  'video/mp4': 'audio/mp4',
 };
 
 export type ValidatedUpload = {
@@ -57,7 +95,9 @@ export async function validateUpload(params: {
   const safeFilename = sanitizeFilename(originalFilename);
 
   // text/plain often has no magic bytes — fall back carefully
-  let mimeType: string | undefined = detected?.mime;
+  let mimeType: string | undefined = detected?.mime
+    ? MIME_ALIASES[detected.mime] || detected.mime
+    : undefined;
   if (!mimeType) {
     if (
       declaredMimeType === 'text/plain' ||
@@ -72,6 +112,12 @@ export async function validateUpload(params: {
         });
       }
       mimeType = 'text/plain';
+    } else if (
+      AUDIO_EXTENSIONS.has(extension) &&
+      (declaredMimeType?.startsWith('audio/') ||
+        declaredMimeType === 'video/mp4')
+    ) {
+      mimeType = MIME_ALIASES[declaredMimeType] || declaredMimeType;
     }
   }
 
@@ -80,7 +126,7 @@ export async function validateUpload(params: {
       error: {
         code: 'UNSUPPORTED_FILE',
         message:
-          'Unsupported file type. Allowed: PDF, TXT, JPEG, PNG, WebP, GIF.',
+          'Unsupported file type. Allowed: PDF, TXT, JPEG, PNG, WebP, GIF, MP3, M4A, WAV, OGG, WEBM, AAC.',
       },
     });
   }

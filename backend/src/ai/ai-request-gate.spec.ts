@@ -18,11 +18,7 @@ describe('AiRequestGate', () => {
       concurrent -= 1;
     };
 
-    await Promise.all([
-      gate.run(task),
-      gate.run(task),
-      gate.run(task),
-    ]);
+    await Promise.all([gate.run(task), gate.run(task), gate.run(task)]);
 
     expect(maxConcurrent).toBe(1);
   });

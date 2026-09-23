@@ -19,6 +19,8 @@ async function bootstrap() {
     origin: true,
     credentials: true,
   });
+  app.useBodyParser('json', { limit: '1mb' });
+  app.useBodyParser('urlencoded', { limit: '1mb', extended: true });
   app.useGlobalFilters(new MulterExceptionFilter());
 
   await app.listen(process.env.PORT ?? 3000);
