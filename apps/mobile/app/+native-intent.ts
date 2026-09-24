@@ -48,6 +48,12 @@ export function redirectSystemPath({ path }: NativeIntentArgs): string {
   if (withoutQuery.startsWith('project/')) {
     return `/projects/${withoutQuery.slice('project/'.length)}${suffix}`;
   }
+  if (withoutQuery.startsWith('observation/')) {
+    return `/observation/${withoutQuery.slice('observation/'.length)}${suffix}`;
+  }
+  if (withoutQuery === 'notifications' || withoutQuery === 'updates') {
+    return `/notifications${suffix}`;
+  }
   if (
     withoutQuery.startsWith('share') ||
     withoutQuery.includes('android.intent.action.SEND') ||

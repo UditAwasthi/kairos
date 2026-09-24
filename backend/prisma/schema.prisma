@@ -24,8 +24,29 @@ model User {
   conversations     Conversation[]
   entitlements      Entitlement[]
   recallEventReceipts RecallEventReceipt[]
+  deviceTokens      DeviceToken[]
 
   @@map("users")
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+}
+
+/// Expo push token for a signed-in device. One row per token.
+model DeviceToken {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String         @unique
+  platform   DevicePlatform
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  lastSeenAt DateTime       @default(now())
+
+  @@index([userId])
+  @@map("device_tokens")
 }
 
 enum EntitlementFeature {

@@ -1,10 +1,17 @@
 import { useAuth } from '@clerk/expo';
-import { Redirect, Stack } from 'expo-router';
-import { useEffect } from 'react';
+import * as Notifications from 'expo-notifications';
+import { Redirect, Stack, useRouter } from 'expo-router';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, AppState, Platform, StyleSheet, View } from 'react-native';
 
 import { fetchDashboard } from '../../lib/api';
 import { flushCaptureQueue } from '../../lib/capture';
+import {
+  flushedCopy,
+  hrefFromNotificationData,
+  presentLocalNotification,
+  registerPushForSignedInUser,
+} from '../../lib/notifications';
 import { recordCaptureSync, setCaptureSyncInflight } from '../../lib/syncStatus';
 import { consumePendingOsCapture, KairosOs } from '../../lib/osIntegrations';
 import { ensureRecallReady } from '../../lib/recallSync';
@@ -14,6 +21,8 @@ import Recall from 'kairos-recall';
 export default function AppLayout() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const { colors } = useAppTheme();
+  const router = useRouter();
+  const handledResponseRef = useRef<string | null>(null);
 
   // Keep a fresh auth token in the native Recall service so background uploads
   // do not 401 and (previously) tear down MediaProjection.
@@ -50,6 +59,8 @@ export default function AppLayout() {
         if (token) {
           const result = await flushCaptureQueue(token);
           recordCaptureSync(result.flushed, result.remaining);
+          const flushed = flushedCopy(result.flushed);
+          if (flushed) void presentLocalNotification(flushed);
         }
       } catch {
         // Queue remains local until the next successful flush.
@@ -58,6 +69,7 @@ export default function AppLayout() {
       }
     };
 
+    void registerPushForSignedInUser(getToken);
     syncNative();
     void consumePendingOsCapture(getToken);
     void flush();
@@ -76,6 +88,32 @@ export default function AppLayout() {
       sub.remove();
     };
   }, [isSignedIn, getToken]);
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+
+    const openFromData = (data: Record<string, unknown> | undefined) => {
+      const href = hrefFromNotificationData(data);
+      if (!href) return;
+      const key = `${href}:${JSON.stringify(data ?? {})}`;
+      if (handledResponseRef.current === key) return;
+      handledResponseRef.current = key;
+      router.push(href as `/${string}`);
+    };
+
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      openFromData(response.notification.request.content.data as Record<string, unknown>);
+    });
+
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      openFromData(response.notification.request.content.data as Record<string, unknown>);
+    });
+
+    return () => {
+      sub.remove();
+    };
+  }, [isSignedIn, router]);
 
   if (!isLoaded) {
     return (

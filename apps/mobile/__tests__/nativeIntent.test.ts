@@ -27,6 +27,12 @@ describe('deep link mapping', () => {
     expect(redirectSystemPath({ path: 'kairos://project/abc', initial: true })).toBe(
       '/projects/abc',
     );
+    expect(
+      redirectSystemPath({ path: 'kairos://observation/obs_1', initial: true }),
+    ).toBe('/observation/obs_1');
+    expect(
+      redirectSystemPath({ path: 'kairos://notifications', initial: false }),
+    ).toBe('/notifications');
   });
 
   it('maps share intents onto capture', () => {

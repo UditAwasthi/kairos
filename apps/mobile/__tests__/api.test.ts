@@ -10,6 +10,7 @@ import {
   fetchObservationsPage,
   observationStatusHeadline,
   observationStatusLabel,
+  registerDevicePushToken,
   reprocessObservation,
   semanticSearch,
   updateObservation,
@@ -393,5 +394,27 @@ describe('observations API client', () => {
         to: '2026-09-24T23:59:59.999Z',
       },
     });
+  });
+
+  it('registers an Expo push token', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: { id: 'tok_1', platform: 'ANDROID' },
+      }),
+    }) as typeof fetch;
+
+    await expect(
+      registerDevicePushToken({
+        token: 'tok',
+        expoPushToken: 'ExponentPushToken[abc]',
+        platform: 'ANDROID',
+      }),
+    ).resolves.toEqual({ id: 'tok_1', platform: 'ANDROID' });
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/devices\/push-token$/),
+      expect.objectContaining({ method: 'PUT' }),
+    );
   });
 });

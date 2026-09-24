@@ -514,6 +514,56 @@ export async function deleteObservation(
   }
 }
 
+export type DevicePlatform = 'ANDROID' | 'IOS';
+
+export async function registerDevicePushToken(params: {
+  token: string;
+  expoPushToken: string;
+  platform: DevicePlatform;
+}): Promise<{ id: string; platform: DevicePlatform }> {
+  const response = await apiFetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/devices/push-token`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        token: params.expoPushToken,
+        platform: params.platform,
+      }),
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as {
+    data: { id: string; platform: DevicePlatform };
+  };
+  return body.data;
+}
+
+export async function unregisterDevicePushToken(params: {
+  token: string;
+  expoPushToken: string;
+}): Promise<{ removed: boolean }> {
+  const response = await apiFetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/devices/push-token`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token: params.expoPushToken }),
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: { removed: boolean } };
+  return body.data;
+}
+
 export async function deleteMyData(token: string): Promise<{
   deletedObservations: number;
 }> {

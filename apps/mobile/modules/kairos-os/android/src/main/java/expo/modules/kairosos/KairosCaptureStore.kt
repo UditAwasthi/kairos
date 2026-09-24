@@ -55,7 +55,12 @@ class KairosCaptureStore(private val context: Context) {
     prefs.edit().remove("pendingCapture").apply()
   }
 
-  data class SubmitResult(val ok: Boolean, val queued: Boolean, val error: String?)
+  data class SubmitResult(
+    val ok: Boolean,
+    val queued: Boolean,
+    val error: String?,
+    val observationId: String? = null,
+  )
 
   fun submitText(
     content: String,
@@ -74,7 +79,9 @@ class KairosCaptureStore(private val context: Context) {
     val token = authToken
     val base = apiBaseUrl
     if (token.isNullOrBlank() || base.isBlank()) {
-      return SubmitResult(ok = false, queued = true, error = "Saved on this device. Will sync when you're online.")
+      val queued = SubmitResult(ok = false, queued = true, error = "Saved on this device. Will sync when you're online.")
+      KairosUploadNotifier.notifySubmit(context, queued)
+      return queued
     }
     return try {
       val urlObj = URL("$base/capture")
@@ -87,17 +94,21 @@ class KairosCaptureStore(private val context: Context) {
         setRequestProperty("Content-Type", "application/json")
         setRequestProperty("Accept", "application/json")
       }
-      OutputWriter.write(conn, payload.toString())
+      val body = OutputWriter.write(conn, payload.toString())
       val code = conn.responseCode
       conn.disconnect()
-      if (code in 200..299) {
+      val result = if (code in 200..299) {
         clearPending()
-        SubmitResult(ok = true, queued = false, error = null)
+        SubmitResult(ok = true, queued = false, error = null, observationId = parseObservationId(body))
       } else {
         SubmitResult(ok = false, queued = true, error = "Server returned $code")
       }
+      KairosUploadNotifier.notifySubmit(context, result)
+      result
     } catch (error: Exception) {
-      SubmitResult(ok = false, queued = true, error = error.message)
+      val queued = SubmitResult(ok = false, queued = true, error = error.message)
+      KairosUploadNotifier.notifySubmit(context, queued)
+      queued
     }
   }
 
@@ -113,7 +124,9 @@ class KairosCaptureStore(private val context: Context) {
     }
     setPending(pending)
     if (token.isNullOrBlank() || base.isBlank()) {
-      return SubmitResult(ok = false, queued = true, error = "Saved on this device. Will sync when you're online.")
+      val queued = SubmitResult(ok = false, queued = true, error = "Saved on this device. Will sync when you're online.")
+      KairosUploadNotifier.notifySubmit(context, queued)
+      return queued
     }
     return try {
       val boundary = "Kairos${UUID.randomUUID().toString().replace("-", "")}"
@@ -143,15 +156,34 @@ class KairosCaptureStore(private val context: Context) {
         out.writeBytes("\r\n--$boundary--\r\n")
       }
       val code = conn.responseCode
+      val body = try {
+        val stream = if (code >= 400) conn.errorStream else conn.inputStream
+        stream?.let { BufferedReader(InputStreamReader(it)).use { reader -> reader.readText() } }.orEmpty()
+      } catch (_: Exception) {
+        ""
+      }
       conn.disconnect()
-      if (code in 200..299) {
+      val result = if (code in 200..299) {
         clearPending()
-        SubmitResult(ok = true, queued = false, error = null)
+        SubmitResult(ok = true, queued = false, error = null, observationId = parseObservationId(body))
       } else {
         SubmitResult(ok = false, queued = true, error = "Server returned $code")
       }
+      KairosUploadNotifier.notifySubmit(context, result)
+      result
     } catch (error: Exception) {
-      SubmitResult(ok = false, queued = true, error = error.message)
+      val queued = SubmitResult(ok = false, queued = true, error = error.message)
+      KairosUploadNotifier.notifySubmit(context, queued)
+      queued
+    }
+  }
+
+  private fun parseObservationId(body: String): String? {
+    if (body.isBlank()) return null
+    return try {
+      JSONObject(body).optJSONObject("data")?.optString("id")?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+      null
     }
   }
 
@@ -163,13 +195,14 @@ class KairosCaptureStore(private val context: Context) {
 }
 
 private object OutputWriter {
-  fun write(conn: HttpURLConnection, body: String) {
+  fun write(conn: HttpURLConnection, body: String): String {
     conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
     // Drain the stream so OkHttp/HttpURLConnection does not leak.
-    try {
+    return try {
       val stream = if (conn.responseCode >= 400) conn.errorStream else conn.inputStream
-      stream?.let { BufferedReader(InputStreamReader(it)).use { reader -> reader.readText() } }
+      stream?.let { BufferedReader(InputStreamReader(it)).use { reader -> reader.readText() } }.orEmpty()
     } catch (_: Exception) {
+      ""
     }
   }
 }

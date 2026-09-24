@@ -9,6 +9,7 @@ export default function PrivacyScreen() {
     <SoftPage>
       <SoftRow icon="archive" label="Stores uploads & memory" />
       <SoftRow icon="cpu" label="Processes on Kairos" />
+      <SoftRow icon="bell" label="Push alerts use this device token" />
       <SoftRow icon="eye" label="Recall stays on-device first" />
 
       <SoftLinkList

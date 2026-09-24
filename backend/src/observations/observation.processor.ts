@@ -5,6 +5,7 @@ import {
   Prisma,
   ProcessingStatus,
 } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { AI_PROVIDER, type AIProvider } from '../ai/ai.types';
 import { ChunkEmbeddingService } from '../embeddings/chunk-embedding.service';
 import {
@@ -36,6 +37,7 @@ export class ObservationProcessor {
     @Inject(EMBEDDING_PROVIDER)
     private readonly embeddingProvider: EmbeddingProvider,
     private readonly chunkEmbeddings: ChunkEmbeddingService,
+    private readonly notifications: NotificationsService,
   ) {
     this.extractors = [
       new TextExtractor(),
@@ -113,6 +115,7 @@ export class ObservationProcessor {
           processingError: toSafeProcessingError(message),
         },
       });
+      await this.emitSettledNotification(observationId);
     }
   }
 
@@ -151,6 +154,7 @@ export class ObservationProcessor {
           processingError: toSafeProcessingError(message),
         },
       });
+      await this.emitSettledNotification(observationId);
     }
   }
 
@@ -281,6 +285,7 @@ export class ObservationProcessor {
           processingError: null,
         },
       });
+      await this.emitSettledNotification(observationId);
   }
 
   async extract(
@@ -304,6 +309,30 @@ export class ObservationProcessor {
   /** Explicit embedding stage entry (used by pipeline). */
   async embed(observationId: string): Promise<void> {
     await this.chunkEmbeddings.embedMissingChunks(observationId);
+  }
+
+  private async emitSettledNotification(observationId: string): Promise<void> {
+    try {
+      const row = await this.prisma.observation.findUnique({
+        where: { id: observationId },
+        select: {
+          id: true,
+          userId: true,
+          originalFilename: true,
+          summary: true,
+          processingStatus: true,
+          source: true,
+        },
+      });
+      if (!row) return;
+      await this.notifications.notifyObservationSettled(row);
+    } catch (error) {
+      this.logger.warn(
+        `Push notify failed for ${observationId}: ${
+          error instanceof Error ? error.message : 'unknown'
+        }`,
+      );
+    }
   }
 
   private async setStatus(

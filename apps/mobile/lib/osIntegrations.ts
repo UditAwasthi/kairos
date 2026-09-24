@@ -3,6 +3,7 @@ import NativeKairosOs from 'kairos-os';
 import { apiBaseUrl } from './config';
 import { submitCapture } from './capture';
 import type { CaptureSource } from './api';
+import { presentLocalNotification, uploadCopy } from './notifications';
 
 type PendingOsCapture = {
   content?: string;
@@ -47,9 +48,10 @@ export async function consumePendingOsCapture(
   if (!token) return;
   if (!pending.content && !pending.url && !pending.fileUri) return;
   const fileUri = normalizeFileUri(pending.fileUri);
-  await submitCapture({
+  const source = pending.source || 'SHARE';
+  const result = await submitCapture({
     token,
-    source: pending.source || 'SHARE',
+    source,
     content: pending.content,
     url: pending.url,
     title: pending.title,
@@ -57,6 +59,13 @@ export async function consumePendingOsCapture(
     fileName: pending.fileName,
     mimeType: pending.mimeType,
   });
+  void presentLocalNotification(
+    uploadCopy({
+      queued: result.queued,
+      source,
+      observationId: result.observation?.id,
+    }),
+  );
 }
 
 function normalizeFileUri(uri?: string): string | undefined {

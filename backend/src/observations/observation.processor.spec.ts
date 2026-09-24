@@ -84,12 +84,17 @@ describe('ObservationProcessor', () => {
       }),
     };
 
+    const notifications = {
+      notifyObservationSettled: jest.fn().mockResolvedValue(undefined),
+    };
+
     const processor = new ObservationProcessor(
       prisma as never,
       storage,
       ai as never,
       embeddingProvider,
       chunkEmbeddings as never,
+      notifications as never,
     );
 
     return {

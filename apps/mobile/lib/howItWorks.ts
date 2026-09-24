@@ -72,7 +72,7 @@ export const HOW_IT_WORKS_FEATURES: HowItWorksFeature[] = [
     group: 'capture',
     title: 'Keyboard',
     summary: 'Save text from any app using the Kairos keyboard.',
-    body: 'The Kairos keyboard can send the current text into your memories without opening the full app first. After save you will see Saved to Kairos. If you are offline, it stays on this device until it can sync.',
+    body: 'The Kairos keyboard can send the current text into your memories without opening the full app first. After save you will see Saved to Kairos. If you are offline, it stays on this device until it can sync. On Android, Kairos also posts a notification when the upload finishes and when the memory is ready.',
     steps: [
       'Enable the Kairos keyboard in system settings.',
       'Type in any app, then tap Save on the Kairos bar.',
@@ -88,7 +88,7 @@ export const HOW_IT_WORKS_FEATURES: HowItWorksFeature[] = [
     steps: [
       'In another app, tap Share and choose Kairos.',
       'Wait for Saved to Kairos, or Saved on this device if you are offline.',
-      'Open the memory from Timeline when you want to read it.',
+      'On Android, a notification confirms the upload. Tap it when the memory is ready.',
     ],
   },
   {
@@ -242,6 +242,20 @@ export const HOW_IT_WORKS_FEATURES: HowItWorksFeature[] = [
     ],
     tryLabel: 'Open Daily Brief',
     tryHref: '/(app)/brief',
+  },
+  {
+    id: 'notifications',
+    group: 'device',
+    title: 'Notifications',
+    summary: 'Android tells you when a capture uploads and when a memory is ready.',
+    body: 'Share, keyboard, and queued uploads post a notification so you do not have to keep the app open. When processing finishes, Kairos sends another notification that opens that memory. Recall upload summaries are throttled so screen capture does not flood the tray.',
+    steps: [
+      'Allow notifications when Kairos asks, or later in system settings.',
+      'Share or save a note. You should see Saved to Kairos.',
+      'Tap Memory ready to open the finished note.',
+    ],
+    tryLabel: 'Open Updates',
+    tryHref: '/(app)/notifications',
   },
   {
     id: 'offline',

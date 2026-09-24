@@ -94,6 +94,7 @@ class RecallUploader(private val context: Context) {
           lastUploadAt = System.currentTimeMillis()
           lastError = null
           val acked = parseAcknowledged(responseText, events)
+          RecallUploadNotifier.notifyBatch(context, acked.size)
           UploadOutcome(ok = true, acknowledgedIds = acked)
         }
         401 -> {
