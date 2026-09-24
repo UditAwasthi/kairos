@@ -46,21 +46,24 @@ describe('observation.mapper', () => {
       base({ processingStatus: ProcessingStatus.COMPLETED }),
     );
     expect(response.status).toBe(ProcessingStatus.COMPLETED);
-    expect(response.stageLabel).toBe('Ready');
+    expect(response.stageLabel).toBe('Memory ready');
     expect(response.processedAt).toBe(now.toISOString());
   });
 
   it('exposes PROCESSING stage labels without fabricating progress', () => {
-    expect(stageLabelForStatus(ProcessingStatus.PENDING)).toBe('Processing…');
+    expect(stageLabelForStatus(ProcessingStatus.PENDING)).toBe('Saved');
     expect(stageLabelForStatus(ProcessingStatus.EXTRACTING)).toBe(
-      'Extracting document content…',
+      'Processing memory…',
+    );
+    expect(stageLabelForStatus(ProcessingStatus.EXTRACTING, ObservationType.AUDIO)).toBe(
+      'Transcribing…',
     );
     expect(stageLabelForStatus(ProcessingStatus.EMBEDDING)).toBe(
-      'Generating embeddings…',
+      'Processing memory…',
     );
     const response = toObservationResponse(base());
     expect(response.status).toBe(ProcessingStatus.EMBEDDING);
-    expect(response.stageLabel).toBe('Generating embeddings…');
+    expect(response.stageLabel).toBe('Processing memory…');
     expect(response.processedAt).toBeNull();
   });
 
@@ -72,7 +75,7 @@ describe('observation.mapper', () => {
       }),
     );
     expect(response.status).toBe(ProcessingStatus.FAILED);
-    expect(response.stageLabel).toBe('Processing failed');
+    expect(response.stageLabel).toBe("Couldn't process");
     expect(response.processingError).toBe('No extractor for type');
     expect(response.processedAt).toBeNull();
   });

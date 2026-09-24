@@ -183,7 +183,7 @@ describe('ObservationsService', () => {
 
     const result = await service.getForClerkUser(clerkUserId, 'obs_1');
     expect(result.status).toBe(ProcessingStatus.EMBEDDING);
-    expect(result.stageLabel).toBe('Generating embeddings…');
+    expect(result.stageLabel).toBe('Processing memory…');
     expect(result.processedAt).toBeNull();
   });
 
@@ -196,7 +196,7 @@ describe('ObservationsService', () => {
 
     const result = await service.getForClerkUser(clerkUserId, 'obs_1');
     expect(result.status).toBe(ProcessingStatus.COMPLETED);
-    expect(result.stageLabel).toBe('Ready');
+    expect(result.stageLabel).toBe('Memory ready');
     expect(result.processedAt).toBeTruthy();
   });
 
@@ -210,7 +210,7 @@ describe('ObservationsService', () => {
 
     const result = await service.getForClerkUser(clerkUserId, 'obs_1');
     expect(result.status).toBe(ProcessingStatus.FAILED);
-    expect(result.stageLabel).toBe('Processing failed');
+    expect(result.stageLabel).toBe("Couldn't process");
     expect(result.processingError).toBe('Processing failed.');
   });
 

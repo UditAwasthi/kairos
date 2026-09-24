@@ -1,6 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AI_PROVIDER, type AIProvider } from '../ai/ai.types';
-import { SearchService } from '../search/search.service';
+import type { CaptureSource, ObservationType } from '@prisma/client';
+import { ObservationsService } from '../observations/observations.service';
+import { SearchService, type SemanticSearchResult } from '../search/search.service';
 import { UsersService } from '../users/users.service';
 import { type AskRequestBody, validateAskRequest } from './ask.validation';
 import { resolveCitations, type AskCitation } from './citation.resolver';
@@ -34,6 +36,7 @@ export class AskService {
     private readonly conversations: ConversationsService,
     private readonly users: UsersService,
     @Inject(AI_PROVIDER) private readonly ai: AIProvider,
+    private readonly observations: ObservationsService,
   ) {}
 
   async ask(
@@ -103,27 +106,16 @@ export class AskService {
 
     try {
       const retrievalStarted = Date.now();
-      const searchResult = await this.search.search(clerkUserId, {
-        query: retrievalQuery,
-        limit: request.limit,
-        filters: {
-          from: request.filters.from?.toISOString(),
-          to: request.filters.to?.toISOString(),
-          observationType: request.filters.observationType,
-          mimeType: request.filters.mimeType,
-          topicId: request.filters.topicId,
-          entityId: request.filters.entityId,
-          projectId: request.filters.projectId,
-          topic: request.filters.topic,
-          entity: request.filters.entity,
-          source: request.filters.source,
-          observationId: request.filters.observationId,
-        },
-      });
+      const searchResult = await this.retrieveForAsk(
+        clerkUserId,
+        retrievalQuery,
+        request.limit,
+        request.filters,
+      );
       const retrievalMs = Date.now() - retrievalStarted;
 
       const contextStarted = Date.now();
-      const context = this.contextBuilder.build(searchResult.results, {
+      const context = this.contextBuilder.build(searchResult, {
         maxChunks: request.limit,
       });
       const contextMs = Date.now() - contextStarted;
@@ -245,6 +237,87 @@ export class AskService {
 
       throw error;
     }
+  }
+
+  private async retrieveForAsk(
+    clerkUserId: string,
+    query: string,
+    limit: number,
+    filters: {
+      from?: Date;
+      to?: Date;
+      observationType?: ObservationType;
+      mimeType?: string;
+      topicId?: string;
+      entityId?: string;
+      projectId?: string;
+      topic?: string;
+      entity?: string;
+      source?: CaptureSource;
+      observationId?: string;
+    },
+  ): Promise<SemanticSearchResult[]> {
+    const baseFilters = {
+      from: filters.from?.toISOString(),
+      to: filters.to?.toISOString(),
+      observationType: filters.observationType,
+      mimeType: filters.mimeType,
+      topicId: filters.topicId,
+      entityId: filters.entityId,
+      projectId: filters.projectId,
+      topic: filters.topic,
+      entity: filters.entity,
+      source: filters.source,
+    };
+
+    const primary = await this.search.search(clerkUserId, {
+      query,
+      limit,
+      filters: {
+        ...baseFilters,
+        observationId: filters.observationId,
+      },
+    });
+
+    if (!filters.observationId) {
+      return primary.results;
+    }
+
+    let relatedIds = new Set<string>();
+    try {
+      const related = await this.observations.relatedForClerkUser(
+        clerkUserId,
+        filters.observationId,
+      );
+      relatedIds = new Set(related.map((item) => item.observationId));
+    } catch {
+      relatedIds = new Set();
+    }
+
+    if (relatedIds.size === 0) {
+      return primary.results;
+    }
+
+    const neighbors = await this.search.search(clerkUserId, {
+      query,
+      limit,
+      filters: {
+        ...baseFilters,
+        excludeObservationId: filters.observationId,
+      },
+    });
+    const extra = neighbors.results.filter((hit) =>
+      relatedIds.has(hit.observationId),
+    );
+    const seen = new Set(primary.results.map((hit) => hit.chunkId));
+    const merged = [...primary.results];
+    for (const hit of extra) {
+      if (seen.has(hit.chunkId)) continue;
+      seen.add(hit.chunkId);
+      merged.push(hit);
+      if (merged.length >= limit) break;
+    }
+    return merged;
   }
 }
 

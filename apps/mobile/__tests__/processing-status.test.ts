@@ -11,20 +11,23 @@ describe('processing status UX helpers', () => {
   it('renders processing, ready, and failed headlines', () => {
     expect(observationStatusHeadline('EMBEDDING')).toBe('Processing');
     expect(observationStatusHeadline('COMPLETED')).toBe('Ready');
-    expect(observationStatusHeadline('FAILED')).toBe('Processing failed');
+    expect(observationStatusHeadline('PENDING')).toBe('Saved');
+    expect(observationStatusHeadline('FAILED')).toBe("Couldn't process");
   });
 
   it('uses truthful stage labels without percentages', () => {
-    expect(observationStatusLabel('CHUNKING')).toBe('Creating chunks…');
+    expect(observationStatusLabel('CHUNKING')).toBe('Processing memory…');
+    expect(observationStatusLabel('PENDING')).toBe('Saved');
+    expect(observationStatusLabel('COMPLETED')).toBe('Memory ready');
     expect(observationStageLabel({ status: 'EMBEDDING' })).toBe(
-      'Generating embeddings…',
+      'Processing memory…',
     );
     expect(
       observationStageLabel({
         status: 'PENDING',
-        stageLabel: 'Processing…',
+        stageLabel: 'Saved',
       }),
-    ).toBe('Processing…');
+    ).toBe('Saved');
     expect(formatObservationReadyTime('2026-09-12T12:42:00.000Z')).toMatch(
       /\d/,
     );

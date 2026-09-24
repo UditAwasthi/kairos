@@ -100,8 +100,8 @@ export default function ActivityScreen() {
       <SoftPage>
         <EmptyState
           title="Quiet"
-          actionLabel="Capture"
-          onAction={() => router.push('/(app)/(tabs)/capture')}
+          actionLabel="Capture something"
+          onAction={() => router.push('/(app)/quick-capture')}
         />
       </SoftPage>
     );
@@ -125,8 +125,8 @@ export default function ActivityScreen() {
         ))}
 
         <ThemedButton
-          label="Capture"
-          onPress={() => router.push('/(app)/(tabs)/capture')}
+          label="Capture something"
+          onPress={() => router.push('/(app)/quick-capture')}
         />
       </SoftPage>
     </FadeInContent>

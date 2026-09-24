@@ -7,10 +7,12 @@ import {
   fetchObservation,
   isProcessingObservationStatus,
   isTerminalObservationStatus,
+  fetchObservationsPage,
   observationStatusHeadline,
   observationStatusLabel,
   reprocessObservation,
   semanticSearch,
+  updateObservation,
   uploadObservation,
 } from '../lib/api';
 
@@ -96,14 +98,12 @@ describe('observations API client', () => {
   });
 
   it('maps processing status labels', () => {
-    expect(observationStatusLabel('PENDING')).toBe('Processing…');
-    expect(observationStatusLabel('EXTRACTING')).toBe(
-      'Extracting document content…',
-    );
-    expect(observationStatusLabel('ANALYZING')).toBe('Extracting metadata…');
-    expect(observationStatusLabel('EMBEDDING')).toBe('Generating embeddings…');
-    expect(observationStatusLabel('COMPLETED')).toBe('Ready');
-    expect(observationStatusLabel('FAILED')).toBe('Processing failed');
+    expect(observationStatusLabel('PENDING')).toBe('Saved');
+    expect(observationStatusLabel('EXTRACTING')).toBe('Processing memory…');
+    expect(observationStatusLabel('ANALYZING')).toBe('Processing memory…');
+    expect(observationStatusLabel('EMBEDDING')).toBe('Processing memory…');
+    expect(observationStatusLabel('COMPLETED')).toBe('Memory ready');
+    expect(observationStatusLabel('FAILED')).toBe("Couldn't process");
   });
 
   it('reprocesses via existing retry endpoint', async () => {
@@ -156,7 +156,7 @@ describe('observations API client', () => {
     expect(isTerminalObservationStatus('FAILED')).toBe(true);
     expect(isProcessingObservationStatus('EMBEDDING')).toBe(true);
     expect(isProcessingObservationStatus('COMPLETED')).toBe(false);
-    expect(observationStatusHeadline('FAILED')).toBe('Processing failed');
+    expect(observationStatusHeadline('FAILED')).toBe("Couldn't process");
     expect(observationStatusHeadline('COMPLETED')).toBe('Ready');
     expect(observationStatusHeadline('CHUNKING')).toBe('Processing');
   });
@@ -300,5 +300,98 @@ describe('observations API client', () => {
       expect.stringMatching(/\/observations\/obs_note$/),
       expect.objectContaining({ method: 'DELETE' }),
     );
+  });
+
+  it('patches an observation edit', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: {
+          id: 'obs_1',
+          filename: 'Edited.txt',
+          extractedText: 'New text',
+          status: 'PENDING',
+        },
+      }),
+    }) as typeof fetch;
+
+    const updated = await updateObservation('tok', 'obs_1', {
+      title: 'Edited',
+      content: 'New text',
+    });
+    expect(updated.id).toBe('obs_1');
+    expect(updated.extractedText).toBe('New text');
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/observations\/obs_1$/),
+      expect.objectContaining({ method: 'PATCH' }),
+    );
+  });
+
+  it('surfaces a failed observation edit', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        error: { code: 'FORBIDDEN', message: 'Not allowed.' },
+      }),
+    }) as typeof fetch;
+
+    await expect(
+      updateObservation('tok', 'obs_other', { content: 'nope' }),
+    ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+  });
+
+  it('reads observation pages with a cursor', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: [{ id: 'obs_2', filename: 'older.txt' }],
+        nextCursor: null,
+      }),
+    }) as typeof fetch;
+
+    const page = await fetchObservationsPage('tok', {
+      cursor: 'abc',
+      limit: 40,
+    });
+    expect(page.items).toHaveLength(1);
+    expect(page.nextCursor).toBeNull();
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringMatching(/cursor=abc/),
+      expect.any(Object),
+    );
+  });
+
+  it('sends source and date filters with semantic search', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: { query: 'redis', total: 0, results: [] },
+      }),
+    }) as typeof fetch;
+
+    await semanticSearch({
+      token: 'tok',
+      query: 'redis',
+      filters: {
+        source: 'VOICE',
+        from: '2026-09-01T00:00:00.000Z',
+        to: '2026-09-24T23:59:59.999Z',
+      },
+    });
+    const init = (global.fetch as jest.Mock).mock.calls[0][1] as {
+      body: string;
+    };
+    expect(JSON.parse(init.body)).toMatchObject({
+      query: 'redis',
+      filters: {
+        source: 'VOICE',
+        from: '2026-09-01T00:00:00.000Z',
+        to: '2026-09-24T23:59:59.999Z',
+      },
+    });
   });
 });

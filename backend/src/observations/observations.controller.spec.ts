@@ -36,6 +36,7 @@ describe('ObservationsController', () => {
   const getDownloadUrlForClerkUser = jest.fn();
   const getFileForClerkUser = jest.fn();
   const relatedForClerkUser = jest.fn();
+  const updateForClerkUser = jest.fn();
 
   beforeEach(async () => {
     upload.mockReset();
@@ -45,6 +46,7 @@ describe('ObservationsController', () => {
     getDownloadUrlForClerkUser.mockReset();
     getFileForClerkUser.mockReset();
     relatedForClerkUser.mockReset();
+    updateForClerkUser.mockReset();
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [ObservationsController],
@@ -59,6 +61,7 @@ describe('ObservationsController', () => {
             getDownloadUrlForClerkUser,
             getFileForClerkUser,
             relatedForClerkUser,
+            updateForClerkUser,
           },
         },
       ],
@@ -196,5 +199,31 @@ describe('ObservationsController', () => {
 
     expect(reprocessForClerkUser).toHaveBeenCalledWith('clerk_user_a', 'obs_1');
     expect(res.body.data.status).toBe(ProcessingStatus.PENDING);
+  });
+
+  it('rejects unauthenticated memory edits', async () => {
+    await request(app.getHttpServer())
+      .patch('/observations/obs_1')
+      .send({ title: 'Edited' })
+      .expect(401);
+    expect(updateForClerkUser).not.toHaveBeenCalled();
+  });
+
+  it('saves an authenticated memory edit', async () => {
+    updateForClerkUser.mockResolvedValue({
+      id: 'obs_1',
+      filename: 'Edited.txt',
+      extractedText: 'New text',
+    });
+    const res = await request(app.getHttpServer())
+      .patch('/observations/obs_1')
+      .set('Authorization', 'Bearer valid-token')
+      .send({ title: 'Edited', content: 'New text' })
+      .expect(200);
+    expect(updateForClerkUser).toHaveBeenCalledWith('clerk_user_a', 'obs_1', {
+      title: 'Edited',
+      content: 'New text',
+    });
+    expect(res.body.data.filename).toBe('Edited.txt');
   });
 });

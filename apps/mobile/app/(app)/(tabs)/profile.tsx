@@ -1,13 +1,18 @@
 import { useAuth, useUser } from '@clerk/expo';
-import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 
 import { ThemeToggleButton } from '../../../components/ThemeToggleButton';
+import { GlassPanel } from '../../../components/ui/Glass';
 import { SoftLinkList, SoftPage } from '../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { ThemedText } from '../../../components/ThemedText';
+import { listPendingCaptures } from '../../../lib/captureQueue';
+import {
+  profileSyncCopy,
+  subscribeCaptureSync,
+} from '../../../lib/syncStatus';
 import { useOnboarding } from '../../../providers/OnboardingProvider';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import Recall from 'kairos-recall';
@@ -19,6 +24,20 @@ export default function ProfileScreen() {
   const { colors, themeProgress, toggleTheme } = useAppTheme();
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [syncCopy, setSyncCopy] = useState(() => profileSyncCopy(0));
+
+  const refreshQueue = useCallback(() => {
+    void listPendingCaptures()
+      .then((items) => setSyncCopy(profileSyncCopy(items.length)))
+      .catch(() => setSyncCopy(profileSyncCopy(0)));
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshQueue();
+      return subscribeCaptureSync(refreshQueue);
+    }, [refreshQueue]),
+  );
 
   const name = user?.fullName || user?.firstName || 'Kairos';
   const email = user?.primaryEmailAddress?.emailAddress;
@@ -60,6 +79,18 @@ export default function ProfileScreen() {
         </View>
         <ThemeToggleButton themeProgress={themeProgress} onToggle={toggleTheme} />
       </View>
+
+      <GlassPanel>
+        <ThemedText colorKey="textMuted" style={styles.syncKicker}>
+          Offline captures
+        </ThemedText>
+        <ThemedText colorKey="text" style={styles.syncTitle}>
+          {syncCopy.title}
+        </ThemedText>
+        <ThemedText colorKey="textMuted" style={styles.syncDetail}>
+          {syncCopy.detail}
+        </ThemedText>
+      </GlassPanel>
 
       <SoftLinkList
         items={[
@@ -112,5 +143,13 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   email: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+  syncKicker: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  syncTitle: { fontFamily: 'Inter_500Medium', fontSize: 16 },
+  syncDetail: { fontFamily: 'Inter_400Regular', fontSize: 13 },
   signOut: { marginTop: 4 },
 });

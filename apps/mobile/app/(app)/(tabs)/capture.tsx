@@ -45,7 +45,7 @@ const CAPTURE_TYPES: CaptureItem[] = [
 const FILE_CAPTURE_TYPES: SourceType[] = ['document', 'photo', 'screenshot'];
 
 function statusLabel(status: ApiObservation['status'] | 'UPLOADING'): string {
-  if (status === 'UPLOADING') return 'Uploading…';
+  if (status === 'UPLOADING') return 'Saved';
   return observationStatusLabel(status);
 }
 
@@ -130,7 +130,7 @@ export default function CaptureScreen() {
         mimeType: guessMimeType(asset.name || '', asset.mimeType),
       });
       if (submitted.queued) {
-        setStageLabel('Saved offline');
+        setStageLabel('Saved on this device');
         return;
       }
       const uploaded = submitted.observation;
@@ -172,7 +172,7 @@ export default function CaptureScreen() {
           title: title.trim() || undefined,
         });
         if (submitted.queued) {
-          setStageLabel('Saved offline');
+          setStageLabel('Saved on this device');
           return;
         }
         uploaded = submitted.observation;
@@ -185,7 +185,7 @@ export default function CaptureScreen() {
           url: link,
         });
         if (submitted.queued) {
-          setStageLabel('Saved offline');
+          setStageLabel('Saved on this device');
           return;
         }
         uploaded = submitted.observation;

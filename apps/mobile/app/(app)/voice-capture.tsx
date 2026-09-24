@@ -15,7 +15,13 @@ import { ThemedText } from '../../components/ThemedText';
 import { GlassPanel } from '../../components/ui/Glass';
 import { SoftPage, SoftTitle } from '../../components/ui/SoftScreen';
 import { ThemedButton } from '../../components/ui/ThemedButton';
-import { ApiError } from '../../lib/api';
+import {
+  ApiError,
+  observationStageLabel,
+  pollObservationUntilSettled,
+  reprocessObservation,
+  type ApiObservation,
+} from '../../lib/api';
 import { submitCapture } from '../../lib/capture';
 import { useAppTheme } from '../../providers/ThemeProvider';
 
@@ -26,6 +32,9 @@ type VoiceState =
   | 'saving'
   | 'saved'
   | 'queued'
+  | 'transcribing'
+  | 'ready'
+  | 'transcribe_failed'
   | 'failed';
 
 export default function VoiceCaptureScreen() {
@@ -36,6 +45,7 @@ export default function VoiceCaptureScreen() {
   const recorderState = useAudioRecorderState(recorder);
   const [state, setState] = useState<VoiceState>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [observation, setObservation] = useState<ApiObservation | null>(null);
 
   useEffect(() => {
     return () => {
@@ -107,7 +117,30 @@ export default function VoiceCaptureScreen() {
         fileName: `voice-${Date.now()}.m4a`,
         mimeType: 'audio/mp4',
       });
-      setState(result.queued ? 'queued' : 'saved');
+      if (result.queued) {
+        setState('queued');
+        return;
+      }
+      setState('saved');
+      if (!result.observation) return;
+      setObservation(result.observation);
+      setState('transcribing');
+      try {
+        const settled = await pollObservationUntilSettled({
+          token,
+          id: result.observation.id,
+          onUpdate: (next) => {
+            setObservation(next);
+            if (next.status === 'EXTRACTING' || next.status === 'PENDING') {
+              setState('transcribing');
+            }
+          },
+        });
+        setObservation(settled);
+        setState(settled.status === 'FAILED' ? 'transcribe_failed' : 'ready');
+      } catch {
+        setState('transcribe_failed');
+      }
     } catch (err) {
       setState('failed');
       if (err instanceof ApiError) {
@@ -132,7 +165,12 @@ export default function VoiceCaptureScreen() {
               void saveRecording();
               return;
             }
-            if (state === 'idle' || state === 'failed' || state === 'permission_denied') {
+            if (
+              state === 'idle' ||
+              state === 'failed' ||
+              state === 'transcribe_failed' ||
+              state === 'permission_denied'
+            ) {
               void startRecording();
             }
           }}
@@ -162,12 +200,20 @@ export default function VoiceCaptureScreen() {
             : state === 'saving'
               ? 'Saving…'
               : state === 'saved'
-                ? 'Saved. Processing memory…'
-                : state === 'queued'
-                  ? 'Saved locally. Kairos will sync when you are back online.'
-                  : state === 'permission_denied'
-                    ? 'Microphone blocked'
-                    : 'Tap to record'}
+                ? 'Saved'
+                : state === 'transcribing'
+                  ? observation
+                    ? observationStageLabel(observation)
+                    : 'Transcribing…'
+                  : state === 'ready'
+                    ? 'Memory ready'
+                    : state === 'transcribe_failed'
+                      ? "Couldn't transcribe"
+                    : state === 'queued'
+                      ? 'Saved on this device. Will sync when you are online.'
+                      : state === 'permission_denied'
+                        ? 'Microphone blocked'
+                        : 'Tap to record'}
         </ThemedText>
       </GlassPanel>
 
@@ -182,6 +228,41 @@ export default function VoiceCaptureScreen() {
           <>
             <ThemedButton label="Save" onPress={() => void saveRecording()} />
             <ThemedButton label="Cancel" variant="outline" onPress={() => void cancelRecording()} />
+          </>
+        ) : state === 'transcribe_failed' ? (
+          <>
+            <ThemedButton
+              label="Try again"
+              onPress={() => {
+                void (async () => {
+                  if (!observation) {
+                    void startRecording();
+                    return;
+                  }
+                  try {
+                    const token = await getToken();
+                    if (!token) return;
+                    setState('transcribing');
+                    const retried = await reprocessObservation(token, observation.id);
+                    setObservation(retried);
+                    const settled = await pollObservationUntilSettled({
+                      token,
+                      id: retried.id,
+                      onUpdate: setObservation,
+                    });
+                    setObservation(settled);
+                    setState(settled.status === 'FAILED' ? 'transcribe_failed' : 'ready');
+                  } catch {
+                    setState('transcribe_failed');
+                  }
+                })();
+              }}
+            />
+            <ThemedButton
+              label="Done"
+              variant="outline"
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(app)'))}
+            />
           </>
         ) : (
           <ThemedButton

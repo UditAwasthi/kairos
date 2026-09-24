@@ -43,6 +43,7 @@ describe('ObservationsService metadata filters', () => {
           observationEntities: { some: { entityId: 'entity_redis' } },
           projectObservations: { some: { projectId: 'proj_backend' } },
         }),
+        take: 41,
       }),
     );
   });

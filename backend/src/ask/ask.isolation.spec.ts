@@ -76,6 +76,7 @@ describe('AskService user isolation', () => {
       conversations as never,
       users as never,
       ai as never,
+      { relatedForClerkUser: jest.fn().mockResolvedValue([]) } as never,
     );
 
     const response = await service.ask('clerk_user_a', {

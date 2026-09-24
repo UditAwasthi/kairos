@@ -65,27 +65,27 @@ export type ObservationResponse = {
 };
 
 /** Truthful labels from existing ProcessingStatus — never invent percentages. */
-export function stageLabelForStatus(status: ProcessingStatus): string {
+export function stageLabelForStatus(
+  status: ProcessingStatus,
+  type?: ObservationType,
+): string {
   switch (status) {
     case 'PENDING':
-    case 'PROCESSING':
-      return 'Processing…';
+      return 'Saved';
     case 'EXTRACTING':
-      return 'Extracting document content…';
+      return type === 'AUDIO' ? 'Transcribing…' : 'Processing memory…';
+    case 'PROCESSING':
     case 'NORMALIZING':
-      return 'Normalizing content…';
     case 'CHUNKING':
-      return 'Creating chunks…';
     case 'ANALYZING':
-      return 'Extracting metadata…';
     case 'EMBEDDING':
-      return 'Generating embeddings…';
+      return 'Processing memory…';
     case 'COMPLETED':
-      return 'Ready';
+      return 'Memory ready';
     case 'FAILED':
-      return 'Processing failed';
+      return type === 'AUDIO' ? "Couldn't transcribe" : "Couldn't process";
     default:
-      return 'Processing…';
+      return 'Processing memory…';
   }
 }
 
@@ -133,7 +133,7 @@ export function toObservationResponse(
     sourceLabel:
       CAPTURE_SOURCE_LABELS[observation.source ?? 'MANUAL'] || 'Manual',
     status,
-    stageLabel: stageLabelForStatus(status),
+    stageLabel: stageLabelForStatus(status, observation.type),
     createdAt: observation.createdAt.toISOString(),
     updatedAt: observation.updatedAt.toISOString(),
     capturedAt: observation.capturedAt.toISOString(),

@@ -89,6 +89,7 @@ describe('AskService', () => {
       conversations as never,
       users as never,
       ai as never,
+      { relatedForClerkUser: jest.fn().mockResolvedValue([]) } as never,
     );
 
     return { service, search, ai, conversations, users };
@@ -184,5 +185,93 @@ describe('AskService', () => {
     );
     const query = search.search.mock.calls[0][1].query as string;
     expect(query).toContain('Redis');
+  });
+
+  it('keeps the selected memory primary and adds related evidence', async () => {
+    const { search, ai, conversations, users } = build();
+    const relatedHit = {
+      chunkId: 'chunk_related',
+      observationId: 'obs_related',
+      chunkIndex: 0,
+      content: 'A closely related Redis note.',
+      similarity: 0.84,
+      observation: {
+        id: 'obs_related',
+        filename: 'related.txt',
+        type: 'TEXT',
+        mimeType: 'text/plain',
+        createdAt: '2026-09-02T00:00:00.000Z',
+        capturedAt: '2026-09-02T00:00:00.000Z',
+        summary: null,
+      },
+    };
+    search.search
+      .mockReset()
+      .mockResolvedValueOnce({
+        query: 'What did I say?',
+        total: 1,
+        results: [
+          {
+            chunkId: 'chunk_1',
+            observationId: 'obs_1',
+            chunkIndex: 0,
+            content: 'Redis is an in-memory data structure store.',
+            similarity: 0.91,
+            observation: {
+              id: 'obs_1',
+              filename: 'redis.txt',
+              type: 'TEXT',
+              mimeType: 'text/plain',
+              createdAt: '2026-09-01T00:00:00.000Z',
+              capturedAt: '2026-09-01T00:00:00.000Z',
+              summary: null,
+            },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        query: 'What did I say?',
+        total: 1,
+        results: [relatedHit],
+      });
+    const observations = {
+      relatedForClerkUser: jest.fn().mockResolvedValue([
+        { observationId: 'obs_related' },
+      ]),
+    };
+    const service = new AskService(
+      search as never,
+      new RagContextBuilder(),
+      conversations as never,
+      users as never,
+      ai as never,
+      observations as never,
+    );
+
+    const response = await service.ask('clerk_a', {
+      question: 'What did I say in this memory?',
+      observationId: 'obs_1',
+    });
+
+    expect(search.search).toHaveBeenNthCalledWith(
+      1,
+      'clerk_a',
+      expect.objectContaining({
+        filters: expect.objectContaining({ observationId: 'obs_1' }),
+      }),
+    );
+    expect(search.search).toHaveBeenNthCalledWith(
+      2,
+      'clerk_a',
+      expect.objectContaining({
+        filters: expect.objectContaining({ excludeObservationId: 'obs_1' }),
+      }),
+    );
+    expect(observations.relatedForClerkUser).toHaveBeenCalledWith(
+      'clerk_a',
+      'obs_1',
+    );
+    expect(ai.generateGroundedAnswer).toHaveBeenCalled();
+    expect(response.insufficientEvidence).toBe(false);
   });
 });

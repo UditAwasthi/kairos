@@ -95,8 +95,8 @@ export default function NotificationsScreen() {
       <SoftPage>
         <EmptyState
           title="All clear"
-          actionLabel="Capture"
-          onAction={() => router.push('/(app)/(tabs)/capture')}
+          actionLabel="Capture something"
+          onAction={() => router.push('/(app)/quick-capture')}
         />
       </SoftPage>
     );

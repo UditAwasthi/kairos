@@ -73,11 +73,11 @@ export function ThemedButton({
       }}
       onPressIn={() => {
         if (!disabled) {
-          press.value = withSpring(1, { damping: 14, stiffness: 280 });
+          press.value = withSpring(1, { damping: 20, stiffness: 220 });
         }
       }}
       onPressOut={() => {
-        press.value = withSpring(0, { damping: 14, stiffness: 240 });
+        press.value = withSpring(0, { damping: 20, stiffness: 200 });
       }}
       style={[
         styles.button,

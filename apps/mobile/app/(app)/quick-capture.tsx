@@ -68,12 +68,10 @@ export default function QuickCaptureScreen() {
         title: params.title ? String(params.title) : undefined,
       });
       if (result.queued) {
-        setMessage('Saved locally. Kairos will sync when you are back online.');
+        setMessage('Saved on this device. Will sync when you are online.');
       } else {
         setMessage(
-          result.observation
-            ? 'Saved. Processing memory…'
-            : 'Saved.',
+          result.observation ? 'Saved. Processing memory…' : 'Saved.',
         );
         setText('');
         setUrl('');

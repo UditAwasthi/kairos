@@ -74,7 +74,7 @@ class KairosCaptureStore(private val context: Context) {
     val token = authToken
     val base = apiBaseUrl
     if (token.isNullOrBlank() || base.isBlank()) {
-      return SubmitResult(ok = false, queued = true, error = "Saved locally. Open Kairos to sync.")
+      return SubmitResult(ok = false, queued = true, error = "Saved on this device. Will sync when you're online.")
     }
     return try {
       val urlObj = URL("$base/capture")
@@ -113,7 +113,7 @@ class KairosCaptureStore(private val context: Context) {
     }
     setPending(pending)
     if (token.isNullOrBlank() || base.isBlank()) {
-      return SubmitResult(ok = false, queued = true, error = "Saved locally. Open Kairos to sync.")
+      return SubmitResult(ok = false, queued = true, error = "Saved on this device. Will sync when you're online.")
     }
     return try {
       val boundary = "Kairos${UUID.randomUUID().toString().replace("-", "")}"

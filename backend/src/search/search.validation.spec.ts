@@ -61,6 +61,21 @@ describe('validateSearchRequest', () => {
     ).toThrow();
   });
 
+  it('combines source and date filters with the query', () => {
+    const result = validateSearchRequest({
+      query: 'redis notes',
+      filters: {
+        source: 'VOICE',
+        from: '2026-09-01T00:00:00.000Z',
+        to: '2026-09-24T23:59:59.999Z',
+      },
+    });
+    expect(result.query).toBe('redis notes');
+    expect(result.filters.source).toBe('VOICE');
+    expect(result.filters.from?.toISOString()).toBe('2026-09-01T00:00:00.000Z');
+    expect(result.filters.to?.toISOString()).toBe('2026-09-24T23:59:59.999Z');
+  });
+
   it('accepts projectId filter', () => {
     const result = validateSearchRequest({
       query: 'caching',

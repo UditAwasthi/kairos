@@ -76,7 +76,7 @@ class KairosShareActivity : Activity() {
 
     val message = when {
       result.ok -> "Saved to Kairos ✓"
-      result.queued -> "Saved locally. Will sync later."
+      result.queued -> "Saved on this device. Will sync when you're online."
       else -> result.error ?: "Kairos could not save that share."
     }
     toast(message)

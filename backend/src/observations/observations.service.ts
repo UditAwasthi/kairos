@@ -504,8 +504,9 @@ export class ObservationsService {
       from?: string;
       to?: string;
       limit?: number;
+      cursor?: string;
     },
-  ): Promise<ObservationResponse[]> {
+  ): Promise<{ items: ObservationResponse[]; nextCursor: string | null }> {
     const user = await this.users.findOrCreateByClerkId(clerkUserId);
     const topicId = await resolveTopicFilter({
       prisma: this.prisma,
@@ -527,7 +528,12 @@ export class ObservationsService {
     const source = parseOptionalCaptureSource(filters?.source);
     const from = parseListDate(filters?.from);
     const to = parseListDate(filters?.to);
-    const take = Math.min(Math.max(filters?.limit ?? 80, 1), 200);
+    const take = Math.min(Math.max(filters?.limit ?? 40, 1), 80);
+    const cursor = decodeObservationCursor(filters?.cursor);
+    const capturedAtFilter = {
+      ...(from ? { gte: from } : {}),
+      ...(to ? { lte: to } : {}),
+    };
 
     const observations = await this.prisma.observation.findMany({
       where: {
@@ -536,20 +542,81 @@ export class ObservationsService {
         ...(entityId ? { observationEntities: { some: { entityId } } } : {}),
         ...(projectId ? { projectObservations: { some: { projectId } } } : {}),
         ...(source ? { source } : {}),
-        ...(from || to
+        ...(from || to ? { capturedAt: capturedAtFilter } : {}),
+        ...(cursor
           ? {
-              capturedAt: {
-                ...(from ? { gte: from } : {}),
-                ...(to ? { lte: to } : {}),
-              },
+              OR: [
+                { capturedAt: { lt: cursor.capturedAt } },
+                { capturedAt: cursor.capturedAt, id: { lt: cursor.id } },
+              ],
             }
           : {}),
       },
-      orderBy: { capturedAt: 'desc' },
-      take,
+      orderBy: [{ capturedAt: 'desc' }, { id: 'desc' }],
+      take: take + 1,
       include: observationInclude,
     });
-    return observations.map(toObservationResponse);
+    const page = observations.slice(0, take);
+    const last = page[page.length - 1];
+    return {
+      items: page.map(toObservationResponse),
+      nextCursor:
+        observations.length > take && last
+          ? encodeObservationCursor(last.capturedAt, last.id)
+          : null,
+    };
+  }
+
+  async updateForClerkUser(
+    clerkUserId: string,
+    observationId: string,
+    patch: { title?: string; content?: string },
+  ): Promise<ObservationResponse> {
+    const observation = await this.findOwned(clerkUserId, observationId);
+    const title = patch.title?.trim();
+    const content = patch.content;
+    if (!title && content === undefined) {
+      throw new BadRequestException({
+        error: {
+          code: 'EMPTY_UPDATE',
+          message: 'Provide a title or memory text to save.',
+        },
+      });
+    }
+    if (content !== undefined && content.length > MAX_NOTE_CHARS) {
+      throw new BadRequestException({
+        error: {
+          code: 'CONTENT_TOO_LONG',
+          message: `Memory text exceeds ${MAX_NOTE_CHARS} characters.`,
+        },
+      });
+    }
+
+    const data: Prisma.ObservationUpdateInput = {};
+    if (title) {
+      data.originalFilename = applyEditedTitle(observation.originalFilename, title);
+    }
+    const textChanged =
+      content !== undefined && content !== (observation.extractedText ?? '');
+    if (textChanged) {
+      data.extractedText = content;
+      data.processingStatus = ProcessingStatus.PENDING;
+      data.processingError = null;
+    }
+
+    await this.prisma.observation.update({
+      where: { id: observation.id },
+      data,
+    });
+
+    if (textChanged) {
+      setImmediate(() => {
+        void this.processor.reindexFromText(observation.id, content ?? '');
+      });
+    }
+
+    const refreshed = await this.findOwned(clerkUserId, observationId);
+    return toObservationResponse(refreshed);
   }
 
   async relatedForClerkUser(
@@ -762,6 +829,39 @@ function parseListDate(value?: string): Date | undefined {
   if (!value) return undefined;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function encodeObservationCursor(capturedAt: Date, id: string): string {
+  return Buffer.from(`${capturedAt.toISOString()}|${id}`).toString('base64url');
+}
+
+function decodeObservationCursor(
+  raw?: string,
+): { capturedAt: Date; id: string } | undefined {
+  if (!raw) return undefined;
+  try {
+    const decoded = Buffer.from(raw, 'base64url').toString('utf8');
+    const sep = decoded.lastIndexOf('|');
+    if (sep <= 0) return undefined;
+    const capturedAt = new Date(decoded.slice(0, sep));
+    const id = decoded.slice(sep + 1);
+    if (!id || Number.isNaN(capturedAt.getTime())) return undefined;
+    return { capturedAt, id };
+  } catch {
+    return undefined;
+  }
+}
+
+function applyEditedTitle(currentFilename: string, title: string): string {
+  const ext = currentFilename.includes('.')
+    ? currentFilename.slice(currentFilename.lastIndexOf('.'))
+    : '';
+  const safe = title.replace(/[\\/:*?"<>|]/g, '').slice(0, 120).trim();
+  if (!safe) return currentFilename;
+  if (ext && !safe.toLowerCase().endsWith(ext.toLowerCase())) {
+    return `${safe}${ext}`;
+  }
+  return safe;
 }
 
 function slugFilename(value: string): string {

@@ -1,7 +1,7 @@
 import { useAuth } from '@clerk/expo';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '../../../components/ThemedText';
 import { ErrorState, FadeInContent, LoadingSkeleton } from '../../../components/ui/EmptyState';
@@ -9,6 +9,7 @@ import { Badge } from '../../../components/ui/MetricCard';
 import { GlassPanel } from '../../../components/ui/Glass';
 import { SoftLinkList, SoftPage, SoftTitle } from '../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
+import { ThemedInput } from '../../../components/ui/ThemedInput';
 import { SOURCE_TYPE_LABELS } from '../../../constants/source-labels';
 import {
   ApiError,
@@ -17,9 +18,11 @@ import {
   formatObservationReadyTime,
   isProcessingObservationStatus,
   isTerminalObservationStatus,
+  observationFileUri,
   observationStageLabel,
   observationStatusHeadline,
   reprocessObservation,
+  updateObservation,
   type ApiObservation,
 } from '../../../lib/api';
 import { captureSourceLabel } from '../../../lib/capture';
@@ -87,7 +90,7 @@ function mapType(type: ApiObservation['type']): SourceType {
 function statusTone(
   status: ProcessingStatus,
 ): 'success' | 'accent' | 'neutral' {
-  if (status === 'COMPLETED' || status === 'READY') return 'success';
+  if (status === 'COMPLETED') return 'success';
   if (status === 'FAILED') return 'accent';
   return 'neutral';
 }
@@ -96,10 +99,10 @@ function extractedTextMessage(
   data: Observation,
   apiObs: ApiObservation | null,
 ): string {
-  if (data.status !== 'COMPLETED' && data.status !== 'READY') {
+  if (data.status !== 'COMPLETED') {
     if (data.status === 'FAILED') return 'Unavailable';
     if (data.status === 'PENDING' || data.status === 'EXTRACTING') return 'Pending';
-    return 'Processing…';
+    return 'Processing memory…';
   }
   if (data.extractedText) return data.extractedText;
 
@@ -148,6 +151,11 @@ export default function ObservationDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draftTitle, setDraftTitle] = useState('');
+  const [draftText, setDraftText] = useState('');
+  const [fileToken, setFileToken] = useState<string | null>(null);
   const matchedSnippet =
     typeof highlight === 'string' && highlight.trim().length > 0
       ? highlight.trim()
@@ -165,6 +173,7 @@ export default function ObservationDetailScreen() {
       loadedIdRef.current = null;
       return;
     }
+    setFileToken(token);
 
     try {
       const api = await fetchObservation(token, observationId);
@@ -257,6 +266,51 @@ export default function ObservationDetailScreen() {
     }
   };
 
+  const beginEdit = () => {
+    if (!data) return;
+    setDraftTitle(data.title);
+    setDraftText(data.extractedText || apiObs?.extractedText || '');
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+  };
+
+  const onSaveEdit = async () => {
+    if (!data) return;
+    const previous = { data, apiObs };
+    const nextTitle = draftTitle.trim() || data.title;
+    const nextText = draftText;
+    setData({
+      ...data,
+      title: nextTitle,
+      extractedText: nextText,
+      previewText: nextText.slice(0, 180) || data.previewText,
+    });
+    setSaving(true);
+    try {
+      const token = await getToken();
+      if (!token) throw new ApiError('Sign in required.', 401);
+      const updated = await updateObservation(token, String(id), {
+        title: nextTitle,
+        content: nextText,
+      });
+      setApiObs(updated);
+      setData(mapApiObservation(updated));
+      setEditing(false);
+    } catch (err) {
+      setData(previous.data);
+      setApiObs(previous.apiObs);
+      Alert.alert(
+        'Could not save',
+        err instanceof ApiError ? err.message : 'Your memory was not changed.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const onDelete = () => {
     Alert.alert(
       'Delete?',
@@ -306,7 +360,7 @@ export default function ObservationDetailScreen() {
     hour: 'numeric',
     minute: '2-digit',
   });
-  const ready = data.status === 'COMPLETED' || data.status === 'READY';
+  const ready = data.status === 'COMPLETED';
   const failed = data.status === 'FAILED';
   const processing = isProcessingObservationStatus(
     data.status as ApiObservation['status'],
@@ -342,16 +396,41 @@ export default function ObservationDetailScreen() {
     .filter(Boolean)
     .join(' · ');
 
+  const showImage = apiObs?.type === 'IMAGE' && fileToken;
+
   return (
     <FadeInContent>
       <SoftPage>
         <View style={styles.titleBlock}>
           <Badge label={headline} tone={statusTone(data.status)} />
-          <SoftTitle>{data.title}</SoftTitle>
+          {editing ? (
+            <ThemedInput
+              value={draftTitle}
+              onChangeText={setDraftTitle}
+              placeholder="Title"
+              accessibilityLabel="Memory title"
+            />
+          ) : (
+            <SoftTitle>{data.title}</SoftTitle>
+          )}
           <ThemedText colorKey="textMuted" style={styles.meta}>
             {SOURCE_TYPE_LABELS[data.sourceType]} · {captured}
           </ThemedText>
         </View>
+
+        {showImage ? (
+          <GlassPanel padded={false}>
+            <Image
+              source={{
+                uri: observationFileUri(String(id)),
+                headers: { Authorization: `Bearer ${fileToken}` },
+              }}
+              style={styles.preview}
+              resizeMode="cover"
+              accessibilityLabel="Shared image"
+            />
+          </GlassPanel>
+        ) : null}
 
         {matchedSnippet ? (
           <GlassPanel>
@@ -470,6 +549,11 @@ export default function ObservationDetailScreen() {
         <SoftLinkList
           items={[
             {
+              label: editing ? 'Cancel edit' : 'Edit this memory',
+              icon: editing ? 'x' : 'edit-3',
+              onPress: editing ? cancelEdit : beginEdit,
+            },
+            {
               label: 'Ask about this memory',
               icon: 'message-circle',
               onPress: () =>
@@ -518,17 +602,36 @@ export default function ObservationDetailScreen() {
           <ThemedText colorKey="textMuted" style={styles.kicker}>
             Text
           </ThemedText>
-          <ThemedText colorKey="textSecondary" style={styles.body}>
-            {extractedTextMessage(data, apiObs)}
-          </ThemedText>
+          {editing ? (
+            <ThemedInput
+              value={draftText}
+              onChangeText={setDraftText}
+              placeholder="What should this memory say?"
+              accessibilityLabel="Memory text"
+              multiline
+              style={styles.editBody}
+            />
+          ) : (
+            <ThemedText colorKey="textSecondary" style={styles.body}>
+              {extractedTextMessage(data, apiObs)}
+            </ThemedText>
+          )}
         </GlassPanel>
 
-        <ThemedButton
-          label={deleting ? 'Deleting…' : 'Delete'}
-          variant="outline"
-          disabled={deleting || retrying}
-          onPress={onDelete}
-        />
+        {editing ? (
+          <ThemedButton
+            label={saving ? 'Saving…' : 'Save memory'}
+            disabled={saving || deleting}
+            onPress={() => void onSaveEdit()}
+          />
+        ) : (
+          <ThemedButton
+            label={deleting ? 'Deleting…' : 'Delete'}
+            variant="outline"
+            disabled={deleting || retrying || saving}
+            onPress={onDelete}
+          />
+        )}
       </SoftPage>
     </FadeInContent>
   );
@@ -555,4 +658,6 @@ const styles = StyleSheet.create({
   },
   chipText: { fontFamily: 'Inter_500Medium', fontSize: 12 },
   inlineBtn: { marginTop: 8 },
+  preview: { width: '100%', height: 220, borderRadius: 20 },
+  editBody: { minHeight: 140, textAlignVertical: 'top' },
 });

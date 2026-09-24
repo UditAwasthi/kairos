@@ -6,6 +6,7 @@ import {
   Header,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
   Res,
@@ -94,9 +95,10 @@ export class ObservationsController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('limit') limit?: string,
-  ): Promise<{ data: ObservationResponse[] }> {
+    @Query('cursor') cursor?: string,
+  ): Promise<{ data: ObservationResponse[]; nextCursor: string | null }> {
     const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined;
-    const observations = await this.observations.listForClerkUser(user.id, {
+    const page = await this.observations.listForClerkUser(user.id, {
       topicId: topicId || undefined,
       entityId: entityId || undefined,
       projectId: projectId || undefined,
@@ -106,8 +108,9 @@ export class ObservationsController {
       from: from || undefined,
       to: to || undefined,
       limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+      cursor: cursor || undefined,
     });
-    return { data: observations };
+    return { data: page.items, nextCursor: page.nextCursor };
   }
 
   @Get(':id/related')
@@ -152,6 +155,20 @@ export class ObservationsController {
       'Content-Disposition': `attachment; filename="${file.filename.replace(/"/g, '')}"`,
     });
     return new StreamableFile(file.buffer);
+  }
+
+  @Patch(':id')
+  async update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: { title?: string; content?: string },
+  ): Promise<{ data: ObservationResponse }> {
+    return {
+      data: await this.observations.updateForClerkUser(user.id, id, {
+        title: body?.title,
+        content: body?.content,
+      }),
+    };
   }
 
   @Post(':id/reprocess')

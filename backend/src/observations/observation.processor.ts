@@ -85,33 +85,98 @@ export class ObservationProcessor {
 
       await this.setStatus(observationId, ProcessingStatus.NORMALIZING);
       const normalized = this.normalize(extracted.text);
-      const stats = computeTextStats(normalized);
-      const pageCount =
-        typeof extracted.metadata.pageCount === 'number'
-          ? extracted.metadata.pageCount
-          : null;
+      await this.indexNormalized(observationId, observation.userId, normalized, {
+        pageCount:
+          typeof extracted.metadata.pageCount === 'number'
+            ? extracted.metadata.pageCount
+            : null,
+        sourceMetadata: {
+          ...(typeof observation.sourceMetadata === 'object' &&
+          observation.sourceMetadata !== null
+            ? (observation.sourceMetadata as Record<string, unknown>)
+            : {}),
+          extraction: extracted.metadata,
+          processingNote: extracted.notes ?? null,
+        },
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Processing failed';
+      this.logger.error(
+        `Processing failed for observation ${observationId}: ${message}`,
+      );
 
       await this.prisma.observation.update({
         where: { id: observationId },
         data: {
-          extractedText: normalized,
-          characterCount: stats.characterCount,
-          wordCount: stats.wordCount,
-          pageCount,
-          processingError: null,
-          sourceMetadata: {
-            ...(typeof observation.sourceMetadata === 'object' &&
-            observation.sourceMetadata !== null
-              ? (observation.sourceMetadata as Record<string, unknown>)
-              : {}),
-            extraction: extracted.metadata,
-            // Always overwrite so stale "OCR not available" notes do not linger.
-            processingNote: extracted.notes ?? null,
-          } as Prisma.InputJsonValue,
+          processingStatus: ProcessingStatus.FAILED,
+          processingError: toSafeProcessingError(message),
         },
       });
+    }
+  }
 
-      await this.setStatus(observationId, ProcessingStatus.CHUNKING);
+  /**
+   * Re-chunk, re-analyze, and re-embed from edited text.
+   * Skips file extraction so user edits are not overwritten.
+   */
+  async reindexFromText(observationId: string, text: string): Promise<void> {
+    const observation = await this.prisma.observation.findUnique({
+      where: { id: observationId },
+    });
+    if (!observation) {
+      this.logger.warn(`Observation ${observationId} not found for reindex`);
+      return;
+    }
+    try {
+      await this.setStatus(observationId, ProcessingStatus.NORMALIZING);
+      const normalized = this.normalize(text);
+      await this.indexNormalized(observationId, observation.userId, normalized, {
+        sourceMetadata:
+          typeof observation.sourceMetadata === 'object' &&
+          observation.sourceMetadata !== null
+            ? (observation.sourceMetadata as Record<string, unknown>)
+            : {},
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Processing failed';
+      this.logger.error(
+        `Reindex failed for observation ${observationId}: ${message}`,
+      );
+      await this.prisma.observation.update({
+        where: { id: observationId },
+        data: {
+          processingStatus: ProcessingStatus.FAILED,
+          processingError: toSafeProcessingError(message),
+        },
+      });
+    }
+  }
+
+  private async indexNormalized(
+    observationId: string,
+    userId: string,
+    normalized: string | null,
+    extras: {
+      pageCount?: number | null;
+      sourceMetadata?: Record<string, unknown>;
+    },
+  ): Promise<void> {
+    const stats = computeTextStats(normalized);
+    await this.prisma.observation.update({
+      where: { id: observationId },
+      data: {
+        extractedText: normalized,
+        characterCount: stats.characterCount,
+        wordCount: stats.wordCount,
+        ...(extras.pageCount !== undefined ? { pageCount: extras.pageCount } : {}),
+        processingError: null,
+        sourceMetadata: extras.sourceMetadata as Prisma.InputJsonValue,
+      },
+    });
+
+    await this.setStatus(observationId, ProcessingStatus.CHUNKING);
       const chunks = chunkText(normalized ?? '');
       await this.replaceChunks(observationId, chunks);
 
@@ -146,7 +211,7 @@ export class ObservationProcessor {
           );
           await this.persistAnalysis(
             observationId,
-            observation.userId,
+            userId,
             analysis,
           );
         } catch (error) {
@@ -216,21 +281,6 @@ export class ObservationProcessor {
           processingError: null,
         },
       });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Processing failed';
-      this.logger.error(
-        `Processing failed for observation ${observationId}: ${message}`,
-      );
-
-      await this.prisma.observation.update({
-        where: { id: observationId },
-        data: {
-          processingStatus: ProcessingStatus.FAILED,
-          processingError: toSafeProcessingError(message),
-        },
-      });
-    }
   }
 
   async extract(

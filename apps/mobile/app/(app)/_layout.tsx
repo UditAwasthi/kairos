@@ -5,7 +5,7 @@ import { ActivityIndicator, AppState, Platform, StyleSheet, View } from 'react-n
 
 import { fetchDashboard } from '../../lib/api';
 import { flushCaptureQueue } from '../../lib/capture';
-import { recordCaptureSync } from '../../lib/syncStatus';
+import { recordCaptureSync, setCaptureSyncInflight } from '../../lib/syncStatus';
 import { consumePendingOsCapture, KairosOs } from '../../lib/osIntegrations';
 import { ensureRecallReady } from '../../lib/recallSync';
 import { useAppTheme } from '../../providers/ThemeProvider';
@@ -44,6 +44,7 @@ export default function AppLayout() {
     };
 
     const flush = async () => {
+      setCaptureSyncInflight(true);
       try {
         const token = await getToken();
         if (token) {
@@ -52,6 +53,8 @@ export default function AppLayout() {
         }
       } catch {
         // Queue remains local until the next successful flush.
+      } finally {
+        setCaptureSyncInflight(false);
       }
     };
 

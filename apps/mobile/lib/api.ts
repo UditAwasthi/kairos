@@ -557,7 +557,7 @@ export async function fetchObservation(
   return body.data;
 }
 
-export async function fetchObservations(
+export async function fetchObservationsPage(
   token: string,
   filters?: {
     topicId?: string;
@@ -569,8 +569,9 @@ export async function fetchObservations(
     from?: string;
     to?: string;
     limit?: number;
+    cursor?: string;
   },
-): Promise<ApiObservation[]> {
+): Promise<{ items: ApiObservation[]; nextCursor: string | null }> {
   const qs = new URLSearchParams();
   if (filters?.topicId) qs.set('topicId', filters.topicId);
   if (filters?.entityId) qs.set('entityId', filters.entityId);
@@ -581,6 +582,7 @@ export async function fetchObservations(
   if (filters?.from) qs.set('from', filters.from);
   if (filters?.to) qs.set('to', filters.to);
   if (filters?.limit) qs.set('limit', String(filters.limit));
+  if (filters?.cursor) qs.set('cursor', filters.cursor);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/observations${suffix}`,
@@ -597,7 +599,57 @@ export async function fetchObservations(
     throw await parseError(response);
   }
 
-  const body = (await response.json()) as { data: ApiObservation[] };
+  const body = (await response.json()) as {
+    data: ApiObservation[];
+    nextCursor?: string | null;
+  };
+  return { items: body.data, nextCursor: body.nextCursor ?? null };
+}
+
+export async function fetchObservations(
+  token: string,
+  filters?: {
+    topicId?: string;
+    entityId?: string;
+    projectId?: string;
+    topic?: string;
+    entity?: string;
+    source?: CaptureSource;
+    from?: string;
+    to?: string;
+    limit?: number;
+    cursor?: string;
+  },
+): Promise<ApiObservation[]> {
+  const page = await fetchObservationsPage(token, filters);
+  return page.items;
+}
+
+export function observationFileUri(id: string): string {
+  return `${normalizeBaseUrl(apiBaseUrl)}/observations/${encodeURIComponent(id)}/file`;
+}
+
+export async function updateObservation(
+  token: string,
+  id: string,
+  patch: { title?: string; content?: string },
+): Promise<ApiObservation> {
+  const response = await apiFetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/observations/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(patch),
+    },
+  );
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  const body = (await response.json()) as { data: ApiObservation };
   return body.data;
 }
 
@@ -937,31 +989,27 @@ export function observationStatusHeadline(
   status: ApiObservationStatus,
 ): string {
   if (status === 'COMPLETED') return 'Ready';
-  if (status === 'FAILED') return 'Processing failed';
+  if (status === 'FAILED') return "Couldn't process";
+  if (status === 'PENDING') return 'Saved';
   return 'Processing';
 }
 
 export function observationStatusLabel(status: ApiObservationStatus): string {
   switch (status) {
     case 'PENDING':
-    case 'PROCESSING':
-      return 'Processing…';
-    case 'EXTRACTING':
-      return 'Extracting document content…';
-    case 'NORMALIZING':
-      return 'Normalizing content…';
-    case 'CHUNKING':
-      return 'Creating chunks…';
-    case 'ANALYZING':
-      return 'Extracting metadata…';
-    case 'EMBEDDING':
-      return 'Generating embeddings…';
+      return 'Saved';
     case 'COMPLETED':
-      return 'Ready';
+      return 'Memory ready';
     case 'FAILED':
-      return 'Processing failed';
+      return "Couldn't process";
+    case 'EXTRACTING':
+    case 'PROCESSING':
+    case 'NORMALIZING':
+    case 'CHUNKING':
+    case 'ANALYZING':
+    case 'EMBEDDING':
     default:
-      return 'Processing…';
+      return 'Processing memory…';
   }
 }
 

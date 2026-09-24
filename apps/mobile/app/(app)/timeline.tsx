@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   RefreshControl,
   ScrollView,
@@ -22,7 +23,7 @@ import { ObservationStatusCard } from '../../components/ui/ObservationStatusCard
 import { ThemedText } from '../../components/ThemedText';
 import {
   fetchEntities,
-  fetchObservations,
+  fetchObservationsPage,
   fetchProjects,
   fetchTopics,
   isProcessingObservationStatus,
@@ -37,6 +38,15 @@ import { useAppTheme } from '../../providers/ThemeProvider';
 type FilterMode = 'all' | 'project' | 'topic' | 'entity';
 
 const POLL_MS = 3000;
+const PAGE_SIZE = 40;
+
+function mergeHead(
+  previous: ApiObservation[],
+  incoming: ApiObservation[],
+): ApiObservation[] {
+  const incomingIds = new Set(incoming.map((item) => item.id));
+  return [...incoming, ...previous.filter((item) => !incomingIds.has(item.id))];
+}
 
 export default function TimelineScreen() {
   const router = useRouter();
@@ -74,12 +84,16 @@ export default function TimelineScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filtering, setFiltering] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [endReached, setEndReached] = useState(false);
 
   const focusedRef = useRef(true);
   const observationsRef = useRef<ApiObservation[]>([]);
   const filtersRef = useRef({ mode, projectId, topicId, entityId });
+  const nextCursorRef = useRef<string | null>(null);
+  const loadingMoreRef = useRef(false);
   const hasLoadedRef = useRef(false);
   observationsRef.current = observations;
   filtersRef.current = { mode, projectId, topicId, entityId };
@@ -97,18 +111,33 @@ export default function TimelineScreen() {
     setProjects(projectData.items);
   }, [getToken]);
 
-  const loadObservations = useCallback(async () => {
-    const token = await getToken();
-    if (!token) throw new Error('Sign in to view your timeline.');
-    const f = filtersRef.current;
-    return fetchObservations(token, {
-      projectId: f.mode === 'project' ? f.projectId : undefined,
-      topicId: f.mode === 'topic' ? f.topicId : undefined,
-      entityId: f.mode === 'entity' ? f.entityId : undefined,
-    });
-  }, [getToken]);
+  const loadPage = useCallback(
+    async (modeKind: 'reset' | 'more' | 'head') => {
+      const token = await getToken();
+      if (!token) throw new Error('Sign in to view your timeline.');
+      const f = filtersRef.current;
+      const page = await fetchObservationsPage(token, {
+        projectId: f.mode === 'project' ? f.projectId : undefined,
+        topicId: f.mode === 'topic' ? f.topicId : undefined,
+        entityId: f.mode === 'entity' ? f.entityId : undefined,
+        limit: PAGE_SIZE,
+        cursor: modeKind === 'more' ? nextCursorRef.current ?? undefined : undefined,
+      });
+      if (modeKind === 'reset') {
+        nextCursorRef.current = page.nextCursor;
+        setEndReached(!page.nextCursor);
+        return page.items;
+      }
+      if (modeKind === 'head') {
+        return page.items;
+      }
+      nextCursorRef.current = page.nextCursor;
+      setEndReached(!page.nextCursor);
+      return page.items;
+    },
+    [getToken],
+  );
 
-  // Filter / first load — keep prior rows visible while the new page arrives.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -116,8 +145,10 @@ export default function TimelineScreen() {
       if (initial) setLoading(true);
       else setFiltering(true);
       setError(null);
+      nextCursorRef.current = null;
+      setEndReached(false);
       try {
-        const data = await loadObservations();
+        const data = await loadPage('reset');
         if (cancelled) return;
         setObservations(data);
         hasLoadedRef.current = true;
@@ -133,17 +164,16 @@ export default function TimelineScreen() {
     return () => {
       cancelled = true;
     };
-  }, [mode, projectId, topicId, entityId, loadObservations]);
+  }, [mode, projectId, topicId, entityId, loadPage]);
 
   useFocusEffect(
     useCallback(() => {
       focusedRef.current = true;
       void loadMeta();
 
-      // Soft refresh on return — never blank the screen.
       if (hasLoadedRef.current) {
-        void loadObservations()
-          .then((data) => setObservations(data))
+        void loadPage('head')
+          .then((data) => setObservations((prev) => mergeHead(prev, data)))
           .catch(() => {
             /* keep last good list */
           });
@@ -156,8 +186,8 @@ export default function TimelineScreen() {
             isProcessingObservationStatus(o.status),
           )
         ) {
-          void loadObservations()
-            .then((data) => setObservations(data))
+          void loadPage('head')
+            .then((data) => setObservations((prev) => mergeHead(prev, data)))
             .catch(() => {
               /* keep last good list */
             });
@@ -168,8 +198,28 @@ export default function TimelineScreen() {
         focusedRef.current = false;
         clearInterval(timer);
       };
-    }, [loadMeta, loadObservations]),
+    }, [loadMeta, loadPage]),
   );
+
+  const loadMore = useCallback(() => {
+    if (loadingMoreRef.current || !nextCursorRef.current || endReached) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    void loadPage('more')
+      .then((incoming) => {
+        setObservations((prev) => {
+          const seen = new Set(prev.map((item) => item.id));
+          return [...prev, ...incoming.filter((item) => !seen.has(item.id))];
+        });
+      })
+      .catch(() => {
+        /* keep current page */
+      })
+      .finally(() => {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      });
+  }, [endReached, loadPage]);
 
   const onRetry = useCallback(
     async (id: string) => {
@@ -200,7 +250,7 @@ export default function TimelineScreen() {
         title="Unavailable"
         onRetry={() => {
           setLoading(true);
-          void loadObservations()
+          void loadPage('reset')
             .then((data) => {
               setObservations(data);
               setError(null);
@@ -285,13 +335,27 @@ export default function TimelineScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           style={{ opacity: filtering ? 0.72 : 1 }}
+          onEndReachedThreshold={0.4}
+          onEndReached={loadMore}
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={styles.footer}>
+                <ActivityIndicator color={colors.accent} />
+              </View>
+            ) : endReached ? (
+              <ThemedText colorKey="textMuted" style={styles.end}>
+                End of timeline
+              </ThemedText>
+            ) : null
+          }
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               tintColor={colors.text}
               onRefresh={() => {
                 setRefreshing(true);
-                void loadObservations()
+                nextCursorRef.current = null;
+                void loadPage('reset')
                   .then((data) => {
                     setObservations(data);
                     setError(null);
@@ -344,6 +408,13 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   filters: { gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
   list: { paddingHorizontal: 16, paddingBottom: 24 },
+  footer: { paddingVertical: 16, alignItems: 'center' },
+  end: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    textAlign: 'center',
+    paddingVertical: 16,
+  },
   day: {
     fontFamily: 'Inter_500Medium',
     fontSize: 12,

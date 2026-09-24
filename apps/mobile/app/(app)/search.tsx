@@ -23,9 +23,18 @@ import {
   semanticSearch,
   type ApiProjectSummary,
   type ApiSemanticSearchResponse,
+  type CaptureSource,
   type ApiTopicSummary,
 } from '../../lib/api';
 import { inferSearchHints } from '../../lib/searchHints';
+import {
+  SEARCH_DATE_OPTIONS,
+  SEARCH_SOURCE_OPTIONS,
+  dateRangeForPreset,
+  searchDateLabel,
+  searchSourceLabel,
+  type SearchDatePreset,
+} from '../../lib/searchFilters';
 import { useAppTheme } from '../../providers/ThemeProvider';
 
 function formatDate(iso: string): string {
@@ -60,6 +69,9 @@ export default function SearchScreen() {
   const [entityId, setEntityId] = useState<string | undefined>(
     typeof params.entityId === 'string' ? params.entityId : undefined,
   );
+  const [source, setSource] = useState<CaptureSource | undefined>();
+  const [datePreset, setDatePreset] = useState<SearchDatePreset | undefined>();
+  const [openPanel, setOpenPanel] = useState<'source' | 'date' | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ApiSemanticSearchResponse | null>(null);
@@ -93,6 +105,7 @@ export default function SearchScreen() {
       const token = await getToken();
       if (!token) throw new ApiError('Sign in required.', 401);
       const hints = inferSearchHints(trimmed);
+      const dates = datePreset ? dateRangeForPreset(datePreset) : undefined;
       const response = await semanticSearch({
         token,
         query: hints.query,
@@ -101,12 +114,20 @@ export default function SearchScreen() {
           projectId,
           topicId,
           entityId,
-          from: hints.from,
-          to: hints.to,
-          source: hints.source,
+          from: dates?.from ?? hints.from,
+          to: dates?.to ?? hints.to,
+          source: source ?? hints.source,
         },
       });
-      setResult({ ...response, query: hints.labels.join(' · ') || response.query });
+      const labels = [
+        ...hints.labels,
+        source ? searchSourceLabel(source) : null,
+        datePreset ? searchDateLabel(datePreset) : null,
+      ].filter(Boolean);
+      setResult({
+        ...response,
+        query: labels.join(' · ') || response.query,
+      });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Search failed');
     } finally {
@@ -117,13 +138,12 @@ export default function SearchScreen() {
   return (
     <FadeInContent>
       <SoftPage>
-
         <View style={styles.searchRow}>
           <View style={styles.inputWrap}>
             <ThemedInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Search…"
+              placeholder="Search memories..."
               accessibilityLabel="Search"
               returnKeyType="search"
               onSubmitEditing={() => void runSearch()}
@@ -144,6 +164,94 @@ export default function SearchScreen() {
             <Feather name="search" size={18} color={colors.buttonText} />
           </Pressable>
         </View>
+
+        <View style={styles.filterLaunch}>
+          <TopicChip
+            label={source ? searchSourceLabel(source) : 'Source'}
+            selected={!!source || openPanel === 'source'}
+            onPress={() =>
+              setOpenPanel((current) => (current === 'source' ? null : 'source'))
+            }
+          />
+          <TopicChip
+            label={datePreset ? searchDateLabel(datePreset) : 'Date'}
+            selected={!!datePreset || openPanel === 'date'}
+            onPress={() =>
+              setOpenPanel((current) => (current === 'date' ? null : 'date'))
+            }
+          />
+        </View>
+
+        {openPanel === 'source' ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chips}
+          >
+            {SEARCH_SOURCE_OPTIONS.map((option) => (
+              <TopicChip
+                key={option.value}
+                label={option.label}
+                selected={source === option.value}
+                onPress={() => {
+                  setSource((current) =>
+                    current === option.value ? undefined : option.value,
+                  );
+                }}
+              />
+            ))}
+          </ScrollView>
+        ) : null}
+
+        {openPanel === 'date' ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chips}
+          >
+            {SEARCH_DATE_OPTIONS.map((option) => (
+              <TopicChip
+                key={option.value}
+                label={option.label}
+                selected={datePreset === option.value}
+                onPress={() => {
+                  setDatePreset((current) =>
+                    current === option.value ? undefined : option.value,
+                  );
+                }}
+              />
+            ))}
+          </ScrollView>
+        ) : null}
+
+        {source || datePreset ? (
+          <View style={styles.activeRow}>
+            {source ? (
+              <Pressable
+                onPress={() => setSource(undefined)}
+                style={[styles.activeChip, { backgroundColor: colors.accentGlow }]}
+                accessibilityLabel={`Clear ${searchSourceLabel(source)}`}
+              >
+                <ThemedText colorKey="accent" style={styles.activeChipText}>
+                  {searchSourceLabel(source)}
+                </ThemedText>
+                <Feather name="x" size={12} color={colors.accent} />
+              </Pressable>
+            ) : null}
+            {datePreset ? (
+              <Pressable
+                onPress={() => setDatePreset(undefined)}
+                style={[styles.activeChip, { backgroundColor: colors.accentGlow }]}
+                accessibilityLabel={`Clear ${searchDateLabel(datePreset)}`}
+              >
+                <ThemedText colorKey="accent" style={styles.activeChipText}>
+                  {searchDateLabel(datePreset)}
+                </ThemedText>
+                <Feather name="x" size={12} color={colors.accent} />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         <ScrollView
           horizontal
@@ -253,11 +361,22 @@ const styles = StyleSheet.create({
   searchBtn: {
     width: 48,
     height: 48,
-    borderRadius: 16,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  filterLaunch: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chips: { gap: 8, paddingVertical: 2 },
+  activeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  activeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  activeChipText: { fontFamily: 'Inter_500Medium', fontSize: 12 },
   result: {
     paddingHorizontal: 16,
     paddingVertical: 14,

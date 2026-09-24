@@ -312,7 +312,7 @@ export default function HomeScreen() {
           {recent.length === 0 ? (
             <EmptyState
               title="Nothing yet"
-              actionLabel="Capture"
+              actionLabel="Capture something"
               onAction={() => router.push('/(app)/quick-capture')}
             />
           ) : (
