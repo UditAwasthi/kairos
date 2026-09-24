@@ -146,6 +146,8 @@ export default function AppLayout() {
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="privacy" options={{ title: 'Privacy' }} />
       <Stack.Screen name="data" options={{ title: 'Data' }} />
+      <Stack.Screen name="how-it-works/index" options={{ title: 'How it works' }} />
+      <Stack.Screen name="how-it-works/[id]" options={{ title: 'How it works' }} />
       <Stack.Screen name="about" options={{ title: 'About' }} />
     </Stack>
   );

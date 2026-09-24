@@ -53,6 +53,11 @@ export default function SettingsScreen() {
             onPress: () => router.push('/(app)/data'),
           },
           {
+            label: 'How it works',
+            icon: 'book-open',
+            onPress: () => router.push('/(app)/how-it-works'),
+          },
+          {
             label: 'About',
             icon: 'info',
             onPress: () => router.push('/(app)/about'),

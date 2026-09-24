@@ -111,6 +111,11 @@ export default function ProfileScreen() {
           { label: 'Topics', icon: 'hash', onPress: () => router.push('/(app)/topics') },
           { label: 'Projects', icon: 'folder', onPress: () => router.push('/(app)/projects') },
           { label: 'Activity', icon: 'layers', onPress: () => router.push('/(app)/activity') },
+          {
+            label: 'How it works',
+            icon: 'book-open',
+            onPress: () => router.push('/(app)/how-it-works'),
+          },
           { label: 'About', icon: 'info', onPress: () => router.push('/(app)/about') },
         ]}
       />
