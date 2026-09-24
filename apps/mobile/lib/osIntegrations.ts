@@ -46,14 +46,28 @@ export async function consumePendingOsCapture(
   const token = await getToken();
   if (!token) return;
   if (!pending.content && !pending.url && !pending.fileUri) return;
+  const fileUri = normalizeFileUri(pending.fileUri);
   await submitCapture({
     token,
     source: pending.source || 'SHARE',
     content: pending.content,
     url: pending.url,
     title: pending.title,
-    fileUri: pending.fileUri,
+    fileUri,
     fileName: pending.fileName,
     mimeType: pending.mimeType,
   });
+}
+
+function normalizeFileUri(uri?: string): string | undefined {
+  if (!uri) return undefined;
+  if (
+    uri.startsWith('file:') ||
+    uri.startsWith('content:') ||
+    uri.startsWith('http:') ||
+    uri.startsWith('https:')
+  ) {
+    return uri;
+  }
+  return `file://${uri}`;
 }

@@ -6,21 +6,31 @@
       android:name=".KairosShareActivity"
       android:exported="true"
       android:excludeFromRecents="true"
+      android:grantUriPermissions="true"
       android:theme="@android:style/Theme.Translucent.NoTitleBar">
       <intent-filter android:label="Kairos">
         <action android:name="android.intent.action.SEND" />
+        <action android:name="android.intent.action.SEND_MULTIPLE" />
         <category android:name="android.intent.category.DEFAULT" />
         <data android:mimeType="text/plain" />
       </intent-filter>
       <intent-filter android:label="Kairos">
         <action android:name="android.intent.action.SEND" />
+        <action android:name="android.intent.action.SEND_MULTIPLE" />
         <category android:name="android.intent.category.DEFAULT" />
         <data android:mimeType="image/*" />
       </intent-filter>
       <intent-filter android:label="Kairos">
         <action android:name="android.intent.action.SEND" />
+        <action android:name="android.intent.action.SEND_MULTIPLE" />
         <category android:name="android.intent.category.DEFAULT" />
         <data android:mimeType="application/pdf" />
+      </intent-filter>
+      <intent-filter android:label="Kairos">
+        <action android:name="android.intent.action.SEND" />
+        <action android:name="android.intent.action.SEND_MULTIPLE" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="*/*" />
       </intent-filter>
     </activity>
 

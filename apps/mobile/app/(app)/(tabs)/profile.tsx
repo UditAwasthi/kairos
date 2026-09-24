@@ -64,6 +64,9 @@ export default function ProfileScreen() {
       <SoftLinkList
         items={[
           { label: 'Settings', icon: 'settings', onPress: () => router.push('/(app)/settings') },
+          { label: 'Dashboard', icon: 'bar-chart-2', onPress: () => router.push('/(app)/dashboard') },
+          { label: 'Predictions', icon: 'zap', onPress: () => router.push('/(app)/predictions') },
+          { label: 'Today', icon: 'sun', onPress: () => router.push('/(app)/insight') },
           { label: 'Timeline', icon: 'clock', onPress: () => router.push('/(app)/timeline') },
           {
             label: 'Notifications',

@@ -112,6 +112,8 @@ export default function AppLayout() {
         options={{ title: 'Voice', presentation: 'modal' }}
       />
       <Stack.Screen name="insight" options={{ title: 'Today' }} />
+      <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />
+      <Stack.Screen name="predictions" options={{ title: 'Predictions' }} />
       <Stack.Screen name="timeline" options={{ title: 'Timeline' }} />
       <Stack.Screen name="memory/[id]" options={{ title: 'Memory' }} />
       <Stack.Screen name="observation/[id]" options={{ title: 'Memory' }} />

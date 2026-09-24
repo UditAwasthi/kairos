@@ -47,4 +47,64 @@ describe('InsightsService', () => {
     expect(result.empty).toBe(false);
     expect(result.body).toMatch(/backend work/i);
   });
+
+  it('builds a dashboard from existing observation counts', async () => {
+    const prisma = {
+      observation: {
+        count: jest.fn().mockResolvedValue(3),
+        groupBy: jest.fn().mockResolvedValue([
+          { source: 'SHARE', _count: { _all: 2 } },
+        ]),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'obs_1',
+            originalFilename: 'shot.png',
+            source: 'SHARE',
+            capturedAt: new Date(),
+            summary: 'A screenshot',
+            processingStatus: ProcessingStatus.COMPLETED,
+          },
+        ]),
+      },
+      topic: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 't1', name: 'Kafka', _count: { observationTopics: 2 } },
+        ]),
+      },
+    };
+    const service = new InsightsService(
+      prisma as never,
+      { findOrCreateByClerkId: jest.fn().mockResolvedValue(user) } as never,
+      { isConfigured: () => false } as never,
+    );
+    jest.spyOn(service, 'todayForClerkUser').mockResolvedValue({
+      title: "Today's insight",
+      body: 'Backend work this week.',
+      generatedAt: new Date().toISOString(),
+      observationCount: 3,
+      empty: false,
+    });
+
+    const result = await service.dashboardForClerkUser('clerk_a');
+    expect(result.totalCount).toBe(3);
+    expect(result.sources[0].source).toBe('SHARE');
+    expect(result.topics[0].name).toBe('Kafka');
+  });
+
+  it('returns a starter prediction when memory is empty', async () => {
+    const prisma = {
+      observation: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    };
+    const service = new InsightsService(
+      prisma as never,
+      { findOrCreateByClerkId: jest.fn().mockResolvedValue(user) } as never,
+      { isConfigured: () => false } as never,
+    );
+    const result = await service.predictionsForClerkUser('clerk_a');
+    expect(result.empty).toBe(true);
+    expect(result.items[0].kind).toBe('next');
+  });
 });

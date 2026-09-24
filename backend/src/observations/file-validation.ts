@@ -132,7 +132,8 @@ export async function validateUpload(params: {
   }
 
   const rule = ALLOWED_BY_MIME[mimeType];
-  if (extension && !rule.extensions.includes(extension)) {
+  const genericExtension = !extension || ['.bin', '.dat', '.tmp', '.file'].includes(extension);
+  if (extension && !genericExtension && !rule.extensions.includes(extension)) {
     throw new BadRequestException({
       error: {
         code: 'UNSUPPORTED_FILE',
@@ -141,11 +142,18 @@ export async function validateUpload(params: {
     });
   }
 
+  const finalExtension = rule.extensions.includes(extension)
+    ? extension
+    : rule.extensions[0];
+  const named = safeFilename.includes('.')
+    ? safeFilename.replace(/\.[^.]+$/, finalExtension)
+    : `${safeFilename}${finalExtension}`;
+
   return {
     mimeType,
-    extension: extension || rule.extensions[0],
+    extension: finalExtension,
     observationType: rule.type,
-    safeFilename,
+    safeFilename: named,
   };
 }
 

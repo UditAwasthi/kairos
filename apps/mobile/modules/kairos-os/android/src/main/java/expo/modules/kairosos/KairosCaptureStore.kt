@@ -106,7 +106,7 @@ class KairosCaptureStore(private val context: Context) {
     val base = apiBaseUrl
     val pending = JSONObject().apply {
       put("source", source)
-      put("fileUri", file.absolutePath)
+      put("fileUri", "file://${file.absolutePath}")
       put("fileName", file.name)
       put("mimeType", mimeType)
       if (!title.isNullOrBlank()) put("title", title)

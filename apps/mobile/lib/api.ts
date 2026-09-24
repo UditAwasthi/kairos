@@ -297,6 +297,66 @@ export type TodayInsight = {
   empty: boolean;
 };
 
+export type DashboardSummary = {
+  todayCount: number;
+  weekCount: number;
+  processingCount: number;
+  completedCount: number;
+  totalCount: number;
+  insight: TodayInsight;
+  sources: Array<{ source: CaptureSource; label: string; count: number }>;
+  topics: Array<{ id: string; name: string; observationCount: number }>;
+  recent: Array<{
+    id: string;
+    filename: string;
+    source: CaptureSource;
+    sourceLabel: string;
+    capturedAt: string;
+    summary: string | null;
+    status: ApiObservationStatus;
+  }>;
+};
+
+export type PredictionItem = {
+  kind: 'revisit' | 'focus' | 'emerging' | 'next';
+  title: string;
+  body: string;
+  topicId?: string;
+  observationId?: string;
+};
+
+export type PredictionsSummary = {
+  generatedAt: string;
+  empty: boolean;
+  items: PredictionItem[];
+};
+
+export async function fetchDashboard(token: string): Promise<DashboardSummary> {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/insights/dashboard`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: DashboardSummary };
+  return body.data;
+}
+
+export async function fetchPredictions(token: string): Promise<PredictionsSummary> {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/insights/predictions`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: PredictionsSummary };
+  return body.data;
+}
+
 export async function fetchTodayInsight(token: string): Promise<TodayInsight> {
   const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/insights/today`, {
     method: 'GET',

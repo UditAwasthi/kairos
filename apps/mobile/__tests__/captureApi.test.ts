@@ -1,4 +1,10 @@
-import { createCapture, uploadCapture, fetchTodayInsight } from '../lib/api';
+import {
+  createCapture,
+  uploadCapture,
+  fetchDashboard,
+  fetchPredictions,
+  fetchTodayInsight,
+} from '../lib/api';
 
 describe('canonical capture API client', () => {
   const originalFetch = global.fetch;
@@ -77,6 +83,57 @@ describe('canonical capture API client', () => {
     expect(insight.body).toMatch(/Backend work/);
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringMatching(/\/insights\/today$/),
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('loads dashboard and predictions', async () => {
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            todayCount: 1,
+            weekCount: 3,
+            processingCount: 0,
+            completedCount: 3,
+            totalCount: 3,
+            insight: {
+              title: "Today's insight",
+              body: 'Backend work.',
+              generatedAt: '2026-09-23T00:00:00.000Z',
+              observationCount: 3,
+              empty: false,
+            },
+            sources: [{ source: 'SHARE', label: 'Share', count: 2 }],
+            topics: [],
+            recent: [],
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            generatedAt: '2026-09-23T00:00:00.000Z',
+            empty: false,
+            items: [{ kind: 'next', title: 'Likely next', body: 'Stay on Kafka.' }],
+          },
+        }),
+      }) as unknown as typeof fetch;
+
+    const dashboard = await fetchDashboard('tok');
+    expect(dashboard.totalCount).toBe(3);
+    const predictions = await fetchPredictions('tok');
+    expect(predictions.items[0].kind).toBe('next');
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      expect.stringMatching(/\/insights\/dashboard$/),
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      expect.stringMatching(/\/insights\/predictions$/),
       expect.objectContaining({ method: 'GET' }),
     );
   });

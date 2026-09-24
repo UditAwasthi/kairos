@@ -33,6 +33,12 @@ export function redirectSystemPath({ path }: NativeIntentArgs): string {
   if (withoutQuery === 'insight') {
     return `/insight${suffix}`;
   }
+  if (withoutQuery === 'dashboard') {
+    return `/dashboard${suffix}`;
+  }
+  if (withoutQuery === 'predictions') {
+    return `/predictions${suffix}`;
+  }
   if (withoutQuery === 'ask') {
     return `/ask${suffix}`;
   }

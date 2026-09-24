@@ -195,6 +195,11 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
+          <Pressable
+            onPress={() => router.push('/(app)/dashboard')}
+            accessibilityRole="button"
+            accessibilityLabel="Dashboard"
+          >
           <GlassPanel style={styles.signalCard} contentStyle={styles.signalInner} padded={false}>
             <SoftAurora compact />
             <View style={styles.signalLeft}>
@@ -218,6 +223,7 @@ export default function HomeScreen() {
               </Pressable>
             ) : null}
           </GlassPanel>
+          </Pressable>
 
           <Pressable
             onPress={() => {
@@ -248,6 +254,21 @@ export default function HomeScreen() {
               icon="search"
               width={COL}
               onPress={() => router.push('/(app)/search')}
+            />
+          </View>
+
+          <View style={styles.row}>
+            <SoftTile
+              label="Dashboard"
+              icon="bar-chart-2"
+              width={COL}
+              onPress={() => router.push('/(app)/dashboard')}
+            />
+            <SoftTile
+              label="Predictions"
+              icon="zap"
+              width={COL}
+              onPress={() => router.push('/(app)/predictions')}
             />
           </View>
 
