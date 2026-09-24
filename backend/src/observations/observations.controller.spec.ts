@@ -35,6 +35,7 @@ describe('ObservationsController', () => {
   const reprocessForClerkUser = jest.fn();
   const getDownloadUrlForClerkUser = jest.fn();
   const getFileForClerkUser = jest.fn();
+  const relatedForClerkUser = jest.fn();
 
   beforeEach(async () => {
     upload.mockReset();
@@ -43,6 +44,7 @@ describe('ObservationsController', () => {
     reprocessForClerkUser.mockReset();
     getDownloadUrlForClerkUser.mockReset();
     getFileForClerkUser.mockReset();
+    relatedForClerkUser.mockReset();
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [ObservationsController],
@@ -56,6 +58,7 @@ describe('ObservationsController', () => {
             reprocessForClerkUser,
             getDownloadUrlForClerkUser,
             getFileForClerkUser,
+            relatedForClerkUser,
           },
         },
       ],

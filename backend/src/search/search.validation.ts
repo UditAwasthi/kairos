@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
-import type { ObservationType } from '@prisma/client';
+import type { CaptureSource, ObservationType } from '@prisma/client';
 import { parseOptionalStringId } from '../metadata/resolve-filters';
+import { parseOptionalCaptureSource } from '../observations/capture-source';
 
 export const MAX_SEARCH_QUERY_LENGTH = 500;
 export const MAX_SEARCH_LIMIT = 20;
@@ -23,6 +24,9 @@ export type SearchRequestBody = {
     projectId?: unknown;
     topic?: unknown;
     entity?: unknown;
+    source?: unknown;
+    observationId?: unknown;
+    excludeObservationId?: unknown;
   };
 };
 
@@ -39,10 +43,13 @@ export type ValidatedSearchRequest = {
     projectId?: string;
     topic?: string;
     entity?: string;
+    source?: CaptureSource;
+    observationId?: string;
+    excludeObservationId?: string;
   };
 };
 
-const OBSERVATION_TYPES = new Set(['DOCUMENT', 'PDF', 'IMAGE', 'TEXT']);
+const OBSERVATION_TYPES = new Set(['DOCUMENT', 'PDF', 'IMAGE', 'TEXT', 'AUDIO']);
 
 export function validateSearchRequest(
   body: SearchRequestBody,
@@ -115,6 +122,21 @@ export function validateSearchRequest(
     parseOptionalStringId(filters.topic ?? body.topic, 'topic') ?? undefined;
   const entity =
     parseOptionalStringId(filters.entity ?? body.entity, 'entity') ?? undefined;
+  const observationId = parseOptionalStringId(
+    filters.observationId,
+    'observationId',
+  );
+  const excludeObservationId = parseOptionalStringId(
+    filters.excludeObservationId,
+    'excludeObservationId',
+  );
+  let source: CaptureSource | undefined;
+  if (filters.source !== undefined && filters.source !== null && filters.source !== '') {
+    source = parseOptionalCaptureSource(filters.source);
+    if (!source) {
+      throw badRequest('INVALID_FILTER', 'Invalid source filter.');
+    }
+  }
 
   return {
     query,
@@ -129,6 +151,9 @@ export function validateSearchRequest(
       projectId,
       topic,
       entity,
+      source,
+      observationId,
+      excludeObservationId,
     },
   };
 }

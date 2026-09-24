@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { ObservationType } from '@prisma/client';
+import type { CaptureSource, ObservationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EMBEDDING_PROVIDER, type EmbeddingProvider } from './embedding.types';
 import {
@@ -24,6 +24,9 @@ export type VectorSearchFilters = {
   topicId?: string;
   entityId?: string;
   projectId?: string;
+  source?: CaptureSource;
+  observationId?: string;
+  excludeObservationId?: string;
 };
 
 export type VectorSearchOptions = {
@@ -119,6 +122,21 @@ export class VectorSearchService {
         WHERE po."observationId" = o.id AND po."projectId" = $${idx}
       )`);
       params.push(filters.projectId);
+      idx += 1;
+    }
+    if (filters.source) {
+      where.push(`o.source = $${idx}`);
+      params.push(filters.source);
+      idx += 1;
+    }
+    if (filters.observationId) {
+      where.push(`o.id = $${idx}`);
+      params.push(filters.observationId);
+      idx += 1;
+    }
+    if (filters.excludeObservationId) {
+      where.push(`o.id <> $${idx}`);
+      params.push(filters.excludeObservationId);
       idx += 1;
     }
     if (maxDistance !== undefined) {

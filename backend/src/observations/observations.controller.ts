@@ -90,15 +90,32 @@ export class ObservationsController {
     @Query('projectId') projectId?: string,
     @Query('topic') topic?: string,
     @Query('entity') entity?: string,
+    @Query('source') source?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('limit') limit?: string,
   ): Promise<{ data: ObservationResponse[] }> {
+    const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined;
     const observations = await this.observations.listForClerkUser(user.id, {
       topicId: topicId || undefined,
       entityId: entityId || undefined,
       projectId: projectId || undefined,
       topic: topic || undefined,
       entity: entity || undefined,
+      source: source || undefined,
+      from: from || undefined,
+      to: to || undefined,
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
     });
     return { data: observations };
+  }
+
+  @Get(':id/related')
+  async related(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return { data: await this.observations.relatedForClerkUser(user.id, id) };
   }
 
   @Get(':id')

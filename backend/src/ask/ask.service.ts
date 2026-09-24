@@ -116,6 +116,8 @@ export class AskService {
           projectId: request.filters.projectId,
           topic: request.filters.topic,
           entity: request.filters.entity,
+          source: request.filters.source,
+          observationId: request.filters.observationId,
         },
       });
       const retrievalMs = Date.now() - retrievalStarted;

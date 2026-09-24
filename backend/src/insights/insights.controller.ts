@@ -4,6 +4,7 @@ import { CurrentUser } from '../auth/auth-user.decorator';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import {
   InsightsService,
+  type DailyBrief,
   type DashboardSummary,
   type PredictionsSummary,
   type TodayInsight,
@@ -33,5 +34,12 @@ export class InsightsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<{ data: PredictionsSummary }> {
     return { data: await this.insights.predictionsForClerkUser(user.id) };
+  }
+
+  @Get('brief')
+  async brief(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ data: DailyBrief }> {
+    return { data: await this.insights.briefForClerkUser(user.id) };
   }
 }

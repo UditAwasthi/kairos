@@ -20,6 +20,9 @@ describe('deep link mapping', () => {
     expect(redirectSystemPath({ path: 'kairos://predictions', initial: true })).toBe(
       '/predictions',
     );
+    expect(redirectSystemPath({ path: 'kairos://brief', initial: true })).toBe(
+      '/brief',
+    );
     expect(redirectSystemPath({ path: 'kairos://ask', initial: true })).toBe('/ask');
     expect(redirectSystemPath({ path: 'kairos://project/abc', initial: true })).toBe(
       '/projects/abc',

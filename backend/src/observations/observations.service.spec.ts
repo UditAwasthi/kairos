@@ -87,6 +87,7 @@ describe('ObservationsService', () => {
       users as never,
       processor as never,
       storage,
+      { searchText: jest.fn().mockResolvedValue([]) } as never,
     );
   });
 

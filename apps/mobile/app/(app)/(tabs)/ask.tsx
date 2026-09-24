@@ -36,10 +36,10 @@ import {
 import type { AskMessage } from '../../../types';
 
 const STARTERS = [
-  'What did I learn recently?',
-  'What was I working on?',
-  'Show me databases',
-  'Mobile development',
+  'What have I been working on recently?',
+  'What did I work on last Tuesday?',
+  'When did I first start learning Redis?',
+  'What have I mentioned about Kairos this week?',
 ];
 
 const INPUT_MIN = 22;
@@ -112,10 +112,13 @@ export default function AskScreen() {
   );
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationTitle, setConversationTitle] = useState('Ask Kairos');
-  const [scopeType, setScopeType] = useState<'topic' | 'entity' | 'project' | null>(
+  const [scopeType, setScopeType] = useState<
+    'topic' | 'entity' | 'project' | 'observation' | null
+  >(
     params.scopeType === 'topic' ||
       params.scopeType === 'entity' ||
-      params.scopeType === 'project'
+      params.scopeType === 'project' ||
+      params.scopeType === 'observation'
       ? params.scopeType
       : null,
   );
@@ -258,6 +261,8 @@ export default function AskScreen() {
           topicId: scopeType === 'topic' ? scopeId ?? undefined : undefined,
           entityId: scopeType === 'entity' ? scopeId ?? undefined : undefined,
           projectId: scopeType === 'project' ? scopeId ?? undefined : undefined,
+          observationId:
+            scopeType === 'observation' ? scopeId ?? undefined : undefined,
         },
       });
 
@@ -470,7 +475,9 @@ export default function AskScreen() {
                 {message.role === 'kairos' && message.sources && message.sources.length > 0 ? (
                   <View style={styles.sources}>
                     <ThemedText colorKey="textMuted" style={styles.kicker}>
-                      Sources
+                      {message.insufficientEvidence
+                        ? 'I do not have enough evidence yet'
+                        : `Based on ${message.sources.length} ${message.sources.length === 1 ? 'memory' : 'memories'}`}
                     </ThemedText>
                     {message.sources.map((source) => (
                       <EvidenceCard

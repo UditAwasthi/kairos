@@ -93,17 +93,24 @@ describe('canonical capture API client', () => {
         ok: true,
         json: async () => ({
           data: {
+            greeting: 'Good morning',
+            daySummary: '1 memory · 0 topics · 0 projects',
             todayCount: 1,
             weekCount: 3,
+            todayTopicCount: 0,
+            todayProjectCount: 0,
             processingCount: 0,
             completedCount: 3,
             totalCount: 3,
             insight: {
-              title: "Today's insight",
+              title: 'Something I noticed',
               body: 'Backend work.',
               generatedAt: '2026-09-23T00:00:00.000Z',
               observationCount: 3,
               empty: false,
+              evidence: [],
+              why: 'Based on 3 memories',
+              maturity: 'pattern',
             },
             sources: [{ source: 'SHARE', label: 'Share', count: 2 }],
             topics: [],
@@ -117,7 +124,14 @@ describe('canonical capture API client', () => {
           data: {
             generatedAt: '2026-09-23T00:00:00.000Z',
             empty: false,
-            items: [{ kind: 'next', title: 'Likely next', body: 'Stay on Kafka.' }],
+            items: [{
+              kind: 'next',
+              title: 'Likely next',
+              body: 'Stay on Kafka.',
+              why: '6 mentions · 7 days',
+              maturity: 'pattern',
+              evidence: [],
+            }],
           },
         }),
       }) as unknown as typeof fetch;

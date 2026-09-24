@@ -115,6 +115,9 @@ export class SearchService {
       topicId,
       entityId,
       projectId,
+      source: request.filters.source,
+      observationId: request.filters.observationId,
+      excludeObservationId: request.filters.excludeObservationId,
     };
 
     const embedStarted = Date.now();

@@ -25,6 +25,7 @@ import {
   type ApiSemanticSearchResponse,
   type ApiTopicSummary,
 } from '../../lib/api';
+import { inferSearchHints } from '../../lib/searchHints';
 import { useAppTheme } from '../../providers/ThemeProvider';
 
 function formatDate(iso: string): string {
@@ -91,13 +92,21 @@ export default function SearchScreen() {
     try {
       const token = await getToken();
       if (!token) throw new ApiError('Sign in required.', 401);
+      const hints = inferSearchHints(trimmed);
       const response = await semanticSearch({
         token,
-        query: trimmed,
+        query: hints.query,
         limit: 10,
-        filters: { projectId, topicId, entityId },
+        filters: {
+          projectId,
+          topicId,
+          entityId,
+          from: hints.from,
+          to: hints.to,
+          source: hints.source,
+        },
       });
-      setResult(response);
+      setResult({ ...response, query: hints.labels.join(' · ') || response.query });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Search failed');
     } finally {
@@ -189,7 +198,11 @@ export default function SearchScreen() {
         ) : null}
 
         {searched && !loading && result && result.results.length === 0 ? (
-          <EmptyState title="No matches" />
+          <EmptyState
+            title="Nothing matched that memory"
+            actionLabel="Capture something"
+            onAction={() => router.push('/(app)/quick-capture')}
+          />
         ) : null}
 
         {result && result.results.length > 0 ? (
@@ -211,7 +224,8 @@ export default function SearchScreen() {
               >
                 <GlassPanel padded={false} contentStyle={styles.result}>
                   <ThemedText colorKey="textMuted" style={styles.meta}>
-                    {formatDate(item.observation.capturedAt)}
+                    Matched · {formatDate(item.observation.capturedAt)}
+                    {result.query ? ` · ${result.query}` : ''}
                   </ThemedText>
                   <ThemedText colorKey="text" style={styles.title} numberOfLines={1}>
                     {item.observation.filename}

@@ -470,6 +470,25 @@ export default function ObservationDetailScreen() {
         <SoftLinkList
           items={[
             {
+              label: 'Ask about this memory',
+              icon: 'message-circle',
+              onPress: () =>
+                router.push({
+                  pathname: '/(app)/(tabs)/ask',
+                  params: {
+                    scopeType: 'observation',
+                    scopeId: String(id),
+                    scopeName: data.title,
+                    q: `What did I say in this memory?`,
+                  },
+                }),
+            },
+            {
+              label: 'Related memories',
+              icon: 'git-merge',
+              onPress: () => router.push(`/(app)/related/${String(id)}`),
+            },
+            {
               label: 'Add to project',
               icon: 'folder-plus',
               onPress: () =>
@@ -477,11 +496,6 @@ export default function ObservationDetailScreen() {
                   pathname: '/(app)/observation/projects',
                   params: { id: String(id) },
                 }),
-            },
-            {
-              label: 'Activity',
-              icon: 'activity',
-              onPress: () => router.push('/(app)/activity'),
             },
           ]}
         />

@@ -32,6 +32,7 @@ import {
   type ApiObservation,
   type ApiTopicSummary,
 } from '../../../lib/api';
+import { getCaptureSync, subscribeCaptureSync, syncBannerText } from '../../../lib/syncStatus';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import { auroraToneColors } from '../../../theme';
 
@@ -99,6 +100,7 @@ export default function HomeScreen() {
   const [topics, setTopics] = useState<ApiTopicSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [syncText, setSyncText] = useState<string | null>(syncBannerText());
   const hasDataRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -126,8 +128,12 @@ export default function HomeScreen() {
         await load();
         if (!cancelled) setLoading(false);
       })();
+      const unsub = subscribeCaptureSync(() => setSyncText(syncBannerText()));
+      setSyncText(syncBannerText());
+      void getCaptureSync();
       return () => {
         cancelled = true;
+        unsub();
       };
     }, [load]),
   );
@@ -272,11 +278,19 @@ export default function HomeScreen() {
             />
           </View>
 
+          {syncText ? (
+            <GlassPanel>
+              <ThemedText colorKey="textMuted" style={styles.syncText}>
+                {syncText}
+              </ThemedText>
+            </GlassPanel>
+          ) : null}
+
           <View style={styles.navRow}>
             {(
               [
                 { icon: 'clock' as const, label: 'Timeline', href: '/(app)/timeline' },
-                { icon: 'layers' as const, label: 'Activity', href: '/(app)/activity' },
+                { icon: 'book-open' as const, label: 'Brief', href: '/(app)/brief' },
                 { icon: 'hash' as const, label: 'Topics', href: '/(app)/topics' },
                 { icon: 'folder' as const, label: 'Projects', href: '/(app)/projects' },
               ] as const
@@ -503,4 +517,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     maxWidth: 110,
   },
+  syncText: { fontFamily: 'Inter_400Regular', fontSize: 13 },
 });

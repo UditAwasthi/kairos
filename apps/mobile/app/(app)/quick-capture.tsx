@@ -68,9 +68,13 @@ export default function QuickCaptureScreen() {
         title: params.title ? String(params.title) : undefined,
       });
       if (result.queued) {
-        setMessage('Saved on this device. Kairos will sync when you are online.');
+        setMessage('Saved locally. Kairos will sync when you are back online.');
       } else {
-        setMessage('Saved. Kairos is processing in the background.');
+        setMessage(
+          result.observation
+            ? 'Saved. Processing memory…'
+            : 'Saved.',
+        );
         setText('');
         setUrl('');
       }
@@ -117,6 +121,7 @@ export default function QuickCaptureScreen() {
         onChangeText={setText}
         placeholder="What's on your mind?"
         multiline
+        autoFocus
         accessibilityLabel="Capture text"
         style={styles.note}
       />

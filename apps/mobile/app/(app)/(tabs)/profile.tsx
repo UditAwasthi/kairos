@@ -67,6 +67,7 @@ export default function ProfileScreen() {
           { label: 'Dashboard', icon: 'bar-chart-2', onPress: () => router.push('/(app)/dashboard') },
           { label: 'Predictions', icon: 'zap', onPress: () => router.push('/(app)/predictions') },
           { label: 'Today', icon: 'sun', onPress: () => router.push('/(app)/insight') },
+          { label: 'Daily brief', icon: 'book-open', onPress: () => router.push('/(app)/brief') },
           { label: 'Timeline', icon: 'clock', onPress: () => router.push('/(app)/timeline') },
           {
             label: 'Notifications',

@@ -11,49 +11,42 @@ import {
   SoftRefreshBar,
 } from '../../../components/ui/EmptyState';
 import { GlassPanel } from '../../../components/ui/Glass';
-import { SoftPage } from '../../../components/ui/SoftScreen';
-import { ThemedButton } from '../../../components/ui/ThemedButton';
+import { SoftPage, SoftTitle } from '../../../components/ui/SoftScreen';
 import { useAsync } from '../../../hooks/useAsync';
-import { fetchObservation, semanticSearch } from '../../../lib/api';
+import { fetchRelatedMemories } from '../../../lib/api';
+import { relativeMemoryLabel } from '../../../lib/searchHints';
+
+const REASON_LABEL = {
+  similar: 'Similar meaning',
+  shared_topic: 'Shared topic',
+  shared_entity: 'Shared entity',
+  shared_project: 'Same project',
+  nearby_in_time: 'Nearby in time',
+} as const;
 
 export default function RelatedMemoriesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { getToken } = useAuth();
-
   const { data, error, loading, refreshing, reload } = useAsync(
     async () => {
       const token = await getToken();
       if (!token) throw new Error('Sign in required');
-      const observation = await fetchObservation(token, String(id));
-      const query =
-        observation.summary?.trim() ||
-        observation.extractedText?.slice(0, 200)?.trim() ||
-        observation.filename;
-      const related = await semanticSearch({
-        token,
-        query,
-        limit: 8,
-      });
-      return {
-        observation,
-        results: related.results.filter((r) => r.observationId !== observation.id),
-      };
+      return fetchRelatedMemories(token, String(id));
     },
     [getToken, id],
     { resetKey: String(id) },
   );
 
-  if (loading) return <LoadingSkeleton rows={8} />;
-  if ((error && !data) || !data) {
+  if (loading) return <LoadingSkeleton rows={6} />;
+  if (error && !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }
-
-  if (data.results.length === 0) {
+  if (!data || data.length === 0) {
     return (
       <SoftPage>
         <EmptyState
-          title="None yet"
+          title="No related memories yet"
           actionLabel="Search"
           onAction={() => router.push('/(app)/search')}
         />
@@ -65,58 +58,44 @@ export default function RelatedMemoriesScreen() {
     <FadeInContent>
       <SoftRefreshBar active={refreshing} />
       <SoftPage>
-        <GlassPanel padded={false} contentStyle={styles.current}>
-          <ThemedText colorKey="text" style={styles.currentTitle} numberOfLines={2}>
-            {data.observation.filename}
-          </ThemedText>
-        </GlassPanel>
-
-        {data.results.map((result) => (
+        <SoftTitle>Related memories</SoftTitle>
+        {data.map((item) => (
           <Pressable
-            key={result.chunkId}
+            key={item.observationId}
             onPress={() =>
               router.push({
                 pathname: '/(app)/observation/[id]',
-                params: {
-                  id: result.observationId,
-                  highlight: result.content.slice(0, 280),
-                },
+                params: { id: item.observationId, highlight: item.snippet },
               })
             }
+            accessibilityRole="button"
+            accessibilityLabel={item.filename}
             style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
           >
-            <GlassPanel padded={false} contentStyle={styles.row}>
-              <ThemedText colorKey="text" style={styles.rowTitle} numberOfLines={1}>
-                {result.observation.filename}
+            <GlassPanel>
+              <ThemedText colorKey="textMuted" style={styles.when}>
+                {relativeMemoryLabel(item.capturedAt)} · {item.sourceLabel}
               </ThemedText>
-              <ThemedText colorKey="textMuted" style={styles.snippet} numberOfLines={2}>
-                {result.content}
+              <ThemedText colorKey="text" style={styles.title} numberOfLines={2}>
+                {item.filename}
+              </ThemedText>
+              <ThemedText colorKey="textMuted" style={styles.snippet} numberOfLines={3}>
+                {item.snippet}
+              </ThemedText>
+              <ThemedText colorKey="textMuted" style={styles.reasons}>
+                {item.reasons.map((reason) => REASON_LABEL[reason]).join(' · ')}
               </ThemedText>
             </GlassPanel>
           </Pressable>
         ))}
-
-        <ThemedButton
-          label="Open"
-          variant="outline"
-          onPress={() => router.push(`/(app)/observation/${data.observation.id}`)}
-        />
       </SoftPage>
     </FadeInContent>
   );
 }
 
 const styles = StyleSheet.create({
-  current: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  currentTitle: { fontFamily: 'Inter_500Medium', fontSize: 15 },
-  row: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 6,
-  },
-  rowTitle: { fontFamily: 'Inter_500Medium', fontSize: 15 },
-  snippet: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18 },
+  when: { fontFamily: 'Inter_400Regular', fontSize: 12, marginBottom: 6 },
+  title: { fontFamily: 'Inter_500Medium', fontSize: 16 },
+  snippet: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21, marginTop: 6 },
+  reasons: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 8 },
 });

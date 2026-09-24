@@ -40,6 +40,27 @@ describe('validateSearchRequest', () => {
     expect(result.filters.from?.toISOString()).toBe('2026-01-01T00:00:00.000Z');
   });
 
+  it('accepts source and observation filters', () => {
+    const result = validateSearchRequest({
+      query: 'screenshot from last week',
+      filters: {
+        source: 'SHARE',
+        excludeObservationId: 'obs_self',
+      },
+    });
+    expect(result.filters.source).toBe('SHARE');
+    expect(result.filters.excludeObservationId).toBe('obs_self');
+  });
+
+  it('rejects an unknown source filter', () => {
+    expect(() =>
+      validateSearchRequest({
+        query: 'redis',
+        filters: { source: 'NOT_A_SOURCE' },
+      }),
+    ).toThrow();
+  });
+
   it('accepts projectId filter', () => {
     const result = validateSearchRequest({
       query: 'caching',

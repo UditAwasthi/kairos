@@ -145,7 +145,7 @@ class KairosImeService : InputMethodService() {
     }
     val result = KairosCaptureStore(applicationContext).submitText(text, "KEYBOARD")
     val message = when {
-      result.ok -> "Saved to Kairos"
+      result.ok -> "Saved to Kairos ✓"
       result.queued -> "Saved. Open Kairos to sync."
       else -> result.error ?: "Could not save to Kairos"
     }

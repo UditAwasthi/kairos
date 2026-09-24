@@ -3,8 +3,9 @@ import { Redirect, Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, AppState, Platform, StyleSheet, View } from 'react-native';
 
-import { fetchTodayInsight } from '../../lib/api';
+import { fetchDashboard } from '../../lib/api';
 import { flushCaptureQueue } from '../../lib/capture';
+import { recordCaptureSync } from '../../lib/syncStatus';
 import { consumePendingOsCapture, KairosOs } from '../../lib/osIntegrations';
 import { ensureRecallReady } from '../../lib/recallSync';
 import { useAppTheme } from '../../providers/ThemeProvider';
@@ -27,8 +28,12 @@ export default function AppLayout() {
         if (!token) return;
         await KairosOs.setAuthToken(token);
         try {
-          const insight = await fetchTodayInsight(token);
-          await KairosOs.refreshWidget(insight.body);
+          const dashboard = await fetchDashboard(token);
+          await KairosOs.refreshWidget(
+            dashboard.insight.empty
+              ? dashboard.insight.body
+              : `You've captured ${dashboard.todayCount} memories today.\n\n${dashboard.insight.body}`,
+          );
         } catch {
           // Widget keeps its last cached insight.
         }
@@ -41,7 +46,10 @@ export default function AppLayout() {
     const flush = async () => {
       try {
         const token = await getToken();
-        if (token) await flushCaptureQueue(token);
+        if (token) {
+          const result = await flushCaptureQueue(token);
+          recordCaptureSync(result.flushed, result.remaining);
+        }
       } catch {
         // Queue remains local until the next successful flush.
       }
@@ -114,6 +122,7 @@ export default function AppLayout() {
       <Stack.Screen name="insight" options={{ title: 'Today' }} />
       <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />
       <Stack.Screen name="predictions" options={{ title: 'Predictions' }} />
+      <Stack.Screen name="brief" options={{ title: 'Brief' }} />
       <Stack.Screen name="timeline" options={{ title: 'Timeline' }} />
       <Stack.Screen name="memory/[id]" options={{ title: 'Memory' }} />
       <Stack.Screen name="observation/[id]" options={{ title: 'Memory' }} />

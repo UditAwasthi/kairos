@@ -19,6 +19,7 @@ import {
 } from '../../components/ui/EmptyState';
 import { TopicChip } from '../../components/ui/MemoryCards';
 import { ObservationStatusCard } from '../../components/ui/ObservationStatusCard';
+import { ThemedText } from '../../components/ThemedText';
 import {
   fetchEntities,
   fetchObservations,
@@ -274,9 +275,9 @@ export default function TimelineScreen() {
 
       {observations.length === 0 ? (
         <EmptyState
-          title="Empty"
-          actionLabel="Capture"
-          onAction={() => router.push('/(app)/(tabs)/capture')}
+          title="No memories yet"
+          actionLabel="Capture something"
+          onAction={() => router.push('/(app)/quick-capture')}
         />
       ) : (
         <FlatList
@@ -300,18 +301,39 @@ export default function TimelineScreen() {
               }}
             />
           }
-          renderItem={({ item }) => (
-            <ObservationStatusCard
-              observation={item}
-              retrying={retryingId === item.id}
-              onPress={() => router.push(`/(app)/observation/${item.id}`)}
-              onRetry={
-                item.status === 'FAILED'
-                  ? () => void onRetry(item.id)
-                  : undefined
-              }
-            />
-          )}
+          renderItem={({ item, index }) => {
+            const day = new Date(item.capturedAt).toDateString();
+            const prev = observations[index - 1];
+            const showDay = !prev || new Date(prev.capturedAt).toDateString() !== day;
+            const label = day === new Date().toDateString()
+              ? 'Today'
+              : day === new Date(Date.now() - 86400000).toDateString()
+                ? 'Yesterday'
+                : new Date(item.capturedAt).toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    month: 'short',
+                    day: 'numeric',
+                  });
+            return (
+              <>
+                {showDay ? (
+                  <ThemedText colorKey="textMuted" style={styles.day}>
+                    {label}
+                  </ThemedText>
+                ) : null}
+                <ObservationStatusCard
+                  observation={item}
+                  retrying={retryingId === item.id}
+                  onPress={() => router.push(`/(app)/observation/${item.id}`)}
+                  onRetry={
+                    item.status === 'FAILED'
+                      ? () => void onRetry(item.id)
+                      : undefined
+                  }
+                />
+              </>
+            );
+          }}
         />
       )}
     </FadeInContent>
@@ -322,4 +344,12 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   filters: { gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
   list: { paddingHorizontal: 16, paddingBottom: 24 },
+  day: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginTop: 12,
+    marginBottom: 8,
+  },
 });

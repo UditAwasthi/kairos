@@ -12,6 +12,7 @@ import {
   SoftRefreshBar,
 } from '../../components/ui/EmptyState';
 import { GlassPanel } from '../../components/ui/Glass';
+import { EvidenceRow } from '../../components/ui/InsightCard';
 import { SoftPage, SoftTitle } from '../../components/ui/SoftScreen';
 import { useAsync } from '../../hooks/useAsync';
 import { fetchPredictions, type PredictionItem } from '../../lib/api';
@@ -49,8 +50,8 @@ export default function PredictionsScreen() {
     return (
       <SoftPage>
         <EmptyState
-          title="No predictions yet"
-          actionLabel="Capture"
+          title="No patterns yet"
+          actionLabel="Capture something"
           onAction={() => router.push('/(app)/quick-capture')}
         />
       </SoftPage>
@@ -62,6 +63,9 @@ export default function PredictionsScreen() {
       <SoftRefreshBar active={refreshing} />
       <SoftPage>
         <SoftTitle>Predictions</SoftTitle>
+        <ThemedText colorKey="textMuted" style={styles.lead}>
+          These are cautious patterns from your memories — not claims about the future.
+        </ThemedText>
         {data.items.map((item, index) => {
           const href = item.observationId
             ? `/(app)/observation/${item.observationId}`
@@ -76,18 +80,33 @@ export default function PredictionsScreen() {
               accessibilityLabel={item.title}
               style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
             >
-              <GlassPanel padded={false} contentStyle={styles.card}>
-                <View style={[styles.icon, { backgroundColor: colors.accentGlow }]}>
-                  <Feather name={iconForKind(item.kind)} size={16} color={colors.accent} />
-                </View>
-                <View style={styles.copy}>
+              <GlassPanel>
+                <View style={styles.header}>
+                  <View style={[styles.icon, { backgroundColor: colors.accentGlow }]}>
+                    <Feather name={iconForKind(item.kind)} size={16} color={colors.accent} />
+                  </View>
                   <ThemedText colorKey="text" style={styles.title}>
                     {item.title}
                   </ThemedText>
-                  <ThemedText colorKey="textMuted" style={styles.body}>
-                    {item.body}
-                  </ThemedText>
                 </View>
+                <ThemedText colorKey="textMuted" style={styles.body}>
+                  {item.body}
+                </ThemedText>
+                <ThemedText colorKey="textMuted" style={styles.why}>
+                  Why this appeared · {item.why}
+                </ThemedText>
+                {item.evidence.slice(0, 3).map((evidence) => (
+                  <EvidenceRow
+                    key={evidence.observationId}
+                    item={evidence}
+                    onPress={() => router.push(`/(app)/observation/${evidence.observationId}`)}
+                  />
+                ))}
+                {item.evidence.length > 0 ? (
+                  <ThemedText colorKey="accent" style={styles.explore}>
+                    Explore related memories
+                  </ThemedText>
+                ) : null}
               </GlassPanel>
             </Pressable>
           );
@@ -98,22 +117,17 @@ export default function PredictionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
+  lead: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
   icon: {
     width: 32,
     height: 32,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
   },
-  copy: { flex: 1, gap: 6 },
-  title: { fontFamily: 'Inter_600SemiBold', fontSize: 16, letterSpacing: -0.2 },
+  title: { flex: 1, fontFamily: 'Inter_600SemiBold', fontSize: 16, letterSpacing: -0.2 },
   body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21 },
+  why: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 10 },
+  explore: { fontFamily: 'Inter_500Medium', fontSize: 13, marginTop: 12 },
 });

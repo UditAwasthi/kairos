@@ -162,9 +162,9 @@ export default function VoiceCaptureScreen() {
             : state === 'saving'
               ? 'Saving…'
               : state === 'saved'
-                ? 'Saved. Processing in the background.'
+                ? 'Saved. Processing memory…'
                 : state === 'queued'
-                  ? 'Saved on this device. Will sync when you are online.'
+                  ? 'Saved locally. Kairos will sync when you are back online.'
                   : state === 'permission_denied'
                     ? 'Microphone blocked'
                     : 'Tap to record'}

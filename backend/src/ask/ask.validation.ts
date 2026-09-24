@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
-import type { ObservationType } from '@prisma/client';
+import type { CaptureSource, ObservationType } from '@prisma/client';
 import { parseOptionalStringId } from '../metadata/resolve-filters';
+import { parseOptionalCaptureSource } from '../observations/capture-source';
 
 export const MAX_ASK_QUESTION_LENGTH = 500;
 export const MAX_ASK_LIMIT = 10;
@@ -23,10 +24,13 @@ export type AskRequestBody = {
     projectId?: unknown;
     topic?: unknown;
     entity?: unknown;
+    source?: unknown;
+    observationId?: unknown;
   };
   topic?: unknown;
   entity?: unknown;
   projectId?: unknown;
+  observationId?: unknown;
 };
 
 export type ValidatedAskRequest = {
@@ -44,10 +48,12 @@ export type ValidatedAskRequest = {
     projectId?: string;
     topic?: string;
     entity?: string;
+    source?: CaptureSource;
+    observationId?: string;
   };
 };
 
-const OBSERVATION_TYPES = new Set(['DOCUMENT', 'PDF', 'IMAGE', 'TEXT']);
+const OBSERVATION_TYPES = new Set(['DOCUMENT', 'PDF', 'IMAGE', 'TEXT', 'AUDIO']);
 
 export function validateAskRequest(body: AskRequestBody): ValidatedAskRequest {
   const rawQuestion =
@@ -149,6 +155,17 @@ export function validateAskRequest(body: AskRequestBody): ValidatedAskRequest {
     parseOptionalStringId(filters.topic ?? body.topic, 'topic') ?? undefined;
   const entity =
     parseOptionalStringId(filters.entity ?? body.entity, 'entity') ?? undefined;
+  const observationId = parseOptionalStringId(
+    filters.observationId ?? body.observationId,
+    'observationId',
+  );
+  let source: CaptureSource | undefined;
+  if (filters.source !== undefined && filters.source !== null && filters.source !== '') {
+    source = parseOptionalCaptureSource(filters.source);
+    if (!source) {
+      throw badRequest('INVALID_FILTER', 'Invalid source filter.');
+    }
+  }
 
   return {
     question,
@@ -165,6 +182,8 @@ export function validateAskRequest(body: AskRequestBody): ValidatedAskRequest {
       projectId,
       topic,
       entity,
+      source,
+      observationId,
     },
   };
 }

@@ -30,7 +30,28 @@ import {
   resolveTopicFilter,
 } from '../metadata/resolve-filters';
 import { fetchUrlContent } from './url-ingest';
-import { parseCaptureSource, parseOptionalCapturedAt } from './capture-source';
+import {
+  CAPTURE_SOURCE_LABELS,
+  parseCaptureSource,
+  parseOptionalCaptureSource,
+  parseOptionalCapturedAt,
+} from './capture-source';
+import { VectorSearchService } from '../embeddings/vector-search.service';
+import {
+  scoreRelatedMemory,
+  shouldKeepRelated,
+  type RelatedReason,
+} from './related-memories';
+
+export type RelatedMemoryItem = {
+  observationId: string;
+  filename: string;
+  snippet: string;
+  capturedAt: string;
+  sourceLabel: string;
+  score: number;
+  reasons: RelatedReason[];
+};
 
 const observationInclude = {
   observationTopics: { include: { topic: true } },
@@ -48,6 +69,7 @@ export class ObservationsService {
     private readonly users: UsersService,
     private readonly processor: ObservationProcessor,
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+    private readonly vectorSearch: VectorSearchService,
   ) {}
 
   async capture(params: {
@@ -478,6 +500,10 @@ export class ObservationsService {
       projectId?: string;
       topic?: string;
       entity?: string;
+      source?: string;
+      from?: string;
+      to?: string;
+      limit?: number;
     },
   ): Promise<ObservationResponse[]> {
     const user = await this.users.findOrCreateByClerkId(clerkUserId);
@@ -498,6 +524,10 @@ export class ObservationsService {
       userId: user.id,
       projectId: filters?.projectId,
     });
+    const source = parseOptionalCaptureSource(filters?.source);
+    const from = parseListDate(filters?.from);
+    const to = parseListDate(filters?.to);
+    const take = Math.min(Math.max(filters?.limit ?? 80, 1), 200);
 
     const observations = await this.prisma.observation.findMany({
       where: {
@@ -505,11 +535,130 @@ export class ObservationsService {
         ...(topicId ? { observationTopics: { some: { topicId } } } : {}),
         ...(entityId ? { observationEntities: { some: { entityId } } } : {}),
         ...(projectId ? { projectObservations: { some: { projectId } } } : {}),
+        ...(source ? { source } : {}),
+        ...(from || to
+          ? {
+              capturedAt: {
+                ...(from ? { gte: from } : {}),
+                ...(to ? { lte: to } : {}),
+              },
+            }
+          : {}),
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { capturedAt: 'desc' },
+      take,
       include: observationInclude,
     });
     return observations.map(toObservationResponse);
+  }
+
+  async relatedForClerkUser(
+    clerkUserId: string,
+    observationId: string,
+  ): Promise<RelatedMemoryItem[]> {
+    const seed = await this.findOwned(clerkUserId, observationId);
+    const topicIds = seed.observationTopics.map((row) => row.topic.id);
+    const entityIds = seed.observationEntities.map((row) => row.entity.id);
+    const projectIds = seed.projectObservations.map((row) => row.project.id);
+    const seedTopicCount = topicIds.length;
+    const seedEntityCount = entityIds.length;
+
+    const similar = new Map<string, number>();
+    const query =
+      seed.summary?.trim() ||
+      seed.extractedText?.trim().slice(0, 400) ||
+      seed.originalFilename;
+    try {
+      const hits = await this.vectorSearch.searchText(seed.userId, query, {
+        candidateLimit: 20,
+        minSimilarity: 0.2,
+        filters: { excludeObservationId: seed.id },
+      });
+      for (const hit of hits) {
+        const current = similar.get(hit.observationId) ?? 0;
+        if (hit.similarity > current) similar.set(hit.observationId, hit.similarity);
+      }
+    } catch {
+      // Embeddings may be unconfigured; topic/entity overlap still works.
+    }
+
+    const overlapWhere: Prisma.ObservationWhereInput[] = [];
+    if (topicIds.length > 0) {
+      overlapWhere.push({ observationTopics: { some: { topicId: { in: topicIds } } } });
+    }
+    if (entityIds.length > 0) {
+      overlapWhere.push({
+        observationEntities: { some: { entityId: { in: entityIds } } },
+      });
+    }
+    if (projectIds.length > 0) {
+      overlapWhere.push({
+        projectObservations: { some: { projectId: { in: projectIds } } },
+      });
+    }
+
+    const candidateIds = new Set<string>([...similar.keys()]);
+    if (overlapWhere.length > 0) {
+      const overlap = await this.prisma.observation.findMany({
+        where: {
+          userId: seed.userId,
+          id: { not: seed.id },
+          processingStatus: ProcessingStatus.COMPLETED,
+          OR: overlapWhere,
+        },
+        select: { id: true },
+        take: 20,
+        orderBy: { capturedAt: 'desc' },
+      });
+      for (const row of overlap) candidateIds.add(row.id);
+    }
+
+    if (candidateIds.size === 0) return [];
+
+    const candidates = await this.prisma.observation.findMany({
+      where: { id: { in: [...candidateIds] }, userId: seed.userId },
+      include: observationInclude,
+    });
+
+    const ranked = candidates
+      .map((item) => {
+        const sharedTopics = item.observationTopics.filter((row) =>
+          topicIds.includes(row.topic.id),
+        ).length;
+        const sharedEntities = item.observationEntities.filter((row) =>
+          entityIds.includes(row.entity.id),
+        ).length;
+        const sharedProject = item.projectObservations.some((row) =>
+          projectIds.includes(row.project.id),
+        );
+        const hoursApart =
+          Math.abs(item.capturedAt.getTime() - seed.capturedAt.getTime()) / 36e5;
+        const { score, reasons } = scoreRelatedMemory({
+          similarity: similar.get(item.id),
+          sharedTopicCount: sharedTopics,
+          seedTopicCount,
+          sharedEntityCount: sharedEntities,
+          seedEntityCount,
+          sharedProject,
+          hoursApart,
+        });
+        return { item, score, reasons };
+      })
+      .filter((row) => shouldKeepRelated(row.score, row.reasons))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8);
+
+    return ranked.map(({ item, score, reasons }) => ({
+      observationId: item.id,
+      filename: item.originalFilename,
+      snippet: (item.summary || item.extractedText || item.originalFilename)
+        .trim()
+        .slice(0, 180),
+      capturedAt: item.capturedAt.toISOString(),
+      sourceLabel: CAPTURE_SOURCE_LABELS[item.source] || item.source,
+      score,
+      reasons,
+    }));
   }
 
   async getForClerkUser(
@@ -607,6 +756,12 @@ export class ObservationsService {
 function buildStorageKey(userId: string, safeFilename: string): string {
   const stamp = new Date().toISOString().slice(0, 10);
   return `observations/${userId}/${stamp}/${randomUUID()}-${safeFilename}`;
+}
+
+function parseListDate(value?: string): Date | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
 function slugFilename(value: string): string {

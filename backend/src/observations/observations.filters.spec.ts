@@ -26,6 +26,7 @@ describe('ObservationsService metadata filters', () => {
       users as never,
       {} as never,
       {} as never,
+      { searchText: jest.fn().mockResolvedValue([]) } as never,
     );
 
     await service.listForClerkUser('clerk_a', {

@@ -20,6 +20,7 @@ describe('InsightsService', () => {
     expect(result.empty).toBe(true);
     expect(result.observationCount).toBe(0);
     expect(result.body).toMatch(/Capture something today/i);
+    expect(result.evidence).toEqual([]);
   });
 
   it('falls back to the latest summary when AI is off', async () => {
@@ -78,11 +79,14 @@ describe('InsightsService', () => {
       { isConfigured: () => false } as never,
     );
     jest.spyOn(service, 'todayForClerkUser').mockResolvedValue({
-      title: "Today's insight",
+      title: 'Something I noticed',
       body: 'Backend work this week.',
       generatedAt: new Date().toISOString(),
       observationCount: 3,
       empty: false,
+      evidence: [],
+      why: 'Based on 3 memories across 1 day',
+      maturity: 'pattern',
     });
 
     const result = await service.dashboardForClerkUser('clerk_a');

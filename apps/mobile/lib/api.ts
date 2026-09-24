@@ -289,17 +289,35 @@ export async function uploadCapture(params: {
   return body.data;
 }
 
+export type KnowledgeMaturity = 'single' | 'repeated' | 'pattern' | 'stable';
+
+export type InsightEvidence = {
+  observationId: string;
+  filename: string;
+  snippet: string;
+  capturedAt: string;
+  sourceLabel: string;
+  topicName?: string;
+};
+
 export type TodayInsight = {
   title: string;
   body: string;
   generatedAt: string;
   observationCount: number;
   empty: boolean;
+  evidence: InsightEvidence[];
+  why: string;
+  maturity: KnowledgeMaturity;
 };
 
 export type DashboardSummary = {
+  greeting: string;
+  daySummary: string;
   todayCount: number;
   weekCount: number;
+  todayTopicCount: number;
+  todayProjectCount: number;
   processingCount: number;
   completedCount: number;
   totalCount: number;
@@ -321,14 +339,42 @@ export type PredictionItem = {
   kind: 'revisit' | 'focus' | 'emerging' | 'next';
   title: string;
   body: string;
+  why: string;
   topicId?: string;
   observationId?: string;
+  mentionCount?: number;
+  dayCount?: number;
+  maturity: KnowledgeMaturity;
+  evidence: InsightEvidence[];
 };
 
 export type PredictionsSummary = {
   generatedAt: string;
   empty: boolean;
   items: PredictionItem[];
+};
+
+export type DailyBrief = {
+  title: string;
+  generatedAt: string;
+  empty: boolean;
+  yesterdayCount: number;
+  weekCount: number;
+  attentionTopics: Array<{ id: string; name: string; observationCount: number }>;
+  noticed: TodayInsight;
+  revisit: PredictionItem | null;
+};
+
+export type RelatedMemoryItem = {
+  observationId: string;
+  filename: string;
+  snippet: string;
+  capturedAt: string;
+  sourceLabel: string;
+  score: number;
+  reasons: Array<
+    'similar' | 'shared_topic' | 'shared_entity' | 'shared_project' | 'nearby_in_time'
+  >;
 };
 
 export async function fetchDashboard(token: string): Promise<DashboardSummary> {
@@ -354,6 +400,38 @@ export async function fetchPredictions(token: string): Promise<PredictionsSummar
   });
   if (!response.ok) throw await parseError(response);
   const body = (await response.json()) as { data: PredictionsSummary };
+  return body.data;
+}
+
+export async function fetchDailyBrief(token: string): Promise<DailyBrief> {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/insights/brief`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: DailyBrief };
+  return body.data;
+}
+
+export async function fetchRelatedMemories(
+  token: string,
+  observationId: string,
+): Promise<RelatedMemoryItem[]> {
+  const response = await apiFetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/observations/${encodeURIComponent(observationId)}/related`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: RelatedMemoryItem[] };
   return body.data;
 }
 
@@ -487,6 +565,10 @@ export async function fetchObservations(
     projectId?: string;
     topic?: string;
     entity?: string;
+    source?: CaptureSource;
+    from?: string;
+    to?: string;
+    limit?: number;
   },
 ): Promise<ApiObservation[]> {
   const qs = new URLSearchParams();
@@ -495,6 +577,10 @@ export async function fetchObservations(
   if (filters?.projectId) qs.set('projectId', filters.projectId);
   if (filters?.topic) qs.set('topic', filters.topic);
   if (filters?.entity) qs.set('entity', filters.entity);
+  if (filters?.source) qs.set('source', filters.source);
+  if (filters?.from) qs.set('from', filters.from);
+  if (filters?.to) qs.set('to', filters.to);
+  if (filters?.limit) qs.set('limit', String(filters.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/observations${suffix}`,
@@ -923,13 +1009,16 @@ export async function pollObservationUntilSettled(params: {
 export type ApiSemanticSearchFilters = {
   from?: string;
   to?: string;
-  observationType?: 'DOCUMENT' | 'PDF' | 'IMAGE' | 'TEXT';
+  observationType?: 'DOCUMENT' | 'PDF' | 'IMAGE' | 'TEXT' | 'AUDIO';
   mimeType?: string;
   topicId?: string;
   entityId?: string;
   projectId?: string;
   topic?: string;
   entity?: string;
+  source?: CaptureSource;
+  observationId?: string;
+  excludeObservationId?: string;
 };
 
 export type ApiSemanticSearchResult = {
@@ -1053,6 +1142,7 @@ export async function askKairos(params: {
       topic: params.filters?.topic,
       entity: params.filters?.entity,
       projectId: params.filters?.projectId,
+      observationId: params.filters?.observationId,
     }),
   });
 

@@ -1,77 +1,68 @@
 import { useAuth } from '@clerk/expo';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet } from 'react-native';
-
-import { ThemedText } from '../../components/ThemedText';
-import { GlassPanel } from '../../components/ui/Glass';
+import {
+  EmptyState,
+  ErrorState,
+  FadeInContent,
+  LoadingSkeleton,
+} from '../../components/ui/EmptyState';
+import { InsightCard } from '../../components/ui/InsightCard';
 import { SoftPage, SoftTitle } from '../../components/ui/SoftScreen';
 import { ThemedButton } from '../../components/ui/ThemedButton';
-import { ApiError, fetchTodayInsight, type TodayInsight } from '../../lib/api';
+import { useAsync } from '../../hooks/useAsync';
+import { fetchTodayInsight } from '../../lib/api';
 import { KairosOs } from '../../lib/osIntegrations';
-import { useAppTheme } from '../../providers/ThemeProvider';
 
 export default function InsightScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
   const { getToken } = useAuth();
-  const [insight, setInsight] = useState<TodayInsight | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const token = await getToken();
-        if (!token) throw new ApiError('Sign in required.', 401);
-        const data = await fetchTodayInsight(token);
-        if (active) setInsight(data);
-        void KairosOs.refreshWidget(data.body);
-      } catch (err) {
-        if (active) {
-          setError(err instanceof ApiError ? err.message : 'Could not load today’s insight.');
-        }
-      }
-    })();
-    return () => {
-      active = false;
-    };
+  const { data, error, loading, reload } = useAsync(async () => {
+    const token = await getToken();
+    if (!token) throw new Error('Sign in required');
+    const insight = await fetchTodayInsight(token);
+    void KairosOs.refreshWidget(
+      insight.empty
+        ? insight.body
+        : `${insight.observationCount} memories this week.\n\n${insight.body}`,
+    );
+    return insight;
   }, [getToken]);
 
+  if (loading) return <LoadingSkeleton rows={5} />;
+  if (error && !data) {
+    return <ErrorState title="Unable to load" onRetry={reload} />;
+  }
+
   return (
-    <SoftPage>
-      <SoftTitle>Today</SoftTitle>
-      {!insight && !error ? <ActivityIndicator color={colors.accent} /> : null}
-      {insight ? (
-        <GlassPanel>
-          <ThemedText colorKey="textMuted" style={styles.kicker}>
-            {insight.title}
-          </ThemedText>
-          <ThemedText colorKey="text" style={styles.body}>
-            {insight.body}
-          </ThemedText>
-        </GlassPanel>
-      ) : null}
-      {error ? (
-        <ThemedText colorKey="error" style={styles.error}>
-          {error}
-        </ThemedText>
-      ) : null}
-      <ThemedButton
-        label="Capture"
-        onPress={() => router.push('/(app)/quick-capture?source=WIDGET')}
-      />
-      <ThemedButton
-        label="Ask Kairos"
-        variant="outline"
-        onPress={() => router.push('/(app)/(tabs)/ask')}
-      />
-    </SoftPage>
+    <FadeInContent>
+      <SoftPage>
+        <SoftTitle>Today</SoftTitle>
+        {data ? (
+          <InsightCard
+            insight={data}
+            onExplore={
+              data.evidence[0]
+                ? () => router.push(`/(app)/observation/${data.evidence[0].observationId}`)
+                : undefined
+            }
+          />
+        ) : (
+          <EmptyState
+            title="No memories yet"
+            actionLabel="Capture something"
+            onAction={() => router.push('/(app)/quick-capture')}
+          />
+        )}
+        <ThemedButton
+          label="Capture"
+          onPress={() => router.push('/(app)/quick-capture?source=WIDGET')}
+        />
+        <ThemedButton
+          label="Ask Kairos"
+          variant="outline"
+          onPress={() => router.push('/(app)/(tabs)/ask')}
+        />
+      </SoftPage>
+    </FadeInContent>
   );
 }
-
-const styles = StyleSheet.create({
-  kicker: { fontFamily: 'Inter_500Medium', fontSize: 13, marginBottom: 8 },
-  body: { fontFamily: 'Inter_400Regular', fontSize: 18, lineHeight: 26 },
-  error: { fontFamily: 'Inter_400Regular', fontSize: 13 },
-});

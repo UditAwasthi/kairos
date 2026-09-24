@@ -160,4 +160,34 @@ export const RETRIEVAL_BENCH_QUERIES: RetrievalBenchQuery[] = [
     relevantKeys: ['react_native'],
     description: 'Technology / framework question',
   },
+  {
+    id: 'H',
+    query: 'NestJS and Prisma API',
+    relevantKeys: ['nestjs'],
+    description: 'Lexical + semantic API stack',
+  },
+  {
+    id: 'I',
+    query: 'Docker containers for local services',
+    relevantKeys: ['docker'],
+    description: 'Ops / environment question',
+  },
+  {
+    id: 'J',
+    query: 'Kairos mobile client Expo Router',
+    relevantKeys: ['react_native'],
+    description: 'Project + technology combination',
+  },
+  {
+    id: 'K',
+    query: 'things I saved about Redis data types',
+    relevantKeys: ['redis_url', 'redis_semantic', 'redis_keyword'],
+    description: 'Natural-language Redis combination',
+  },
+  {
+    id: 'L',
+    query: 'persistent structured data',
+    relevantKeys: ['postgres_general'],
+    description: 'PostgreSQL lexical phrase',
+  },
 ];

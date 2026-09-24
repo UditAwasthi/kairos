@@ -63,7 +63,7 @@ export function ObservationStatusCard({
             {observation.filename}
           </ThemedText>
           <ThemedText colorKey="textMuted" style={styles.meta} numberOfLines={1}>
-            {meta}
+            {observation.sourceLabel ? `${observation.sourceLabel} · ${meta}` : meta}
           </ThemedText>
         </View>
         {processing ? (

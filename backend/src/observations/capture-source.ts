@@ -20,29 +20,38 @@ export const CAPTURE_SOURCE_LABELS: Record<CaptureSource, string> = {
   RECALL: 'Recall',
 };
 
+const SOURCE_ALIASES: Record<string, CaptureSource> = {
+  NOTE: CaptureSource.MANUAL,
+  URL: CaptureSource.MANUAL,
+  LINK: CaptureSource.SHARE,
+  TEXT: CaptureSource.MANUAL,
+  QUICK: CaptureSource.QUICK_CAPTURE,
+  QUICKCAPTURE: CaptureSource.QUICK_CAPTURE,
+  HOME_SCREEN: CaptureSource.WIDGET,
+  IME: CaptureSource.KEYBOARD,
+  SCREENSHOT: CaptureSource.SHARE,
+  CHROME: CaptureSource.SHARE,
+};
+
 export function parseCaptureSource(
   value: string | undefined | null,
   fallback: CaptureSource = CaptureSource.MANUAL,
 ): CaptureSource {
-  if (!value) return fallback;
+  return parseOptionalCaptureSource(value) ?? fallback;
+}
+
+export function parseOptionalCaptureSource(
+  value: unknown,
+): CaptureSource | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
   const normalized = value
     .trim()
     .toUpperCase()
     .replace(/[\s-]+/g, '_');
-  const aliases: Record<string, CaptureSource> = {
-    NOTE: CaptureSource.MANUAL,
-    URL: CaptureSource.MANUAL,
-    LINK: CaptureSource.SHARE,
-    TEXT: CaptureSource.MANUAL,
-    QUICK: CaptureSource.QUICK_CAPTURE,
-    QUICKCAPTURE: CaptureSource.QUICK_CAPTURE,
-    HOME_SCREEN: CaptureSource.WIDGET,
-    IME: CaptureSource.KEYBOARD,
-  };
-  if (aliases[normalized]) return aliases[normalized];
+  if (SOURCE_ALIASES[normalized]) return SOURCE_ALIASES[normalized];
   return (CAPTURE_SOURCES as string[]).includes(normalized)
     ? (normalized as CaptureSource)
-    : fallback;
+    : undefined;
 }
 
 export function parseOptionalCapturedAt(

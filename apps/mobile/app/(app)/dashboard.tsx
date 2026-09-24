@@ -10,7 +10,8 @@ import {
   LoadingSkeleton,
   SoftRefreshBar,
 } from '../../components/ui/EmptyState';
-import { GlassPanel } from '../../components/ui/Glass';
+import { AccentGradient, GlassPanel } from '../../components/ui/Glass';
+import { InsightCard } from '../../components/ui/InsightCard';
 import { SoftPage, SoftTitle } from '../../components/ui/SoftScreen';
 import { useAsync } from '../../hooks/useAsync';
 import { fetchDashboard } from '../../lib/api';
@@ -18,7 +19,7 @@ import { useAppTheme } from '../../providers/ThemeProvider';
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
+  const { colors, radius } = useAppTheme();
   const { getToken } = useAuth();
   const { data, error, loading, refreshing, reload } = useAsync(async () => {
     const token = await getToken();
@@ -33,7 +34,11 @@ export default function DashboardScreen() {
   if (!data) {
     return (
       <SoftPage>
-        <EmptyState title="Nothing yet" />
+        <EmptyState
+          title="No memories yet"
+          actionLabel="Capture something"
+          onAction={() => router.push('/(app)/quick-capture')}
+        />
       </SoftPage>
     );
   }
@@ -42,103 +47,23 @@ export default function DashboardScreen() {
     <FadeInContent>
       <SoftRefreshBar active={refreshing} />
       <SoftPage>
-        <SoftTitle>Dashboard</SoftTitle>
+        <SoftTitle>{data.greeting}</SoftTitle>
+        <ThemedText colorKey="textMuted" style={styles.day}>
+          {data.daySummary}
+        </ThemedText>
 
-        <View style={styles.metrics}>
-          <GlassPanel style={styles.metric} contentStyle={styles.metricInner} padded={false}>
-            <ThemedText colorKey="text" style={styles.metricValue}>
-              {data.todayCount}
-            </ThemedText>
-            <ThemedText colorKey="textMuted" style={styles.metricLabel}>
-              today
-            </ThemedText>
-          </GlassPanel>
-          <GlassPanel style={styles.metric} contentStyle={styles.metricInner} padded={false}>
-            <ThemedText colorKey="text" style={styles.metricValue}>
-              {data.weekCount}
-            </ThemedText>
-            <ThemedText colorKey="textMuted" style={styles.metricLabel}>
-              this week
-            </ThemedText>
-          </GlassPanel>
-          <GlassPanel style={styles.metric} contentStyle={styles.metricInner} padded={false}>
-            <ThemedText colorKey="text" style={styles.metricValue}>
-              {data.completedCount}
-            </ThemedText>
-            <ThemedText colorKey="textMuted" style={styles.metricLabel}>
-              ready
-            </ThemedText>
-          </GlassPanel>
-          <GlassPanel style={styles.metric} contentStyle={styles.metricInner} padded={false}>
-            <ThemedText colorKey="text" style={styles.metricValue}>
-              {data.processingCount}
-            </ThemedText>
-            <ThemedText colorKey="textMuted" style={styles.metricLabel}>
-              in flight
-            </ThemedText>
-          </GlassPanel>
-        </View>
+        <InsightCard
+          insight={data.insight}
+          onExplore={() => router.push('/(app)/insight')}
+        />
 
-        <Pressable
-          onPress={() => router.push('/(app)/insight')}
-          accessibilityRole="button"
-          accessibilityLabel="Today’s insight"
-        >
-          <GlassPanel>
-            <ThemedText colorKey="textMuted" style={styles.kicker}>
-              {data.insight.title}
-            </ThemedText>
-            <ThemedText colorKey="text" style={styles.insightBody}>
-              {data.insight.body}
-            </ThemedText>
-          </GlassPanel>
-        </Pressable>
-
-        {data.sources.length > 0 ? (
-          <GlassPanel>
-            <ThemedText colorKey="textMuted" style={styles.kicker}>
-              Sources
-            </ThemedText>
-            {data.sources.map((source) => (
-              <View key={source.source} style={styles.sourceRow}>
-                <ThemedText colorKey="text" style={styles.sourceName}>
-                  {source.label}
-                </ThemedText>
-                <ThemedText colorKey="textMuted" style={styles.sourceCount}>
-                  {source.count}
-                </ThemedText>
-              </View>
-            ))}
-          </GlassPanel>
-        ) : null}
-
-        {data.topics.length > 0 ? (
-          <View style={styles.topicWrap}>
-            {data.topics.map((topic) => (
-              <Pressable
-                key={topic.id}
-                onPress={() => router.push(`/(app)/topics/${topic.id}`)}
-                accessibilityRole="button"
-                accessibilityLabel={topic.name}
-              >
-                <GlassPanel padded={false} contentStyle={styles.topicChip}>
-                  <View style={[styles.topicDot, { backgroundColor: colors.accent }]} />
-                  <ThemedText colorKey="text" style={styles.topicLabel} numberOfLines={1}>
-                    {topic.name}
-                  </ThemedText>
-                  <ThemedText colorKey="textMuted" style={styles.topicCount}>
-                    {topic.observationCount}
-                  </ThemedText>
-                </GlassPanel>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-
+        <ThemedText colorKey="textMuted" style={styles.section}>
+          Recently remembered
+        </ThemedText>
         {data.recent.length === 0 ? (
           <EmptyState
             title="Nothing yet"
-            actionLabel="Capture"
+            actionLabel="Capture something"
             onAction={() => router.push('/(app)/quick-capture')}
           />
         ) : (
@@ -151,71 +76,96 @@ export default function DashboardScreen() {
               style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
             >
               <GlassPanel padded={false} contentStyle={styles.recentRow}>
-                <View style={styles.recentText}>
-                  <ThemedText colorKey="text" style={styles.recentTitle} numberOfLines={1}>
-                    {item.filename}
-                  </ThemedText>
-                  <ThemedText colorKey="textMuted" style={styles.recentMeta} numberOfLines={1}>
-                    {item.sourceLabel}
-                    {item.summary ? ` · ${item.summary}` : ''}
-                  </ThemedText>
-                </View>
+                <ThemedText colorKey="text" style={styles.recentTitle} numberOfLines={1}>
+                  {item.filename}
+                </ThemedText>
+                <ThemedText colorKey="textMuted" style={styles.recentMeta} numberOfLines={1}>
+                  {item.sourceLabel}
+                  {item.summary ? ` · ${item.summary}` : ''}
+                </ThemedText>
               </GlassPanel>
             </Pressable>
           ))
         )}
+
+        {data.topics.length > 0 ? (
+          <>
+            <ThemedText colorKey="textMuted" style={styles.section}>
+              What’s emerging
+            </ThemedText>
+            <View style={styles.topicWrap}>
+              {data.topics.map((topic) => (
+                <Pressable
+                  key={topic.id}
+                  onPress={() => router.push(`/(app)/topics/${topic.id}`)}
+                  accessibilityRole="button"
+                  accessibilityLabel={topic.name}
+                >
+                  <GlassPanel padded={false} contentStyle={styles.topicChip}>
+                    <View style={[styles.topicDot, { backgroundColor: colors.accent }]} />
+                    <ThemedText colorKey="text" style={styles.topicLabel} numberOfLines={1}>
+                      {topic.name}
+                    </ThemedText>
+                    <ThemedText colorKey="textMuted" style={styles.topicCount}>
+                      {topic.observationCount}
+                    </ThemedText>
+                  </GlassPanel>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : null}
+
+        {data.processingCount > 0 ? (
+          <Pressable
+            onPress={() => router.push('/(app)/activity')}
+            accessibilityRole="button"
+            accessibilityLabel="Current activity"
+          >
+            <GlassPanel>
+              <ThemedText colorKey="textMuted" style={styles.kicker}>
+                Current activity
+              </ThemedText>
+              <ThemedText colorKey="text" style={styles.recentTitle}>
+                {data.processingCount} {data.processingCount === 1 ? 'memory' : 'memories'} still settling
+              </ThemedText>
+            </GlassPanel>
+          </Pressable>
+        ) : null}
+
+        <Pressable
+          onPress={() => router.push('/(app)/(tabs)/ask')}
+          accessibilityRole="button"
+          accessibilityLabel="Ask Kairos"
+        >
+          <AccentGradient style={[styles.askCard, { borderRadius: radius.xl }]}>
+            <ThemedText colorKey="inverseText" style={styles.askTitle}>
+              Ask Kairos
+            </ThemedText>
+            <ThemedText colorKey="inverseText" style={styles.askHint}>
+              What was I working on…
+            </ThemedText>
+          </AccentGradient>
+        </Pressable>
       </SoftPage>
     </FadeInContent>
   );
 }
 
 const styles = StyleSheet.create({
-  metrics: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  metric: {
-    width: '48%',
-    flexGrow: 1,
-  },
-  metricInner: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 4,
-  },
-  metricValue: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 28,
-    letterSpacing: -0.4,
-  },
-  metricLabel: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-  },
-  kicker: {
+  day: { fontFamily: 'Inter_400Regular', fontSize: 15, marginBottom: 8 },
+  section: {
     fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-    marginBottom: 8,
+    fontSize: 12,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginTop: 8,
   },
-  insightBody: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  sourceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-  },
-  sourceName: { fontFamily: 'Inter_500Medium', fontSize: 15 },
-  sourceCount: { fontFamily: 'Inter_400Regular', fontSize: 13 },
-  topicWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  kicker: { fontFamily: 'Inter_500Medium', fontSize: 13, marginBottom: 6 },
+  recentRow: { paddingHorizontal: 16, paddingVertical: 16, gap: 4 },
+  recentTitle: { fontFamily: 'Inter_500Medium', fontSize: 15 },
+  recentMeta: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+  topicWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   topicChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -223,22 +173,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
   },
-  topicDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  topicLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-    maxWidth: 140,
-  },
+  topicDot: { width: 7, height: 7, borderRadius: 4 },
+  topicLabel: { fontFamily: 'Inter_500Medium', fontSize: 13, maxWidth: 140 },
   topicCount: { fontFamily: 'Inter_400Regular', fontSize: 12 },
-  recentRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  recentText: { gap: 4 },
-  recentTitle: { fontFamily: 'Inter_500Medium', fontSize: 15 },
-  recentMeta: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+  askCard: { paddingHorizontal: 20, paddingVertical: 18, gap: 4 },
+  askTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 17 },
+  askHint: { fontFamily: 'Inter_400Regular', fontSize: 14, opacity: 0.86 },
 });
