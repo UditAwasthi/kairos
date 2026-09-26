@@ -26,9 +26,9 @@ export default function InsightScreen() {
         : `${insight.observationCount} memories this week.\n\n${insight.body}`,
     );
     return insight;
-  }, [getToken]);
+  }, [getToken], { cacheKey: 'today-insight' });
 
-  if (loading) return <LoadingSkeleton rows={5} />;
+  if (loading && !data) return <LoadingSkeleton rows={5} />;
   if (error && !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }

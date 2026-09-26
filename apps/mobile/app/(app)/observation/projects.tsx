@@ -43,6 +43,7 @@ export default function ManageObservationProjectsScreen() {
 
   const { data, error, loading, refreshing, reload } = useAsync(load, [id], {
     resetKey: String(id),
+    cacheKey: 'observation-projects',
   });
 
   const memberIds = useMemo(
@@ -50,7 +51,7 @@ export default function ManageObservationProjectsScreen() {
     [data],
   );
 
-  if (loading) return <LoadingSkeleton rows={8} />;
+  if (loading && !data) return <LoadingSkeleton rows={8} />;
   if ((error && !data) || !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }

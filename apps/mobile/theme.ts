@@ -21,10 +21,10 @@ export const plum = {
 } as const;
 
 export const mist = {
-  50: '#FAF9FB', // Canvas base
-  100: '#F4F3F5', // Container low
-  200: '#EEEDEF', // Container mid
-  300: '#E9E8EA', // Container high
+  50: '#F6F1EA', // Canvas base — onboarding ivory
+  100: '#EFE8DE', // Container low
+  200: '#E8DFD4', // Container mid
+  300: '#E2D8CC', // Container high
   400: '#E3E2E4',
   500: '#E7E0EF', // Lavender interactive fill
   600: '#CAC4D2',
@@ -265,13 +265,13 @@ export type AppTheme = {
 };
 
 export const lightGradients: ThemeGradients = {
-  background: ['#FAF9FB', '#F4EFF6', '#F8F5FA'],
-  surface: ['rgba(255,255,255,0.92)', 'rgba(255,255,255,0.72)'],
+  background: ['#F6F1EA', '#EEE4F2', '#F6F1EA'],
+  surface: ['rgba(251,247,242,0.94)', 'rgba(246,241,234,0.72)'],
   accent: [plum[700], plum[900]],
-  accentSoft: ['rgba(231,224,239,0.7)', 'rgba(250,249,251,0.5)'],
-  glass: ['rgba(255,255,255,0.85)', 'rgba(244,239,247,0.65)'],
-  composer: ['rgba(255,255,255,0.92)', 'rgba(244,243,245,0.8)'],
-  vitality: ['#E7E0EF', '#F5EDF4'],
+  accentSoft: ['rgba(196,179,224,0.32)', 'rgba(246,241,234,0.5)'],
+  glass: ['rgba(251,247,242,0.88)', 'rgba(234,227,242,0.55)'],
+  composer: ['rgba(251,247,242,0.94)', 'rgba(246,241,234,0.82)'],
+  vitality: ['#EAE3F2', '#F6F1EA'],
 };
 
 export const darkGradients: ThemeGradients = {
@@ -285,18 +285,18 @@ export const darkGradients: ThemeGradients = {
 };
 
 export const lightTheme: AppTheme = {
-  background: '#FAF9FB',
-  surface: '#FAF9FB',
-  surfaceElevated: '#FFFFFF',
-  surfaceGlass: 'rgba(255,255,255,0.85)',
-  surfaceContainerLowest: '#FFFFFF',
-  surfaceContainerLow: '#F4F3F5',
-  surfaceContainer: '#EEEDEF',
-  surfaceContainerHigh: '#E9E8EA',
+  background: '#F6F1EA',
+  surface: '#F6F1EA',
+  surfaceElevated: '#FBF7F2',
+  surfaceGlass: 'rgba(251,247,242,0.86)',
+  surfaceContainerLowest: '#FBF7F2',
+  surfaceContainerLow: '#EFE8DE',
+  surfaceContainer: '#E8DFD4',
+  surfaceContainerHigh: '#E2D8CC',
 
-  glassFill: 'rgba(255,255,255,0.82)',
-  glassBorder: 'rgba(255,255,255,0.8)',
-  glassHighlight: 'rgba(255,255,255,0.95)',
+  glassFill: 'rgba(251,247,242,0.84)',
+  glassBorder: 'rgba(196,179,224,0.28)',
+  glassHighlight: 'rgba(255,255,255,0.72)',
   glassIntensity: 28,
 
   text: mist[900], // #1A1C1D
@@ -310,7 +310,7 @@ export const lightTheme: AppTheme = {
   onPrimaryContainer: plum[400], // #C984A2
 
   secondary: mist[800], // #615C69
-  secondaryContainer: '#E7E0EF',
+  secondaryContainer: '#EAE3F2',
   onSecondary: '#FFFFFF',
   onSecondaryContainer: '#67626F',
 
@@ -319,7 +319,7 @@ export const lightTheme: AppTheme = {
   onTertiaryContainer: '#C984A2',
 
   accent: plum[700], // #4A2341
-  accentGlow: 'rgba(74,35,65,0.06)',
+  accentGlow: 'rgba(196,179,224,0.22)',
   accentRose: '#C783A1',
   accentLavender: '#EAE3F2',
   accentPeach: '#F6DDD9',
@@ -345,14 +345,14 @@ export const lightTheme: AppTheme = {
   borderActive: plum[700],
   borderAccent: plum[400],
 
-  buttonFill: plum[700],
-  buttonText: '#FFFFFF',
+  buttonFill: mist[900],
+  buttonText: '#F6F1EA',
   buttonPressedFill: plum[900],
-  buttonPressedText: '#FFFFFF',
-  buttonDisabledFill: '#E9E8EA',
+  buttonPressedText: '#F6F1EA',
+  buttonDisabledFill: '#E8DFD4',
   buttonDisabledText: '#9CA3AF',
 
-  inputFill: '#FFFFFF',
+  inputFill: '#FBF7F2',
   inputBorder: 'rgba(74,35,65,0.08)',
   inputBorderFocused: plum[700],
   inputPlaceholder: '#9A8E94',

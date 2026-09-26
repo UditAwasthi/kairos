@@ -23,9 +23,9 @@ export default function ProjectsScreen() {
     const token = await getToken();
     if (!token) throw new Error('Sign in required');
     return fetchProjects({ token, limit: 100 });
-  }, [getToken]);
+  }, [getToken], { cacheKey: 'projects' });
 
-  if (loading) return <LoadingSkeleton rows={8} />;
+  if (loading && !data) return <LoadingSkeleton rows={8} />;
   if (error && !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }

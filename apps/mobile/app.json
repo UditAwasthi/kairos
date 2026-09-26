@@ -11,17 +11,18 @@
     "splash": {
       "image": "./assets/logo-light.png",
       "resizeMode": "contain",
-      "backgroundColor": "#EEF2F7",
+      "backgroundColor": "#F6F1EA",
       "dark": {
         "image": "./assets/logo-dark.png",
-        "backgroundColor": "#0B0D10"
+        "backgroundColor": "#100C12"
       }
     },
     "ios": {
       "bundleIdentifier": "com.kairos.mobile",
       "supportsTablet": true,
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Kairos records audio only when you start voice capture."
+        "NSMicrophoneUsageDescription": "Kairos records audio only when you start voice capture.",
+        "NSMotionUsageDescription": "Kairos uses motion to gently tilt onboarding."
       },
       "entitlements": {
         "com.apple.security.application-groups": [
@@ -37,7 +38,7 @@
         "android.permission.POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#F6F1EA",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -52,6 +53,12 @@
       "expo-router",
       "expo-web-browser",
       "expo-audio",
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Kairos uses motion to gently tilt onboarding."
+        }
+      ],
       [
         "expo-notifications",
         {

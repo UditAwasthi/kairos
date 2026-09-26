@@ -35,10 +35,10 @@ export default function RelatedMemoriesScreen() {
       return fetchRelatedMemories(token, String(id));
     },
     [getToken, id],
-    { resetKey: String(id) },
+    { resetKey: String(id), cacheKey: 'related' },
   );
 
-  if (loading) return <LoadingSkeleton rows={6} />;
+  if (loading && !data) return <LoadingSkeleton rows={6} />;
   if (error && !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }

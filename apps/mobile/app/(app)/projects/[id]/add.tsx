@@ -43,6 +43,7 @@ export default function AddProjectObservationsScreen() {
 
   const { data, error, loading, refreshing, reload } = useAsync(load, [id], {
     resetKey: String(id),
+    cacheKey: 'project-add',
   });
 
   const memberIds = useMemo(
@@ -58,7 +59,7 @@ export default function AddProjectObservationsScreen() {
     [data, memberIds],
   );
 
-  if (loading) return <LoadingSkeleton rows={10} />;
+  if (loading && !data) return <LoadingSkeleton rows={10} />;
   if ((error && !data) || !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }

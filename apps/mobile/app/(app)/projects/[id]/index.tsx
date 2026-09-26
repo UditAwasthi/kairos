@@ -39,9 +39,10 @@ export default function ProjectDetailScreen() {
 
   const { data, error, loading, refreshing, reload } = useAsync(load, [id], {
     resetKey: String(id),
+    cacheKey: 'project',
   });
 
-  if (loading) return <LoadingSkeleton rows={10} />;
+  if (loading && !data) return <LoadingSkeleton rows={10} />;
   if ((error && !data) || !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }

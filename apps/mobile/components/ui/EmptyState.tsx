@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
-  FadeIn,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -101,11 +100,11 @@ type LoadingSkeletonProps = {
 
 export function LoadingSkeleton({ rows = 4 }: LoadingSkeletonProps) {
   const { colors, spacing, radius } = useAppTheme();
-  const pulse = useSharedValue(0.42);
+  const pulse = useSharedValue(0.62);
 
   useEffect(() => {
     pulse.value = withRepeat(
-      withTiming(1, { duration: 900, easing: Easing.inOut(Easing.quad) }),
+      withTiming(0.88, { duration: 1400, easing: Easing.inOut(Easing.quad) }),
       -1,
       true,
     );
@@ -117,7 +116,6 @@ export function LoadingSkeleton({ rows = 4 }: LoadingSkeletonProps) {
 
   return (
     <Animated.View
-      entering={FadeIn.duration(180)}
       style={{ padding: spacing['6'], gap: spacing['3'], flex: 1 }}
       accessibilityLabel="Loading"
     >
@@ -148,11 +146,7 @@ type FadeInContentProps = {
 };
 
 export function FadeInContent({ children, style }: FadeInContentProps) {
-  return (
-    <Animated.View entering={FadeIn.duration(220)} style={[{ flex: 1 }, style]}>
-      {children}
-    </Animated.View>
-  );
+  return <View style={[{ flex: 1 }, style]}>{children}</View>;
 }
 
 type SoftRefreshProps = {
@@ -160,20 +154,13 @@ type SoftRefreshProps = {
 };
 
 export function SoftRefreshBar({ active }: SoftRefreshProps) {
-  const { colors, spacing } = useAppTheme();
   if (!active) return null;
   return (
     <View
-      style={{
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: spacing['2'],
-        minHeight: 28,
-      }}
+      pointerEvents="none"
+      style={styles.refreshOverlay}
       accessibilityLabel="Refreshing"
-    >
-      <ActivityIndicator size="small" color={colors.accent} />
-    </View>
+    />
   );
 }
 
@@ -195,5 +182,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 240,
     opacity: 0.85,
+  },
+  refreshOverlay: {
+    position: 'absolute',
+    width: 0,
+    height: 0,
+    opacity: 0,
   },
 });

@@ -32,9 +32,9 @@ export default function DashboardScreen() {
     const token = await getToken();
     if (!token) throw new Error('Sign in required');
     return fetchDashboard(token);
-  }, [getToken]);
+  }, [getToken], { cacheKey: 'dashboard' });
 
-  if (loading) return <LoadingSkeleton rows={8} />;
+  if (loading && !data) return <LoadingSkeleton rows={8} />;
   if (error && !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }

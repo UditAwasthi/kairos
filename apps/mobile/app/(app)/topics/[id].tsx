@@ -26,10 +26,10 @@ export default function TopicDetailScreen() {
       return fetchTopic({ token, id: String(id) });
     },
     [getToken, id],
-    { resetKey: String(id) },
+    { resetKey: String(id), cacheKey: 'topic' },
   );
 
-  if (loading) return <LoadingSkeleton rows={8} />;
+  if (loading && !data) return <LoadingSkeleton rows={8} />;
   if ((error && !data) || !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }

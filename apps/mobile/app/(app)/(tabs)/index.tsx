@@ -33,8 +33,15 @@ import {
   type ApiTopicSummary,
 } from '../../../lib/api';
 import { getCaptureSync, subscribeCaptureSync, syncBannerText } from '../../../lib/syncStatus';
+import { readQueryCache, writeQueryCache } from '../../../hooks/useAsync';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import { auroraToneColors } from '../../../theme';
+
+type HomeCache = {
+  observations: ApiObservation[];
+  topics: ApiTopicSummary[];
+};
+const HOME_CACHE = 'home-feed';
 
 const SCREEN_W = Dimensions.get('window').width;
 const H_PAD = 22;
@@ -96,12 +103,15 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors, radius } = useAppTheme();
 
-  const [observations, setObservations] = useState<ApiObservation[]>([]);
-  const [topics, setTopics] = useState<ApiTopicSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedHome = readQueryCache<HomeCache>(HOME_CACHE);
+  const [observations, setObservations] = useState<ApiObservation[]>(
+    cachedHome?.observations ?? [],
+  );
+  const [topics, setTopics] = useState<ApiTopicSummary[]>(cachedHome?.topics ?? []);
+  const [loading, setLoading] = useState(!cachedHome);
   const [error, setError] = useState<string | null>(null);
   const [syncText, setSyncText] = useState<string | null>(syncBannerText());
-  const hasDataRef = useRef(false);
+  const hasDataRef = useRef(Boolean(cachedHome));
 
   const load = useCallback(async () => {
     try {
@@ -115,6 +125,7 @@ export default function HomeScreen() {
       setObservations(obs);
       setTopics(topicData.items);
       hasDataRef.current = true;
+      writeQueryCache(HOME_CACHE, { observations: obs, topics: topicData.items });
     } catch {
       setError('Unable to load.');
     }

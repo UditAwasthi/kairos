@@ -25,9 +25,9 @@ export default function DailyBriefScreen() {
     const token = await getToken();
     if (!token) throw new Error('Sign in required');
     return fetchDailyBrief(token);
-  }, [getToken]);
+  }, [getToken], { cacheKey: 'brief' });
 
-  if (loading) return <LoadingSkeleton rows={7} />;
+  if (loading && !data) return <LoadingSkeleton rows={7} />;
   if (error && !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }

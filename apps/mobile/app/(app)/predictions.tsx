@@ -40,9 +40,9 @@ export default function PredictionsScreen() {
     const token = await getToken();
     if (!token) throw new Error('Sign in required');
     return fetchPredictions(token);
-  }, [getToken]);
+  }, [getToken], { cacheKey: 'predictions' });
 
-  if (loading) return <LoadingSkeleton rows={6} />;
+  if (loading && !data) return <LoadingSkeleton rows={6} />;
   if (error && !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }
