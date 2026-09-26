@@ -4,6 +4,14 @@ import { AI_PROVIDER, type AIProvider } from '../ai/ai.types';
 import { CAPTURE_SOURCE_LABELS } from '../observations/capture-source';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
+import {
+  HISTORY_DAYS,
+  addDays,
+  buildDashboardRhythm,
+  type ActivityDay,
+  type CaptureHabit,
+  type CaptureStreak,
+} from './insights.rhythm';
 
 export type KnowledgeMaturity = 'single' | 'repeated' | 'pattern' | 'stable';
 
@@ -40,6 +48,9 @@ export type DashboardSummary = {
   insight: TodayInsight;
   sources: Array<{ source: CaptureSource; label: string; count: number }>;
   topics: Array<{ id: string; name: string; observationCount: number }>;
+  activity: ActivityDay[];
+  streak: CaptureStreak;
+  habit: CaptureHabit;
   recent: Array<{
     id: string;
     filename: string;
@@ -186,8 +197,19 @@ export class InsightsService {
     startOfDay.setHours(0, 0, 0, 0);
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    const [total, todayCount, weekCount, processingCount, completedCount, sources, topics, recent, todayMeta] =
-      await Promise.all([
+    const historyStart = addDays(startOfDay, -(HISTORY_DAYS - 1));
+    const [
+      total,
+      todayCount,
+      weekCount,
+      processingCount,
+      completedCount,
+      sources,
+      topics,
+      recent,
+      todayMeta,
+      capturedDates,
+    ] = await Promise.all([
         this.prisma.observation.count({ where: { userId: user.id } }),
         this.prisma.observation.count({
           where: { userId: user.id, capturedAt: { gte: startOfDay } },
@@ -235,7 +257,16 @@ export class InsightsService {
             projectObservations: { select: { projectId: true } },
           },
         }),
+        this.prisma.observation.findMany({
+          where: { userId: user.id, capturedAt: { gte: historyStart } },
+          select: { capturedAt: true },
+        }),
       ]);
+    const rhythm = buildDashboardRhythm({
+      capturedAt: capturedDates.map((row) => row.capturedAt),
+      now,
+      todayCount,
+    });
 
     const insight = await this.todayForClerkUser(clerkUserId);
     const todayTopicCount = new Set(
@@ -272,6 +303,9 @@ export class InsightsService {
         name: topic.name,
         observationCount: topic._count.observationTopics,
       })),
+      activity: rhythm.activity,
+      streak: rhythm.streak,
+      habit: rhythm.habit,
       recent: recent.map((item) => ({
         id: item.id,
         filename: item.originalFilename,

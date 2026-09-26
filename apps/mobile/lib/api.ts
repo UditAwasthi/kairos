@@ -311,6 +311,33 @@ export type TodayInsight = {
   maturity: KnowledgeMaturity;
 };
 
+export type DashboardActivityDay = {
+  date: string;
+  label: string;
+  count: number;
+};
+
+export type DashboardHabitDay = {
+  date: string;
+  label: string;
+  done: boolean;
+  count: number;
+};
+
+export type DashboardStreak = {
+  current: number;
+  longest: number;
+  capturedToday: boolean;
+};
+
+export type DashboardHabit = {
+  dailyGoal: number;
+  todayProgress: number;
+  weekGoalDays: number;
+  weekDaysCompleted: number;
+  week: DashboardHabitDay[];
+};
+
 export type DashboardSummary = {
   greeting: string;
   daySummary: string;
@@ -324,6 +351,9 @@ export type DashboardSummary = {
   insight: TodayInsight;
   sources: Array<{ source: CaptureSource; label: string; count: number }>;
   topics: Array<{ id: string; name: string; observationCount: number }>;
+  activity: DashboardActivityDay[];
+  streak: DashboardStreak;
+  habit: DashboardHabit;
   recent: Array<{
     id: string;
     filename: string;
@@ -387,7 +417,32 @@ export async function fetchDashboard(token: string): Promise<DashboardSummary> {
   });
   if (!response.ok) throw await parseError(response);
   const body = (await response.json()) as { data: DashboardSummary };
-  return body.data;
+  return normalizeDashboard(body.data);
+}
+
+function normalizeDashboard(data: DashboardSummary): DashboardSummary {
+  const emptyWeek = Array.from({ length: 7 }, (_, index) => ({
+    date: '',
+    label: ['S', 'M', 'T', 'W', 'T', 'F', 'S'][index] ?? '',
+    done: false,
+    count: 0,
+  }));
+  return {
+    ...data,
+    activity: data.activity ?? [],
+    streak: data.streak ?? {
+      current: 0,
+      longest: 0,
+      capturedToday: data.todayCount > 0,
+    },
+    habit: data.habit ?? {
+      dailyGoal: 1,
+      todayProgress: data.todayCount ?? 0,
+      weekGoalDays: 5,
+      weekDaysCompleted: 0,
+      week: emptyWeek,
+    },
+  };
 }
 
 export async function fetchPredictions(token: string): Promise<PredictionsSummary> {

@@ -1,8 +1,15 @@
 import { useAuth } from '@clerk/expo';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '../../components/ThemedText';
+import {
+  ActivityHistogram,
+  HabitCard,
+  ShareBars,
+  StatGrid,
+  StreakCard,
+} from '../../components/ui/DashboardFigures';
 import {
   EmptyState,
   ErrorState,
@@ -19,7 +26,7 @@ import { useAppTheme } from '../../providers/ThemeProvider';
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { colors, radius } = useAppTheme();
+  const { radius } = useAppTheme();
   const { getToken } = useAuth();
   const { data, error, loading, refreshing, reload } = useAsync(async () => {
     const token = await getToken();
@@ -51,6 +58,41 @@ export default function DashboardScreen() {
         <ThemedText colorKey="textMuted" style={styles.day}>
           {data.daySummary}
         </ThemedText>
+
+        <StreakCard
+          streak={data.streak}
+          onCapture={() => router.push('/(app)/quick-capture')}
+        />
+
+        <StatGrid
+          items={[
+            { label: 'Today', value: String(data.todayCount) },
+            { label: 'This week', value: String(data.weekCount) },
+            { label: 'All time', value: String(data.totalCount) },
+          ]}
+        />
+
+        <HabitCard habit={data.habit} />
+        <ActivityHistogram days={data.activity} />
+
+        <ShareBars
+          title="How you capture"
+          items={data.sources.map((source) => ({
+            id: source.source,
+            label: source.label,
+            count: source.count,
+          }))}
+        />
+
+        <ShareBars
+          title="What’s emerging"
+          items={data.topics.map((topic) => ({
+            id: topic.id,
+            label: topic.name,
+            count: topic.observationCount,
+          }))}
+          onPressItem={(id) => router.push(`/(app)/topics/${id}`)}
+        />
 
         <InsightCard
           insight={data.insight}
@@ -87,34 +129,6 @@ export default function DashboardScreen() {
             </Pressable>
           ))
         )}
-
-        {data.topics.length > 0 ? (
-          <>
-            <ThemedText colorKey="textMuted" style={styles.section}>
-              What’s emerging
-            </ThemedText>
-            <View style={styles.topicWrap}>
-              {data.topics.map((topic) => (
-                <Pressable
-                  key={topic.id}
-                  onPress={() => router.push(`/(app)/topics/${topic.id}`)}
-                  accessibilityRole="button"
-                  accessibilityLabel={topic.name}
-                >
-                  <GlassPanel padded={false} contentStyle={styles.topicChip}>
-                    <View style={[styles.topicDot, { backgroundColor: colors.accent }]} />
-                    <ThemedText colorKey="text" style={styles.topicLabel} numberOfLines={1}>
-                      {topic.name}
-                    </ThemedText>
-                    <ThemedText colorKey="textMuted" style={styles.topicCount}>
-                      {topic.observationCount}
-                    </ThemedText>
-                  </GlassPanel>
-                </Pressable>
-              ))}
-            </View>
-          </>
-        ) : null}
 
         {data.processingCount > 0 ? (
           <Pressable
@@ -153,7 +167,7 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  day: { fontFamily: 'Inter_400Regular', fontSize: 15, marginBottom: 8 },
+  day: { fontFamily: 'Inter_400Regular', fontSize: 15, marginBottom: 4 },
   section: {
     fontFamily: 'Inter_500Medium',
     fontSize: 12,
@@ -165,17 +179,6 @@ const styles = StyleSheet.create({
   recentRow: { paddingHorizontal: 16, paddingVertical: 16, gap: 4 },
   recentTitle: { fontFamily: 'Inter_500Medium', fontSize: 15 },
   recentMeta: { fontFamily: 'Inter_400Regular', fontSize: 13 },
-  topicWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  topicChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  topicDot: { width: 7, height: 7, borderRadius: 4 },
-  topicLabel: { fontFamily: 'Inter_500Medium', fontSize: 13, maxWidth: 140 },
-  topicCount: { fontFamily: 'Inter_400Regular', fontSize: 12 },
   askCard: { paddingHorizontal: 20, paddingVertical: 18, gap: 4 },
   askTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 17 },
   askHint: { fontFamily: 'Inter_400Regular', fontSize: 14, opacity: 0.86 },

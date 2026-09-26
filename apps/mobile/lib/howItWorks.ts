@@ -206,9 +206,10 @@ export const HOW_IT_WORKS_FEATURES: HowItWorksFeature[] = [
     group: 'intelligence',
     title: 'Dashboard',
     summary: 'A short reading of what you have been capturing.',
-    body: 'Dashboard looks at your recent memories and shows a few grounded insights. Each insight can point back to the notes it used. Empty days stay empty.',
+    body: 'Dashboard looks at your recent memories and shows a capture streak, a daily habit week, a fourteen-day histogram, and a few grounded insights. Each insight can point back to the notes it used. Empty days stay empty.',
     steps: [
       'Open Dashboard from Home or Profile.',
+      'Check the streak and weekly capture habit against days you actually saved something.',
       'Read the insight only if it matches what you saved.',
       'Tap evidence to return to the original memory.',
     ],

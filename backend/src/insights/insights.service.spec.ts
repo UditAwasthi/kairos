@@ -93,6 +93,10 @@ describe('InsightsService', () => {
     expect(result.totalCount).toBe(3);
     expect(result.sources[0].source).toBe('SHARE');
     expect(result.topics[0].name).toBe('Kafka');
+    expect(result.activity).toHaveLength(14);
+    expect(result.streak.capturedToday).toBe(true);
+    expect(result.habit.week).toHaveLength(7);
+    expect(result.habit.dailyGoal).toBe(1);
   });
 
   it('returns a starter prediction when memory is empty', async () => {

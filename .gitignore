@@ -8,7 +8,10 @@ docs/
 dist/
 web-build/
 expo-env.d.ts
-
+# Local release artifacts — never commit APKs or AABs
+output/
+*.apk
+*.aab
 # Native
 .kotlin/
 *.orig.*
