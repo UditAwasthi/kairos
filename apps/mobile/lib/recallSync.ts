@@ -17,9 +17,11 @@ let cachedEntitlement: RecallEntitlement | null = null;
 let cachedAt = 0;
 let lastSyncAt = 0;
 let inFlight: Promise<RecallEntitlement | null> | null = null;
+let cachedUserId: string | null = null;
 
-export function getCachedRecallEntitlement(): RecallEntitlement | null {
+export function getCachedRecallEntitlement(userId?: string): RecallEntitlement | null {
   if (!cachedEntitlement) return null;
+  if (userId !== undefined && userId !== cachedUserId) return null;
   if (Date.now() - cachedAt > ENTITLEMENT_TTL_MS) return null;
   return cachedEntitlement;
 }
@@ -64,9 +66,17 @@ async function fetchEntitlementWithTokenRetry(
  */
 export async function ensureRecallReady(
   getToken: GetToken,
-  options?: { force?: boolean },
+  options?: { force?: boolean; userId?: string },
 ): Promise<RecallEntitlement | null> {
   const force = options?.force === true;
+  const userId = options?.userId ?? null;
+  if (userId !== cachedUserId) {
+    cachedEntitlement = null;
+    cachedAt = 0;
+    lastSyncAt = 0;
+    inFlight = null;
+    cachedUserId = userId;
+  }
   const warm = getCachedRecallEntitlement();
 
   if (!force && warm && Date.now() - lastSyncAt < MIN_SYNC_GAP_MS) {
@@ -82,8 +92,8 @@ export async function ensureRecallReady(
     void (async () => {
       try {
         const token = await getToken();
-        if (token) await applyNativeAuth(token, warm);
-        lastSyncAt = Date.now();
+        if (token && cachedUserId === userId) await applyNativeAuth(token, warm);
+        if (cachedUserId === userId) lastSyncAt = Date.now();
       } catch {
         /* ignore */
       }
@@ -95,12 +105,13 @@ export async function ensureRecallReady(
   run = (async (): Promise<RecallEntitlement | null> => {
     try {
       let token = await getToken();
-      if (!token) return warm;
+      if (!token || cachedUserId !== userId) return null;
 
       // Push token immediately so native uploads don't wait on entitlement.
       await applyNativeAuth(token, warm);
 
       const result = await fetchEntitlementWithTokenRetry(getToken, token);
+      if (cachedUserId !== userId) return null;
       token = result.token;
       rememberEntitlement(result.entitlement);
       await applyNativeAuth(token, result.entitlement);
@@ -123,4 +134,5 @@ export function __resetRecallSyncForTests(): void {
   cachedAt = 0;
   lastSyncAt = 0;
   inFlight = null;
+  cachedUserId = null;
 }

@@ -1,30 +1,40 @@
-import { useAuth } from '@clerk/expo';
+import { useAuth, useUser } from '@clerk/expo';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
 import {
-  ActivityIndicator,
+  Alert,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Feather } from '@expo/vector-icons';
 import {
   useGenericKeyboardHandler,
   useKeyboardState,
 } from 'react-native-keyboard-controller';
 
-import { ThemedText } from '../../../components/ThemedText';
 import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
+import { TabScreenSwipe } from '../../../components/TabScreenSwipe';
 import { FadeInContent, LoadingSkeleton, SoftRefreshBar } from '../../../components/ui/EmptyState';
-import { AccentGradient, GlassPanel, ScreenGradient } from '../../../components/ui/Glass';
+import { ScreenGradient } from '../../../components/ui/Glass';
+import { AskBubble } from '../../../components/ui/MemoryCards';
 import { itemEntering, PressScale } from '../../../components/ui/Motion';
-import { AskBubble, EvidenceCard } from '../../../components/ui/MemoryCards';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import {
   ApiError,
@@ -36,11 +46,13 @@ import {
 } from '../../../lib/api';
 import type { AskMessage } from '../../../types';
 
-const STARTERS = [
-  'What have I been working on recently?',
-  'What did I work on last Tuesday?',
-  'When did I first start learning Redis?',
-  'What have I mentioned about Kairos this week?',
+type IconName = ComponentProps<typeof MaterialIcons>['name'];
+
+const STARTERS: { icon: IconName; prompt: string }[] = [
+  { icon: 'history', prompt: 'What have I been working on recently?' },
+  { icon: 'event', prompt: 'What did I work on last Tuesday?' },
+  { icon: 'school', prompt: 'When did I first start learning Redis?' },
+  { icon: 'auto-awesome', prompt: 'What have I mentioned about Kairos this week?' },
 ];
 
 const INPUT_MIN = 22;
@@ -62,6 +74,37 @@ function useGradualKeyboardHeight() {
     [],
   );
   return height;
+}
+
+function useDotStyle(pulse: SharedValue<number>, delay: number) {
+  return useAnimatedStyle(() => {
+    const t = (pulse.value + delay) % 1;
+    return {
+      opacity: interpolate(t, [0, 0.4, 1], [0.28, 1, 0.28]),
+      transform: [{ translateY: interpolate(t, [0, 0.4, 1], [0, -3, 0]) }],
+    };
+  });
+}
+
+function ThinkingDots() {
+  const { colors } = useAppTheme();
+  const pulse = useSharedValue(0);
+
+  useEffect(() => {
+    pulse.value = withRepeat(withTiming(1, { duration: 900 }), -1, false);
+  }, [pulse]);
+
+  const a = useDotStyle(pulse, 0);
+  const b = useDotStyle(pulse, 0.22);
+  const c = useDotStyle(pulse, 0.44);
+
+  return (
+    <View style={styles.dotsRow}>
+      <Animated.View style={[styles.dot, { backgroundColor: colors.text }, a]} />
+      <Animated.View style={[styles.dot, { backgroundColor: colors.text }, b]} />
+      <Animated.View style={[styles.dot, { backgroundColor: colors.text }, c]} />
+    </View>
+  );
 }
 
 function toUiMessages(
@@ -93,8 +136,9 @@ function toUiMessages(
 export default function AskScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, radius, isLight } = useAppTheme();
+  const { colors, isLight } = useAppTheme();
   const { getToken } = useAuth();
+  const { user } = useUser();
   const params = useLocalSearchParams<{
     q?: string;
     scopeType?: string;
@@ -104,15 +148,14 @@ export default function AskScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const hasListRef = useRef(false);
+  const consumedQuery = useRef<string | null>(null);
   const keyboardHeight = useGradualKeyboardHeight();
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
 
-  const [view, setView] = useState<'list' | 'thread'>('list');
-  const [conversations, setConversations] = useState<ApiConversationSummary[]>(
-    [],
-  );
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [conversations, setConversations] = useState<ApiConversationSummary[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [conversationTitle, setConversationTitle] = useState('Ask Kairos');
+  const [conversationTitle, setConversationTitle] = useState('Kairos');
   const [scopeType, setScopeType] = useState<
     'topic' | 'entity' | 'project' | 'observation' | null
   >(
@@ -139,7 +182,12 @@ export default function AskScreen() {
   const [statusLabel, setStatusLabel] = useState('Looking through your memories…');
 
   const canSend = input.trim().length > 0 && !typing;
-  const emptyThread = messages.length === 0 && !typing;
+  const emptyThread = messages.length === 0 && !typing && !loadingThread;
+  const firstName =
+    user?.firstName ||
+    user?.fullName?.split(' ')[0] ||
+    user?.primaryEmailAddress?.emailAddress?.split('@')[0] ||
+    null;
 
   const keyboardSpacerStyle = useAnimatedStyle(() => ({
     height: Math.abs(keyboardHeight.value),
@@ -165,18 +213,17 @@ export default function AskScreen() {
       hasListRef.current = true;
     } catch (err) {
       setError(
-        err instanceof ApiError
-          ? err.message
-          : 'Could not load conversations.',
+        err instanceof ApiError ? err.message : 'Could not load conversations.',
       );
     } finally {
       setLoadingList(false);
     }
   }, [getToken]);
 
-  useEffect(() => {
-    if (view === 'list') void refreshList();
-  }, [view, refreshList]);
+  const openHistory = () => {
+    setHistoryOpen(true);
+    void refreshList();
+  };
 
   const openConversation = async (id: string) => {
     setError(null);
@@ -184,7 +231,7 @@ export default function AskScreen() {
     setMessages([]);
     setConversationId(id);
     setConversationTitle('…');
-    setView('thread');
+    setHistoryOpen(false);
     try {
       const token = await getToken();
       if (!token) throw new ApiError('You must be signed in.', 401);
@@ -200,12 +247,7 @@ export default function AskScreen() {
         ),
       );
     } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : 'Could not open conversation.',
-      );
-      setView('list');
+      setError(err instanceof ApiError ? err.message : 'Could not open conversation.');
     } finally {
       setLoadingThread(false);
     }
@@ -213,17 +255,16 @@ export default function AskScreen() {
 
   const startNewConversation = () => {
     setConversationId(null);
-    setConversationTitle('New conversation');
+    setConversationTitle('Kairos');
     setMessages([]);
     setError(null);
-    setView('thread');
+    setHistoryOpen(false);
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   useEffect(() => {
     if (scopeId && scopeName) {
-      setView('thread');
-      setConversationTitle(`Ask · ${scopeName}`);
+      setConversationTitle(scopeName);
     }
   }, [scopeId, scopeName]);
 
@@ -269,7 +310,7 @@ export default function AskScreen() {
 
       setConversationId(result.conversationId);
       if (!conversationId) {
-        setConversationTitle(query.slice(0, 80));
+        setConversationTitle(query.slice(0, 42));
       }
 
       setMessages((prev) => {
@@ -311,442 +352,656 @@ export default function AskScreen() {
   };
 
   useEffect(() => {
-    if (typeof params.q === 'string' && params.q.length > 0 && view === 'list') {
-      startNewConversation();
+    if (typeof params.q === 'string' && params.q.length > 0 && consumedQuery.current !== params.q) {
+      consumedQuery.current = params.q;
       void send(params.q);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.q]);
 
-  if (view === 'list') {
-    return (
-      <ScreenGradient>
-        <FadeInContent>
-        <View style={[styles.flex, { paddingBottom: FLOATING_TAB_BAR_CONTENT + insets.bottom }]}>
-          <View style={styles.listHeader}>
-            <ThemedText colorKey="text" style={styles.emptyTitle}>
-              Ask
-            </ThemedText>
-            <Pressable onPress={startNewConversation} accessibilityRole="button">
-              <GlassPanel contentStyle={styles.starterInner} padded={false}>
-                <Feather name="plus" size={16} color={colors.accent} />
-                <ThemedText colorKey="text" style={styles.starter}>
-                  New
-                </ThemedText>
-              </GlassPanel>
-            </Pressable>
-          </View>
+  const confirmDelete = (item: ApiConversationSummary) => {
+    Alert.alert('Delete chat?', item.title, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const token = await getToken();
+            if (!token) return;
+            await deleteConversation({ token, id: item.id });
+            if (conversationId === item.id) startNewConversation();
+            await refreshList();
+          } catch {
+            setError('Could not delete.');
+          }
+        },
+      },
+    ]);
+  };
 
-          {loadingList && conversations.length === 0 ? (
-            <LoadingSkeleton rows={6} />
-          ) : (
-            <>
-              <SoftRefreshBar active={loadingList && conversations.length > 0} />
-              <ScrollView contentContainerStyle={styles.listContent}>
-                {conversations.length === 0 ? (
-                  <ThemedText colorKey="textMuted" style={styles.emptyHint}>
-                    Nothing yet
-                  </ThemedText>
-                ) : null}
-                {conversations.map((item, index) => (
-                  <Animated.View key={item.id} entering={itemEntering(index)}>
-                    <PressScale
-                      onPress={() => void openConversation(item.id)}
-                      onLongPress={async () => {
-                        try {
-                          const token = await getToken();
-                          if (!token) return;
-                          await deleteConversation({ token, id: item.id });
-                          await refreshList();
-                        } catch {
-                          setError('Could not delete.');
-                        }
-                      }}
-                      accessibilityLabel={item.title}
-                    >
-                      <GlassPanel contentStyle={styles.conversationRow} padded={false}>
-                        <View style={styles.flex}>
-                          <ThemedText colorKey="text" style={styles.conversationTitle} numberOfLines={1}>
-                            {item.title}
-                          </ThemedText>
-                          <ThemedText colorKey="textMuted" style={styles.meta}>
-                            {new Date(item.updatedAt).toLocaleDateString()}
-                          </ThemedText>
-                        </View>
-                        <Feather name="chevron-right" size={16} color={colors.textMuted} />
-                      </GlassPanel>
-                    </PressScale>
-                  </Animated.View>
-                ))}
-                {error ? (
-                  <ThemedText colorKey="error" style={styles.body}>
-                    {error}
-                  </ThemedText>
-                ) : null}
-              </ScrollView>
-            </>
-          )}
-        </View>
-        </FadeInContent>
-      </ScreenGradient>
-    );
-  }
+  const headerTitle = emptyThread ? 'Kairos' : conversationTitle;
 
   return (
-    <ScreenGradient>
-      <FadeInContent>
-      <View style={styles.flex}>
-        <View style={styles.threadHeader}>
-          <Pressable
-            onPress={() => {
-              setView('list');
-              void refreshList();
-            }}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Back to conversations"
-          >
-            <Feather name="chevron-left" size={22} color={colors.text} />
-          </Pressable>
-          <ThemedText colorKey="text" style={styles.threadTitle} numberOfLines={1}>
-            {conversationTitle}
-          </ThemedText>
-          <Pressable onPress={startNewConversation} hitSlop={8} accessibilityRole="button">
-            <Feather name="edit" size={18} color={colors.accent} />
-          </Pressable>
-        </View>
-
-        {scopeName ? (
-          <View style={styles.scopeRow}>
-            <GlassPanel contentStyle={styles.scopeChip} padded={false}>
-              <ThemedText colorKey="text" style={styles.scopeLabel}>
-                {scopeName}
-              </ThemedText>
+    <TabScreenSwipe>
+      <ScreenGradient>
+        <FadeInContent>
+          <View style={styles.flex}>
+            <View style={[styles.chrome, { paddingTop: insets.top + 4 }]}>
               <Pressable
-                onPress={() => {
-                  setScopeType(null);
-                  setScopeId(null);
-                  setScopeName(null);
-                }}
-                hitSlop={8}
+                onPress={openHistory}
+                hitSlop={10}
                 accessibilityRole="button"
-                accessibilityLabel="Clear scope"
+                accessibilityLabel="Chat history"
+                style={styles.chromeBtn}
               >
-                <Feather name="x" size={14} color={colors.textMuted} />
+                <MaterialIcons name="menu" size={24} color={colors.text} />
               </Pressable>
-            </GlassPanel>
-          </View>
-        ) : null}
+              <Text style={[styles.chromeTitle, { color: colors.text }]} numberOfLines={1}>
+                {headerTitle}
+              </Text>
+              <Pressable
+                onPress={startNewConversation}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="New chat"
+                style={styles.chromeBtn}
+              >
+                <MaterialIcons name="edit" size={22} color={colors.text} />
+              </Pressable>
+            </View>
 
-        <ScrollView
-          ref={scrollRef}
-          style={styles.flex}
-          contentContainerStyle={[
-            styles.content,
-            emptyThread && styles.contentEmpty,
-            { paddingBottom: 16 },
-          ]}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => {
-            if (!emptyThread) scrollToEnd(false);
-          }}
-        >
-          {loadingThread ? (
-            <LoadingSkeleton rows={5} />
-          ) : null}
-
-          {emptyThread && !loadingThread ? (
-            <Pressable style={styles.empty} onPress={() => inputRef.current?.focus()}>
-              <View style={styles.starters}>
-                {STARTERS.map((q, index) => (
-                  <Animated.View key={q} entering={itemEntering(index)}>
-                    <PressScale onPress={() => void send(q)} accessibilityLabel={q}>
-                      <GlassPanel contentStyle={styles.starterInner} padded={false}>
-                        <Feather name="arrow-up-right" size={14} color={colors.accent} />
-                        <ThemedText colorKey="text" style={styles.starter} numberOfLines={2}>
-                          {q}
-                        </ThemedText>
-                      </GlassPanel>
-                    </PressScale>
-                  </Animated.View>
-                ))}
+            {scopeName ? (
+              <View style={styles.scopeRow}>
+                <View style={[styles.scopeChip, { backgroundColor: colors.primaryContainer }]}>
+                  <MaterialIcons name="filter-list" size={14} color={colors.text} />
+                  <Text style={[styles.scopeLabel, { color: colors.text }]} numberOfLines={1}>
+                    {scopeName}
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      setScopeType(null);
+                      setScopeId(null);
+                      setScopeName(null);
+                      setConversationTitle('Kairos');
+                    }}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear scope"
+                  >
+                    <MaterialIcons name="close" size={16} color={colors.textMuted} />
+                  </Pressable>
+                </View>
               </View>
-            </Pressable>
-          ) : null}
+            ) : null}
 
-          <View style={styles.thread}>
-            {messages.map((message) => (
-              <View key={message.id} style={styles.messageBlock}>
-                <AskBubble message={message} />
-                {message.role === 'kairos' && message.sources && message.sources.length > 0 ? (
-                  <View style={styles.sources}>
-                    <ThemedText colorKey="textMuted" style={styles.kicker}>
-                      {message.insufficientEvidence
-                        ? 'I do not have enough evidence yet'
-                        : `Based on ${message.sources.length} ${message.sources.length === 1 ? 'memory' : 'memories'}`}
-                    </ThemedText>
-                    {message.sources.map((source) => (
-                      <EvidenceCard
-                        key={`${source.observationId}:${source.chunkId}`}
-                        source={source}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/(app)/observation/[id]',
-                            params: {
-                              id: source.observationId,
-                              highlight: source.snippet.slice(0, 240),
-                            },
-                          })
-                        }
-                      />
+            <ScrollView
+              ref={scrollRef}
+              style={styles.flex}
+              contentContainerStyle={[
+                styles.content,
+                emptyThread && styles.contentEmpty,
+              ]}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              showsVerticalScrollIndicator={false}
+              onContentSizeChange={() => {
+                if (!emptyThread) scrollToEnd(false);
+              }}
+            >
+              {loadingThread ? <LoadingSkeleton rows={5} /> : null}
+
+              {emptyThread ? (
+                <Animated.View entering={FadeIn.duration(280)} style={styles.empty}>
+                  <Text style={[styles.hero, { color: colors.text }]}>
+                    {firstName ? `Hi, ${firstName}` : 'What can I help with?'}
+                  </Text>
+                  {firstName ? (
+                    <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
+                      What can I help with?
+                    </Text>
+                  ) : null}
+                  <View style={styles.starterGrid}>
+                    {STARTERS.map((item, index) => (
+                      <Animated.View
+                        key={item.prompt}
+                        entering={itemEntering(index)}
+                        style={styles.starterCell}
+                      >
+                        <PressScale
+                          onPress={() => void send(item.prompt)}
+                          accessibilityLabel={item.prompt}
+                          style={[
+                            styles.starterCard,
+                            { backgroundColor: colors.surfaceElevated },
+                          ]}
+                        >
+                          <MaterialIcons name={item.icon} size={20} color={colors.text} />
+                          <Text style={[styles.starterText, { color: colors.text }]} numberOfLines={3}>
+                            {item.prompt}
+                          </Text>
+                        </PressScale>
+                      </Animated.View>
                     ))}
+                  </View>
+                </Animated.View>
+              ) : null}
+
+              <View style={styles.thread}>
+                {messages.map((message) => (
+                  <View key={message.id} style={styles.messageBlock}>
+                    {message.role === 'kairos' ? (
+                      <View style={styles.assistantHead}>
+                        <View style={[styles.mark, { backgroundColor: colors.text }]}>
+                          <Text style={[styles.markLetter, { color: colors.onPrimary }]}>K</Text>
+                        </View>
+                        <Text style={[styles.assistantName, { color: colors.text }]}>Kairos</Text>
+                      </View>
+                    ) : null}
+                    <AskBubble message={message} />
+                    {message.role === 'kairos' && message.sources && message.sources.length > 0 ? (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.sources}
+                      >
+                        {message.sources.map((source, index) => (
+                          <Pressable
+                            key={`${source.observationId}:${source.chunkId}`}
+                            onPress={() =>
+                              router.push({
+                                pathname: '/(app)/observation/[id]',
+                                params: {
+                                  id: source.observationId,
+                                  highlight: source.snippet.slice(0, 240),
+                                },
+                              })
+                            }
+                            style={[
+                              styles.sourceChip,
+                              { backgroundColor: colors.primaryContainer },
+                            ]}
+                          >
+                            <Text style={[styles.sourceIndex, { color: colors.textSecondary }]}>
+                              {index + 1}
+                            </Text>
+                            <Text style={[styles.sourceTitle, { color: colors.text }]} numberOfLines={1}>
+                              {source.title}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    ) : null}
+                    {message.role === 'kairos' && message.followUps && message.followUps.length > 0 ? (
+                      <View style={styles.followUps}>
+                        {message.followUps.map((q) => (
+                          <PressScale
+                            key={q}
+                            onPress={() => void send(q)}
+                            accessibilityLabel={q}
+                            style={[
+                              styles.followChip,
+                              { borderColor: colors.border, backgroundColor: colors.background },
+                            ]}
+                          >
+                            <Text style={[styles.followText, { color: colors.text }]}>{q}</Text>
+                          </PressScale>
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                ))}
+
+                {typing ? (
+                  <View style={styles.typingBlock}>
+                    <View style={styles.assistantHead}>
+                      <View style={[styles.mark, { backgroundColor: colors.text }]}>
+                        <Text style={[styles.markLetter, { color: colors.onPrimary }]}>K</Text>
+                      </View>
+                      <Text style={[styles.assistantName, { color: colors.text }]}>Kairos</Text>
+                    </View>
+                    <ThinkingDots />
+                    <Text style={[styles.typingLabel, { color: colors.textMuted }]}>{statusLabel}</Text>
+                  </View>
+                ) : null}
+
+                {error ? (
+                  <View style={styles.errorBlock}>
+                    <Text style={[styles.errorText, { color: colors.text }]}>{error}</Text>
+                    <Pressable
+                      onPress={() => {
+                        const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+                        if (lastUser) void send(lastUser.content);
+                      }}
+                      hitSlop={8}
+                    >
+                      <Text style={[styles.retry, { color: colors.text }]}>Retry</Text>
+                    </Pressable>
                   </View>
                 ) : null}
               </View>
-            ))}
+            </ScrollView>
 
-            {typing ? (
-              <View style={styles.typingBlock}>
-                <ActivityIndicator color={colors.accent} size="small" />
-                <ThemedText colorKey="textMuted" style={styles.typingLabel}>
-                  {statusLabel}
-                </ThemedText>
-              </View>
-            ) : null}
-
-            {error ? (
-              <View style={styles.errorBlock}>
-                <ThemedText colorKey="error" style={styles.body}>
-                  {error}
-                </ThemedText>
-                <Pressable
-                  onPress={() => {
-                    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-                    if (lastUser) void send(lastUser.content);
+            <View style={[styles.composerDock, { backgroundColor: colors.background }]}>
+              <View style={[styles.composer, { backgroundColor: colors.inputFill }]}>
+                <TextInput
+                  ref={inputRef}
+                  value={input}
+                  onChangeText={setInput}
+                  placeholder="Ask anything"
+                  placeholderTextColor={colors.inputPlaceholder}
+                  accessibilityLabel="Ask Kairos"
+                  multiline
+                  blurOnSubmit={false}
+                  returnKeyType="default"
+                  keyboardAppearance={isLight ? 'light' : 'dark'}
+                  onContentSizeChange={(e) => {
+                    const next = Math.min(
+                      INPUT_MAX,
+                      Math.max(INPUT_MIN, e.nativeEvent.contentSize.height),
+                    );
+                    setInputHeight(next);
                   }}
-                  hitSlop={8}
+                  onFocus={() => scrollToEnd()}
+                  style={[
+                    styles.input,
+                    {
+                      color: colors.text,
+                      height: Math.max(inputHeight, INPUT_MIN),
+                    },
+                  ]}
+                />
+                <Pressable
+                  disabled={!canSend}
+                  onPress={() => void send(input)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Send"
+                  style={[
+                    styles.send,
+                    {
+                      backgroundColor: canSend ? colors.primary : colors.surfaceContainerHigh,
+                    },
+                  ]}
                 >
-                  <ThemedText colorKey="accent" style={styles.retry}>
-                    Retry
-                  </ThemedText>
+                  <MaterialIcons
+                    name="arrow-upward"
+                    size={20}
+                    color={canSend ? colors.onPrimary : colors.textDisabled}
+                  />
                 </Pressable>
               </View>
-            ) : null}
-          </View>
-        </ScrollView>
+            </View>
 
-        <View
-          style={[
-            styles.composerDock,
-            {
-              borderTopColor: colors.glassBorder,
-              backgroundColor: colors.background,
-            },
-          ]}
-        >
+            {keyboardVisible ? (
+              <Animated.View style={keyboardSpacerStyle} />
+            ) : (
+              <View style={{ height: FLOATING_TAB_BAR_CONTENT + Math.max(insets.bottom, 10) }} />
+            )}
+          </View>
+        </FadeInContent>
+      </ScreenGradient>
+
+      <Modal
+        visible={historyOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setHistoryOpen(false)}
+      >
+        <View style={styles.historyRoot}>
           <View
             style={[
-              styles.composer,
+              styles.historyPanel,
               {
-                borderRadius: radius['2xl'],
-                borderColor: colors.glassBorder,
-                backgroundColor: colors.surfaceGlass,
+                backgroundColor: colors.background,
+                paddingTop: insets.top + 8,
+                paddingBottom: insets.bottom + 12,
               },
             ]}
           >
-            <TextInput
-              ref={inputRef}
-              value={input}
-              onChangeText={setInput}
-              placeholder="Ask…"
-              placeholderTextColor={colors.inputPlaceholder}
-              accessibilityLabel="Ask Kairos"
-              multiline
-              blurOnSubmit={false}
-              returnKeyType="default"
-              keyboardAppearance={isLight ? 'light' : 'dark'}
-              onContentSizeChange={(e) => {
-                const next = Math.min(
-                  INPUT_MAX,
-                  Math.max(INPUT_MIN, e.nativeEvent.contentSize.height),
-                );
-                setInputHeight(next);
-              }}
-              onFocus={() => scrollToEnd()}
-              style={[
-                styles.input,
-                {
-                  color: colors.text,
-                  height: Math.max(inputHeight, INPUT_MIN),
-                },
-              ]}
-            />
-            <Pressable
-              disabled={!canSend}
-              onPress={() => void send(input)}
-              accessibilityRole="button"
-              accessibilityLabel="Send"
-              style={({ pressed }) => [
-                styles.sendWrap,
-                { opacity: !canSend ? 0.35 : pressed ? 0.75 : 1 },
-              ]}
+            <View style={styles.historyHead}>
+              <Text style={[styles.historyTitle, { color: colors.text }]}>Chats</Text>
+              <Pressable
+                onPress={() => setHistoryOpen(false)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Close history"
+              >
+                <MaterialIcons name="close" size={22} color={colors.text} />
+              </Pressable>
+            </View>
+            <PressScale
+              onPress={startNewConversation}
+              accessibilityLabel="New chat"
+              style={[styles.newChat, { backgroundColor: colors.surfaceElevated }]}
             >
-              <AccentGradient style={styles.send}>
-                <Feather name="arrow-up" size={18} color={colors.inverseText} />
-              </AccentGradient>
-            </Pressable>
+              <MaterialIcons name="edit" size={18} color={colors.text} />
+              <Text style={[styles.newChatLabel, { color: colors.text }]}>New chat</Text>
+            </PressScale>
+            <SoftRefreshBar active={loadingList && conversations.length > 0} />
+            {loadingList && conversations.length === 0 ? (
+              <LoadingSkeleton rows={6} />
+            ) : (
+              <ScrollView contentContainerStyle={styles.historyList} showsVerticalScrollIndicator={false}>
+                {conversations.length === 0 ? (
+                  <Text style={[styles.historyEmpty, { color: colors.textMuted }]}>
+                    Your chats will show up here
+                  </Text>
+                ) : null}
+                {conversations.map((item) => {
+                  const active = item.id === conversationId;
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => void openConversation(item.id)}
+                      onLongPress={() => confirmDelete(item)}
+                      accessibilityLabel={item.title}
+                      style={[
+                        styles.historyRow,
+                        active && { backgroundColor: colors.primaryContainer },
+                      ]}
+                    >
+                      <MaterialIcons name="chat-bubble-outline" size={18} color={colors.textSecondary} />
+                      <View style={styles.flex}>
+                        <Text style={[styles.historyRowTitle, { color: colors.text }]} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        <Text style={[styles.historyRowMeta, { color: colors.textMuted }]}>
+                          {new Date(item.updatedAt).toLocaleDateString()}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
+          <Pressable
+            style={[styles.historyScrim, { backgroundColor: colors.scrim }]}
+            onPress={() => setHistoryOpen(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss history"
+          />
         </View>
-
-        {keyboardVisible ? (
-          <Animated.View style={keyboardSpacerStyle} />
-        ) : (
-          <View style={{ height: FLOATING_TAB_BAR_CONTENT + Math.max(insets.bottom, 10) }} />
-        )}
-      </View>
-      </FadeInContent>
-    </ScreenGradient>
+      </Modal>
+    </TabScreenSwipe>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    gap: 12,
-    flexGrow: 1,
-  },
-  contentEmpty: { justifyContent: 'center' },
-  listHeader: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
-  listContent: { padding: 16, gap: 10 },
-  conversationRow: {
+  chrome: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+    minHeight: 44,
   },
-  conversationTitle: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
-  },
-  meta: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 2 },
-  threadHeader: {
-    flexDirection: 'row',
+  chromeBtn: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 4,
+    justifyContent: 'center',
   },
-  threadTitle: {
+  chromeTitle: {
     flex: 1,
+    textAlign: 'center',
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 16,
+    fontSize: 17,
+    letterSpacing: -0.41,
   },
   scopeRow: {
-    paddingHorizontal: 12,
-    paddingBottom: 4,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
   scopeChip: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    gap: 6,
+    paddingLeft: 10,
+    paddingRight: 8,
+    paddingVertical: 6,
+    borderRadius: 16,
+    maxWidth: '100%',
   },
   scopeLabel: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_500Medium',
     fontSize: 13,
+    maxWidth: 220,
   },
-  empty: { gap: 10, paddingBottom: 24 },
-  emptyTitle: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 22,
-    letterSpacing: 0,
-  },
-  emptyHint: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  starters: { gap: 10 },
-  starterInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  content: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    minHeight: 52,
+    paddingTop: 8,
+    paddingBottom: 12,
+    gap: 12,
+    flexGrow: 1,
   },
-  starter: {
-    flex: 1,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    lineHeight: 21,
+  contentEmpty: {
+    justifyContent: 'center',
   },
-  kicker: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 11,
-    letterSpacing: 0.3,
-  },
-  body: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 22 },
-  thread: { gap: 20 },
-  messageBlock: { gap: 10 },
-  sources: { gap: 8 },
-  typingBlock: {
-    flexDirection: 'row',
+  empty: {
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 4,
+    paddingBottom: 24,
   },
-  typingLabel: {
+  hero: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 32,
+    lineHeight: 38,
+    letterSpacing: 0.3,
+    textAlign: 'center',
+  },
+  heroSub: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 17,
+    lineHeight: 22,
+    letterSpacing: -0.41,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  starterGrid: {
+    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 10,
+  },
+  starterCell: {
+    width: '47.6%',
+    flexGrow: 1,
+  },
+  starterCard: {
+    minHeight: 112,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  starterText: {
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
+    lineHeight: 19,
+    letterSpacing: -0.2,
   },
-  errorBlock: { gap: 6, paddingVertical: 4 },
-  retry: {
+  thread: { gap: 22 },
+  messageBlock: { gap: 10 },
+  assistantHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  mark: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  markLetter: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+  },
+  assistantName: {
     fontFamily: 'Inter_600SemiBold',
     fontSize: 14,
+    letterSpacing: -0.2,
+  },
+  sources: {
+    gap: 8,
+    paddingRight: 8,
+  },
+  sourceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    maxWidth: 200,
+  },
+  sourceIndex: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+  },
+  sourceTitle: {
+    flexShrink: 1,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+  },
+  followUps: { gap: 8 },
+  followChip: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  followText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    letterSpacing: -0.24,
+  },
+  typingBlock: { gap: 10 },
+  typingLabel: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 16,
+    paddingLeft: 2,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  errorBlock: { gap: 8, paddingVertical: 4 },
+  errorText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  retry: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 15,
   },
   composerDock: {
     paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 6,
+    paddingBottom: 4,
   },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 8,
-    paddingLeft: 14,
+    paddingLeft: 16,
     paddingRight: 6,
     paddingVertical: 6,
-    minHeight: 48,
-    borderWidth: StyleSheet.hairlineWidth * 2,
+    minHeight: 52,
+    borderRadius: 26,
   },
   input: {
     flex: 1,
     fontFamily: 'Inter_400Regular',
-    fontSize: 16,
+    fontSize: 17,
     lineHeight: 22,
+    letterSpacing: -0.41,
     paddingTop: Platform.OS === 'ios' ? 8 : 6,
     paddingBottom: Platform.OS === 'ios' ? 8 : 6,
     maxHeight: INPUT_MAX,
     textAlignVertical: 'center',
   },
-  sendWrap: {
-    marginBottom: 1,
-  },
   send: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 2,
+  },
+  historyRoot: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  historyPanel: {
+    width: '82%',
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  historyScrim: {
+    flex: 1,
+  },
+  historyHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 44,
+  },
+  historyTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 28,
+    letterSpacing: 0.35,
+  },
+  newChat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  newChatLabel: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 16,
+  },
+  historyList: {
+    gap: 2,
+    paddingBottom: 24,
+  },
+  historyEmpty: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    paddingVertical: 24,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+  },
+  historyRowTitle: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 16,
+    letterSpacing: -0.3,
+  },
+  historyRowMeta: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    marginTop: 2,
   },
 });

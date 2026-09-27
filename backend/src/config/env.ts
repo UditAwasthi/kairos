@@ -35,6 +35,7 @@ export function assertProductionConfig(
   requireValue('CLERK_SECRET_KEY');
   requireValue('DATABASE_URL');
   requireValue('DIRECT_URL');
+  requireValue('REVENUECAT_WEBHOOK_AUTHORIZATION');
 
   const storageProvider = (env.STORAGE_PROVIDER ?? '').trim().toLowerCase();
   const s3Config = readS3ConfigFromEnv();

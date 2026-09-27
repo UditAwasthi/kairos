@@ -33,8 +33,7 @@ export function HomeSearchBar({ onPress }: { onPress: () => void }) {
         style={[
           styles.search,
           {
-            backgroundColor: colors.surfaceElevated,
-            ...colors.shadowElevated,
+            backgroundColor: colors.inputFill,
           },
         ]}
       >
@@ -68,8 +67,7 @@ export function AssistChip({
       style={[
         styles.chip,
         {
-          backgroundColor: colors.surfaceElevated,
-          borderColor: colors.border,
+          backgroundColor: colors.secondaryContainer,
         },
       ]}
     >
@@ -105,18 +103,16 @@ export function TodayCard({
       <PressScale
         onPress={onPress}
         accessibilityLabel="Today"
-        style={[styles.today, { backgroundColor: colors.primaryContainer }]}
+        style={[styles.today, { backgroundColor: colors.surfaceElevated }]}
       >
         <View style={styles.todayCopy}>
-          <Text style={[styles.todayKicker, { color: colors.onPrimaryContainer }]}>Today</Text>
-          <Animated.Text
-            style={[styles.todayValue, { color: colors.onPrimaryContainer }, valueStyle]}
-          >
+          <Text style={[styles.todayKicker, { color: colors.textSecondary }]}>Today</Text>
+          <Animated.Text style={[styles.todayValue, { color: colors.text }, valueStyle]}>
             {count}
           </Animated.Text>
-          <Text style={[styles.todayCaption, { color: colors.onPrimaryContainer }]}>{caption}</Text>
+          <Text style={[styles.todayCaption, { color: colors.textSecondary }]}>{caption}</Text>
         </View>
-        <MaterialIcons name="chevron-right" size={24} color={colors.onPrimaryContainer} />
+        <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
       </PressScale>
     </Animated.View>
   );
@@ -177,27 +173,27 @@ export function MemoryTile({
 
   return (
     <Animated.View entering={itemEntering(index + 2)}>
-    <PressScale
-      onPress={onPress}
-      accessibilityLabel={observation.filename}
-      style={[styles.tile, { width, backgroundColor: colors.surfaceElevated }]}
-    >
-      {photo ? (
-        <Image source={photo} style={styles.tilePhoto} />
-      ) : (
-        <View style={[styles.tileFallback, { backgroundColor: meta.tint }]}>
-          <MaterialIcons name={meta.icon} size={28} color={meta.color} />
+      <PressScale
+        onPress={onPress}
+        accessibilityLabel={observation.filename}
+        style={[styles.tile, { width, backgroundColor: colors.surfaceElevated }]}
+      >
+        {photo ? (
+          <Image source={photo} style={styles.tilePhoto} />
+        ) : (
+          <View style={[styles.tileFallback, { backgroundColor: meta.tint }]}>
+            <MaterialIcons name={meta.icon} size={28} color={meta.color} />
+          </View>
+        )}
+        <View style={styles.tileCopy}>
+          <Text style={[styles.tileTitle, { color: colors.text }]} numberOfLines={1}>
+            {observation.filename}
+          </Text>
+          <Text style={[styles.tileMeta, { color: colors.textMuted }]} numberOfLines={1}>
+            {date}
+          </Text>
         </View>
-      )}
-      <View style={styles.tileCopy}>
-        <Text style={[styles.tileTitle, { color: colors.text }]} numberOfLines={1}>
-          {observation.filename}
-        </Text>
-        <Text style={[styles.tileMeta, { color: colors.textMuted }]} numberOfLines={1}>
-          {date}
-        </Text>
-      </View>
-    </PressScale>
+      </PressScale>
     </Animated.View>
   );
 }
@@ -216,11 +212,7 @@ export function ShortcutRow({
   const { colors } = useAppTheme();
 
   return (
-    <PressScale
-      onPress={onPress}
-      accessibilityLabel={label}
-      style={styles.shortcut}
-    >
+    <PressScale onPress={onPress} accessibilityLabel={label} style={styles.shortcut}>
       <View style={[styles.shortcutIcon, { backgroundColor: colors.secondaryContainer }]}>
         <MaterialIcons name={icon} size={20} color={colors.primary} />
       </View>
@@ -291,34 +283,35 @@ export function SyncBanner({ text }: { text: string }) {
 
 const styles = StyleSheet.create({
   search: {
-    height: 48,
-    borderRadius: 24,
-    paddingHorizontal: 16,
+    height: 36,
+    borderRadius: 10,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
   searchText: {
     fontFamily: 'Inter_400Regular',
-    fontSize: 16,
+    fontSize: 17,
+    letterSpacing: -0.41,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    height: 36,
-    paddingHorizontal: 14,
+    gap: 6,
+    height: 32,
+    paddingHorizontal: 12,
     borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
   },
   chipLabel: {
     fontFamily: 'Inter_500Medium',
-    fontSize: 14,
+    fontSize: 15,
+    letterSpacing: -0.24,
   },
   today: {
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -332,9 +325,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   todayValue: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 32,
-    lineHeight: 40,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 34,
+    lineHeight: 41,
+    letterSpacing: 0.4,
   },
   todayCaption: {
     fontFamily: 'Inter_400Regular',
@@ -349,15 +343,17 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   sectionTitle: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 20,
+    letterSpacing: 0.38,
   },
   sectionAction: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 17,
+    letterSpacing: -0.41,
   },
   tile: {
-    borderRadius: 12,
+    borderRadius: 10,
     overflow: 'hidden',
   },
   tilePhoto: {
@@ -412,7 +408,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   topic: {
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
@@ -436,7 +432,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },

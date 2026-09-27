@@ -5,7 +5,8 @@ import { Image, StyleSheet, View } from 'react-native';
 
 import { ThemeToggleButton } from '../../../components/ThemeToggleButton';
 import { GlassPanel } from '../../../components/ui/Glass';
-import { SoftLinkList, SoftPage } from '../../../components/ui/SoftScreen';
+import { TabScreenSwipe } from '../../../components/TabScreenSwipe';
+import { SoftLinkList, SoftPage, SoftRow } from '../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { ThemedText } from '../../../components/ThemedText';
 import { listPendingCaptures } from '../../../lib/captureQueue';
@@ -15,6 +16,7 @@ import {
 } from '../../../lib/syncStatus';
 import { useOnboarding } from '../../../providers/OnboardingProvider';
 import { useAppTheme } from '../../../providers/ThemeProvider';
+import { useSubscription } from '../../../providers/SubscriptionProvider';
 import Recall from 'kairos-recall';
 
 export default function ProfileScreen() {
@@ -22,6 +24,7 @@ export default function ProfileScreen() {
   const { signOut } = useAuth();
   const { resetOnboarding } = useOnboarding();
   const { colors, themeProgress, toggleTheme } = useAppTheme();
+  const subscription = useSubscription();
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [syncCopy, setSyncCopy] = useState(() => profileSyncCopy(0));
@@ -56,6 +59,7 @@ export default function ProfileScreen() {
   };
 
   return (
+    <TabScreenSwipe>
     <SoftPage tabBar safeTop>
       <View style={styles.header}>
         {user?.imageUrl ? (
@@ -78,6 +82,19 @@ export default function ProfileScreen() {
           ) : null}
         </View>
         <ThemeToggleButton themeProgress={themeProgress} onToggle={toggleTheme} />
+      </View>
+
+      <View>
+        <ThemedText colorKey="textMuted" style={styles.subscriptionLabel}>Subscription</ThemedText>
+        <SoftRow
+          label="Kairos Pro"
+          icon="clock"
+          meta={subscription.isLoading ? 'Loading' : subscription.isPro ? 'Active' : 'Unlock Recall'}
+          onPress={subscription.isPro ? undefined : () => router.push('/(app)/(tabs)/recall')}
+        />
+        {subscription.isPro ? (
+          <SoftRow label="Manage Subscription" icon="external-link" onPress={() => void subscription.manageSubscriptions()} />
+        ) : null}
       </View>
 
       <GlassPanel>
@@ -127,6 +144,7 @@ export default function ProfileScreen() {
         style={styles.signOut}
       />
     </SoftPage>
+    </TabScreenSwipe>
   );
 }
 
@@ -154,6 +172,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
+  subscriptionLabel: { fontFamily: 'Inter_500Medium', fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8 },
   syncTitle: { fontFamily: 'Inter_500Medium', fontSize: 16 },
   syncDetail: { fontFamily: 'Inter_400Regular', fontSize: 13 },
   signOut: { marginTop: 4 },

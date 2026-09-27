@@ -3,11 +3,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   interpolate,
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -16,6 +15,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardState } from 'react-native-keyboard-controller';
 
+import { useTabPagerGesture } from './TabScreenSwipe';
 import { useAppTheme } from '../providers/ThemeProvider';
 
 type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
@@ -28,7 +28,6 @@ const TAB_META: Record<string, { label: string; icon: IconName; iconActive: Icon
   profile: { label: 'Profile', icon: 'person-outline', iconActive: 'person' },
 };
 
-/** Space screens should leave clear above the bar (excluding safe area). */
 export const FLOATING_TAB_BAR_CONTENT = 80;
 
 function TabItem({
@@ -70,26 +69,16 @@ function TabItem({
       style={styles.item}
     >
       <Animated.View style={[styles.itemInner, pressStyle]}>
-      <View
-        style={[
-          styles.indicator,
-          { backgroundColor: focused ? colors.primaryContainer : 'transparent' },
-        ]}
-      >
-        <MaterialIcons
-          name={focused ? iconActive : icon}
-          size={24}
-          color={focused ? colors.primary : colors.textMuted}
-        />
-      </View>
-      <Text
-        style={[
-          styles.label,
-          { color: focused ? colors.primary : colors.textMuted },
-        ]}
-      >
-        {label}
-      </Text>
+        <View style={styles.indicator}>
+          <MaterialIcons
+            name={focused ? iconActive : icon}
+            size={25}
+            color={focused ? colors.text : colors.secondary}
+          />
+        </View>
+        <Text style={[styles.label, { color: focused ? colors.text : colors.secondary }]}>
+          {label}
+        </Text>
       </Animated.View>
     </Pressable>
   );
@@ -108,6 +97,8 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
     });
   }, [keyboardVisible, visibility]);
 
+  const swipe = useTabPagerGesture();
+
   const goToIndex = (next: number) => {
     const route = state.routes[next];
     if (!route || next === state.index) return;
@@ -122,19 +113,6 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
     }
   };
 
-  const swipe = Gesture.Pan()
-    .activeOffsetX([-24, 24])
-    .failOffsetY([-12, 12])
-    .onEnd((e) => {
-      'worklet';
-      if (Math.abs(e.translationX) < 48 && Math.abs(e.velocityX) < 600) return;
-      const dir = e.translationX < 0 || e.velocityX < -400 ? 1 : -1;
-      const next = Math.max(0, Math.min(state.routes.length - 1, state.index + dir));
-      if (next !== state.index) {
-        runOnJS(goToIndex)(next);
-      }
-    });
-
   const shellStyle = useAnimatedStyle(() => ({
     opacity: visibility.value,
     transform: [{ translateY: interpolate(visibility.value, [0, 1], [24, 0]) }],
@@ -147,8 +125,8 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
         styles.wrap,
         {
           paddingBottom: Math.max(insets.bottom, 8),
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          backgroundColor: colors.surfaceElevated,
+          borderTopColor: colors.divider,
         },
         shellStyle,
       ]}
@@ -217,15 +195,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   indicator: {
-    width: 56,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
   label: {
     fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    letterSpacing: 0.4,
+    fontSize: 10,
+    letterSpacing: 0.08,
   },
 });

@@ -25,14 +25,14 @@ export default function TabsLayout() {
           elevation: 0,
         },
         tabBarHideOnKeyboard: true,
-        animation: 'fade',
+        animation: 'shift',
         transitionSpec: {
           animation: 'spring',
           config: {
-            stiffness: 900,
-            damping: 68,
-            mass: 1,
-            overshootClamping: true,
+            stiffness: 420,
+            damping: 42,
+            mass: 0.9,
+            overshootClamping: false,
             restDisplacementThreshold: 0.01,
             restSpeedThreshold: 0.01,
           },
@@ -60,6 +60,7 @@ export default function TabsLayout() {
         name="ask"
         options={{
           title: 'Ask',
+          headerShown: false,
           tabBarAccessibilityLabel: 'Ask',
         }}
       />

@@ -270,9 +270,10 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   title: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 22,
-    letterSpacing: 0,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 34,
+    lineHeight: 41,
+    letterSpacing: 0.4,
     flex: 1,
   },
   rowPanel: {
@@ -322,7 +323,7 @@ const styles = StyleSheet.create({
   tileIcon: {
     width: 40,
     height: 40,
-    borderRadius: 14,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -334,7 +335,7 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 48,
     height: 48,
-    borderRadius: 16,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },

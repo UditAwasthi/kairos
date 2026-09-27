@@ -1,5 +1,4 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import Animated from 'react-native-reanimated';
 
 import { ThemedText } from '../ThemedText';
@@ -239,39 +238,39 @@ export function EvidenceCard({
 }
 
 export function AskBubble({ message }: { message: AskMessage }) {
-  const { spacing, radius, gradients } = useAppTheme();
+  const { colors, spacing } = useAppTheme();
   const isUser = message.role === 'user';
 
   if (isUser) {
     return (
-      <Animated.View entering={messageEntering()} style={{ alignSelf: 'flex-end', maxWidth: '82%' }}>
-      <LinearGradient
-        colors={[...gradients.accent]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{
-          borderRadius: radius.xl,
-          borderBottomRightRadius: radius.sm,
-          paddingHorizontal: spacing['4'],
-          paddingVertical: spacing['3'],
-        }}
-      >
-        <ThemedText colorKey="inverseText" style={[styles.body, { fontSize: 16, lineHeight: 22 }]}>
-          {message.content}
-        </ThemedText>
-      </LinearGradient>
+      <Animated.View entering={messageEntering()} style={{ alignSelf: 'flex-end', maxWidth: '80%' }}>
+        <View
+          style={{
+            backgroundColor: colors.primaryContainer,
+            borderRadius: 22,
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+          }}
+        >
+          <ThemedText colorKey="text" style={[styles.body, { fontSize: 16, lineHeight: 22 }]}>
+            {message.content}
+          </ThemedText>
+        </View>
       </Animated.View>
     );
   }
 
   return (
-    <Animated.View entering={messageEntering()} style={{ alignSelf: 'stretch', gap: spacing['2'], paddingRight: spacing['2'] }}>
+    <Animated.View
+      entering={messageEntering()}
+      style={{ alignSelf: 'stretch', gap: spacing['2'], paddingRight: spacing['6'] }}
+    >
       <ThemedText colorKey="text" style={[styles.body, { fontSize: 16, lineHeight: 24 }]}>
         {message.content}
       </ThemedText>
       {message.insufficientEvidence ? (
-        <ThemedText colorKey="accent" style={styles.meta}>
-          Insufficient supporting memories
+        <ThemedText colorKey="textMuted" style={styles.meta}>
+          Not enough supporting memories yet
         </ThemedText>
       ) : null}
     </Animated.View>

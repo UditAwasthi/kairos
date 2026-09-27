@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 docs/
+!docs/
+docs/*
+!docs/REVENUECAT_SUBSCRIPTIONS.md
 # Expo
 .expo/
 dist/

@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../../components/ThemedText';
 import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
+import { TabScreenSwipe } from '../../../components/TabScreenSwipe';
 import { FadeInContent } from '../../../components/ui/EmptyState';
 import { GlassPanel, ScreenGradient } from '../../../components/ui/Glass';
 import { itemEntering, PressScale } from '../../../components/ui/Motion';
@@ -39,6 +40,8 @@ import {
 } from '../../../lib/recallSync';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import Recall, { type RecallStatus } from 'kairos-recall';
+import { RecallPaywall } from '../../../components/RecallPaywall';
+import { useSubscription } from '../../../providers/SubscriptionProvider';
 
 function relativeTime(ts: number | null | undefined): string {
   if (!ts) return '—';
@@ -188,16 +191,21 @@ export default function RecallScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors } = useAppTheme();
-  const { getToken } = useAuth();
+  const { getToken, userId } = useAuth();
+  const subscription = useSubscription();
   const [entitlement, setEntitlement] = useState<RecallEntitlement | null>(
-    () => getCachedRecallEntitlement(),
+    () => getCachedRecallEntitlement(userId ?? undefined),
   );
   const [status, setStatus] = useState<RecallStatus | null>(null);
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    setEntitlement(getCachedRecallEntitlement(userId ?? undefined));
+  }, [userId]);
+
   const refresh = useCallback(async (force = false) => {
     try {
-      const ent = await ensureRecallReady(getToken, { force });
+      const ent = await ensureRecallReady(getToken, { force, userId: userId ?? undefined });
       if (ent) setEntitlement(ent);
       if (Recall.isAvailable()) {
         await Recall.setConfig({
@@ -207,10 +215,12 @@ export default function RecallScreen() {
         const st = await Recall.getStatus();
         setStatus(st);
       }
+      return ent;
     } catch {
       /* keep last good status */
+      return null;
     }
-  }, [getToken]);
+  }, [getToken, userId]);
 
   useEffect(() => {
     void refresh(false);
@@ -218,7 +228,7 @@ export default function RecallScreen() {
 
   // Live status + proactive flush while there is a backlog.
   useEffect(() => {
-    if (!Recall.isAvailable()) return;
+    if (!entitlement?.allowed || !Recall.isAvailable()) return;
 
     let cancelled = false;
     let flushInFlight = false;
@@ -253,7 +263,7 @@ export default function RecallScreen() {
       cancelled = true;
       clearInterval(id);
     };
-  }, []);
+  }, [entitlement?.allowed]);
 
   const run = async (action: () => Promise<unknown>) => {
     try {
@@ -285,6 +295,18 @@ export default function RecallScreen() {
       ? `${queued} waiting to sync`
       : null;
 
+  if (subscription.isLoading) {
+    return <ScreenGradient><View style={styles.lockedLoading}><ActivityIndicator color={colors.accent} /></View></ScreenGradient>;
+  }
+  if (!subscription.hasRecallAccess) {
+    return (
+      <RecallPaywall
+        onClose={() => router.replace('/(app)/(tabs)/index')}
+        onUnlocked={() => { void refresh(true); }}
+      />
+    );
+  }
+
   const toggle = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (isOn) {
@@ -299,6 +321,7 @@ export default function RecallScreen() {
   };
 
   return (
+    <TabScreenSwipe>
     <ScreenGradient>
       <FadeInContent>
       <View
@@ -465,10 +488,12 @@ export default function RecallScreen() {
       </View>
       </FadeInContent>
     </ScreenGradient>
+    </TabScreenSwipe>
   );
 }
 
 const styles = StyleSheet.create({
+  lockedLoading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   screen: {
     flex: 1,
     paddingHorizontal: 20,

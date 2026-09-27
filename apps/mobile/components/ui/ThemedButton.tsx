@@ -82,10 +82,9 @@ export function ThemedButton({
       style={[
         styles.button,
         {
-          borderRadius: 20,
-          borderWidth: isPrimary ? 0 : 1,
+          borderRadius: 14,
+          borderWidth: isPrimary ? 0 : StyleSheet.hairlineWidth,
           opacity: disabled ? 0.5 : 1,
-          ...(!isPrimary && !disabled ? colors.shadow : null),
         },
         buttonStyle,
         style,
@@ -95,9 +94,9 @@ export function ThemedButton({
         style={[
           styles.label,
           {
-            fontSize: typography.bodySmall.size,
-            lineHeight: typography.bodySmall.lineHeight,
-            letterSpacing: 0.2,
+            fontSize: typography.body.size,
+            lineHeight: typography.body.lineHeight,
+            letterSpacing: typography.body.letterSpacing,
           },
           textStyle,
         ]}
@@ -110,13 +109,13 @@ export function ThemedButton({
 
 const styles = StyleSheet.create({
   button: {
-    height: 40,
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
   },
   label: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_600SemiBold',
   },
 });

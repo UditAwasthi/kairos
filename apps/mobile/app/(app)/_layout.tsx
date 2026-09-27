@@ -19,7 +19,7 @@ import { useAppTheme } from '../../providers/ThemeProvider';
 import Recall from 'kairos-recall';
 
 export default function AppLayout() {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { isLoaded, isSignedIn, getToken, userId } = useAuth();
   const { colors } = useAppTheme();
   const router = useRouter();
   const handledResponseRef = useRef<string | null>(null);
@@ -48,7 +48,7 @@ export default function AppLayout() {
         }
       });
       if (Platform.OS === 'android' && Recall.isAvailable()) {
-        void ensureRecallReady(getToken, { force });
+        void ensureRecallReady(getToken, { force, userId });
       }
     };
 
@@ -87,7 +87,7 @@ export default function AppLayout() {
       clearInterval(interval);
       sub.remove();
     };
-  }, [isSignedIn, getToken]);
+  }, [isSignedIn, getToken, userId]);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -138,8 +138,8 @@ export default function AppLayout() {
         },
         headerShadowVisible: false,
         contentStyle: { backgroundColor: colors.background },
-        animation: 'slide_from_right',
-        animationDuration: 320,
+        animation: 'ios_from_right',
+        animationDuration: 340,
         gestureEnabled: true,
         fullScreenGestureEnabled: true,
         gestureDirection: 'horizontal',
@@ -154,11 +154,23 @@ export default function AppLayout() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="quick-capture"
-        options={{ title: 'Capture', presentation: 'modal' }}
+        options={{
+          title: 'Capture',
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+          gestureEnabled: true,
+          gestureDirection: 'vertical',
+        }}
       />
       <Stack.Screen
         name="voice-capture"
-        options={{ title: 'Voice', presentation: 'modal' }}
+        options={{
+          title: 'Voice',
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+          gestureEnabled: true,
+          gestureDirection: 'vertical',
+        }}
       />
       <Stack.Screen name="insight" options={{ title: 'Today' }} />
       <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />

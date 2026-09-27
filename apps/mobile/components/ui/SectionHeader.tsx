@@ -66,9 +66,9 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   title: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    letterSpacing: 0.6,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    letterSpacing: -0.08,
     textTransform: 'uppercase',
   },
   subtitle: {

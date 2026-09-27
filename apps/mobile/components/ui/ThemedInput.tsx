@@ -29,8 +29,9 @@ export function ThemedInput(props: TextInputProps) {
           borderRadius: radius.md,
           paddingHorizontal: spacing['4'],
           paddingVertical: spacing['3'] + 2,
-          fontSize: typography.bodySmall.size,
-          lineHeight: typography.bodySmall.lineHeight,
+          fontSize: typography.body.size,
+          lineHeight: typography.body.lineHeight,
+          letterSpacing: typography.body.letterSpacing,
         },
         props.style,
       ]}
@@ -40,7 +41,8 @@ export function ThemedInput(props: TextInputProps) {
 
 const styles = StyleSheet.create({
   input: {
-    borderWidth: 1,
+    borderWidth: 0,
     fontFamily: 'Inter_400Regular',
+    minHeight: 44,
   },
 });

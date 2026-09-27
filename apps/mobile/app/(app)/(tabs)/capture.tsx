@@ -1,23 +1,33 @@
 import { useAuth } from '@clerk/expo';
-import { Feather } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
+import {
+  AudioModule,
+  RecordingPresets,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
+  Platform,
+  Pressable,
   StyleSheet,
+  Text,
+  TextInput,
   View,
 } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { SoftPage, SoftTitle } from '../../../components/ui/SoftScreen';
-import { GlassPanel } from '../../../components/ui/Glass';
-import { itemEntering, PressScale } from '../../../components/ui/Motion';
-import { ThemedButton } from '../../../components/ui/ThemedButton';
-import { ThemedInput } from '../../../components/ui/ThemedInput';
-import { ThemedText } from '../../../components/ThemedText';
+import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
+import { TabScreenSwipe } from '../../../components/TabScreenSwipe';
+import { FadeInContent } from '../../../components/ui/EmptyState';
+import { ScreenGradient } from '../../../components/ui/Glass';
+import { PressScale } from '../../../components/ui/Motion';
 import {
   ApiError,
   observationStatusLabel,
@@ -26,29 +36,16 @@ import {
 } from '../../../lib/api';
 import { submitCapture } from '../../../lib/capture';
 import { useAppTheme } from '../../../providers/ThemeProvider';
-import type { SourceType } from '../../../types';
 
-type CaptureItem = {
-  type: SourceType;
-  label: string;
-  icon: React.ComponentProps<typeof Feather>['name'];
+type Attachment = {
+  kind: 'file' | 'voice';
+  uri: string;
+  name: string;
+  mimeType: string;
 };
 
-const CAPTURE_TYPES: CaptureItem[] = [
-  { type: 'screenshot', label: 'Shot', icon: 'tablet' },
-  { type: 'photo', label: 'Photo', icon: 'camera' },
-  { type: 'document', label: 'File', icon: 'file-text' },
-  { type: 'note', label: 'Note', icon: 'edit-3' },
-  { type: 'link', label: 'Link', icon: 'link' },
-  { type: 'audio', label: 'Voice', icon: 'mic' },
-];
-
-const FILE_CAPTURE_TYPES: SourceType[] = ['document', 'photo', 'screenshot'];
-
-function statusLabel(status: ApiObservation['status'] | 'UPLOADING'): string {
-  if (status === 'UPLOADING') return 'Saved';
-  return observationStatusLabel(status);
-}
+const URL_ONLY = /^(https?:\/\/\S+|www\.\S+)$/i;
+const URL_IN_TEXT = /https?:\/\/[^\s]+/i;
 
 function guessMimeType(name: string, fallback?: string | null): string {
   const lower = name.toLowerCase();
@@ -58,17 +55,48 @@ function guessMimeType(name: string, fallback?: string | null): string {
   if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
   if (lower.endsWith('.webp')) return 'image/webp';
   if (lower.endsWith('.gif')) return 'image/gif';
+  if (lower.endsWith('.m4a') || lower.endsWith('.mp4')) return 'audio/mp4';
   return fallback || 'application/octet-stream';
+}
+
+function extractPayload(text: string): { content?: string; url?: string } {
+  const trimmed = text.trim();
+  if (!trimmed) return {};
+  if (URL_ONLY.test(trimmed)) {
+    return { url: trimmed.startsWith('www.') ? `https://${trimmed}` : trimmed };
+  }
+  const match = trimmed.match(URL_IN_TEXT);
+  if (match) {
+    const url = match[0];
+    const content = trimmed.replace(url, '').trim();
+    return { url, content: content || undefined };
+  }
+  return { content: trimmed };
+}
+
+function formatClock(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function statusLabel(status: ApiObservation['status'] | 'UPLOADING'): string {
+  if (status === 'UPLOADING') return 'Saving…';
+  return observationStatusLabel(status);
 }
 
 export default function CaptureScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const { colors, isLight } = useAppTheme();
   const { getToken } = useAuth();
-  const [selected, setSelected] = useState<SourceType | null>(null);
-  const [title, setTitle] = useState('');
-  const [note, setNote] = useState('');
-  const [url, setUrl] = useState('');
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder);
+
+  const [text, setText] = useState('');
+  const [attachment, setAttachment] = useState<Attachment | null>(null);
+  const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
   const [stageLabel, setStageLabel] = useState<string | null>(null);
   const [observationId, setObservationId] = useState<string | null>(null);
@@ -79,8 +107,15 @@ export default function CaptureScreen() {
     activeRef.current = true;
     return () => {
       activeRef.current = false;
+      if (recorder.isRecording) {
+        void recorder.stop();
+      }
     };
-  }, []);
+  }, [recorder]);
+
+  const payload = extractPayload(text);
+  const canSend =
+    !busy && !recording && Boolean(attachment || payload.content || payload.url);
 
   const settle = async (token: string, id: string) => {
     const settled = await pollObservationUntilSettled({
@@ -96,274 +131,471 @@ export default function CaptureScreen() {
     }
   };
 
-  const runFileUpload = async (type: SourceType) => {
+  const resetComposer = () => {
+    setText('');
+    setAttachment(null);
+    setRecording(false);
+  };
+
+  const pickFile = async () => {
+    if (busy || recording) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const picked = await DocumentPicker.getDocumentAsync({
+      type: [
+        'image/*',
+        'application/pdf',
+        'text/plain',
+        'text/markdown',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ],
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (picked.canceled || !picked.assets?.[0]) return;
+    const asset = picked.assets[0];
+    setAttachment({
+      kind: 'file',
+      uri: asset.uri,
+      name: asset.name || `capture-${Date.now()}`,
+      mimeType: guessMimeType(asset.name || '', asset.mimeType),
+    });
+    setError(null);
+    setStageLabel(null);
+    setObservationId(null);
+  };
+
+  const startRecording = async () => {
+    if (busy) return;
+    setError(null);
+    try {
+      const permission = await AudioModule.requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        setError('Microphone permission was denied.');
+        return;
+      }
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setRecording(true);
+      setAttachment(null);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {
+      setError('Could not start recording.');
+    }
+  };
+
+  const stopRecording = async (): Promise<Attachment | null> => {
+    try {
+      if (recorder.isRecording) {
+        await recorder.stop();
+      }
+    } catch {
+      setRecording(false);
+      return null;
+    }
+    setRecording(false);
+    const uri = recorder.uri;
+    if (!uri) {
+      setError('The recording was empty.');
+      return null;
+    }
+    const next: Attachment = {
+      kind: 'voice',
+      uri,
+      name: `voice-${Date.now()}.m4a`,
+      mimeType: 'audio/mp4',
+    };
+    setAttachment(next);
+    return next;
+  };
+
+  const cancelRecording = async () => {
+    try {
+      if (recorder.isRecording) {
+        await recorder.stop();
+      }
+    } catch {
+      // ignore
+    }
+    setRecording(false);
+  };
+
+  const send = async () => {
+    if (busy) return;
+
+    let nextAttachment = attachment;
+    if (recording) {
+      nextAttachment = await stopRecording();
+      if (!nextAttachment) return;
+    }
+
+    const next = extractPayload(text);
+    if (!nextAttachment && !next.content && !next.url) return;
+
     setBusy(true);
     setError(null);
     setObservationId(null);
-    setStageLabel('…');
+    setStageLabel(statusLabel('UPLOADING'));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const picked = await DocumentPicker.getDocumentAsync({
-        type:
-          type === 'document'
-            ? ['application/pdf', 'text/plain', 'text/markdown']
-            : ['image/*'],
-        copyToCacheDirectory: true,
-        multiple: false,
-      });
-
-      if (picked.canceled || !picked.assets?.[0]) {
-        setStageLabel(null);
-        return;
-      }
-
-      const asset = picked.assets[0];
       const token = await getToken();
       if (!token) throw new ApiError('Sign in required.', 401);
 
-      setStageLabel(statusLabel('UPLOADING'));
-      const submitted = await submitCapture({
-        token,
-        source: 'MANUAL',
-        fileUri: asset.uri,
-        fileName: asset.name || `capture-${Date.now()}`,
-        mimeType: guessMimeType(asset.name || '', asset.mimeType),
-      });
+      const submitted = nextAttachment
+        ? await submitCapture({
+            token,
+            source: nextAttachment.kind === 'voice' ? 'VOICE' : 'MANUAL',
+            fileUri: nextAttachment.uri,
+            fileName: nextAttachment.name,
+            mimeType: nextAttachment.mimeType,
+            title: next.content?.slice(0, 80),
+            content: next.content,
+            url: next.url,
+          })
+        : await submitCapture({
+            token,
+            source: 'MANUAL',
+            content: next.content,
+            url: next.url,
+            title: next.content?.slice(0, 80),
+          });
+
       if (submitted.queued) {
         setStageLabel('Saved on this device');
+        resetComposer();
         return;
       }
       const uploaded = submitted.observation;
       if (!uploaded) throw new ApiError('Capture failed.', 500);
       setObservationId(uploaded.id);
       setStageLabel(statusLabel(uploaded.status));
+      resetComposer();
       await settle(token, uploaded.id);
     } catch (err) {
       if (err instanceof ApiError && err.status === 499) {
         setStageLabel('Saved');
+        resetComposer();
         return;
       }
-      setError(err instanceof ApiError ? err.message : 'Upload failed');
+      setError(err instanceof ApiError ? err.message : 'Could not save that.');
       setStageLabel(null);
     } finally {
       setBusy(false);
     }
   };
 
-  const runTextUpload = async (type: 'note' | 'link') => {
-    setBusy(true);
-    setError(null);
-    setObservationId(null);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    try {
-      const token = await getToken();
-      if (!token) throw new ApiError('Sign in required.', 401);
-
-      setStageLabel(statusLabel('UPLOADING'));
-      let uploaded: ApiObservation | undefined;
-      if (type === 'note') {
-        const text = note.trim();
-        if (!text) throw new ApiError('Write a note first.', 400);
-        const submitted = await submitCapture({
-          token,
-          source: 'MANUAL',
-          content: text,
-          title: title.trim() || undefined,
-        });
-        if (submitted.queued) {
-          setStageLabel('Saved on this device');
-          return;
-        }
-        uploaded = submitted.observation;
-      } else {
-        const link = url.trim();
-        if (!link) throw new ApiError('Enter a URL.', 400);
-        const submitted = await submitCapture({
-          token,
-          source: 'MANUAL',
-          url: link,
-        });
-        if (submitted.queued) {
-          setStageLabel('Saved on this device');
-          return;
-        }
-        uploaded = submitted.observation;
-      }
-      if (!uploaded) throw new ApiError('Capture failed.', 500);
-
-      setObservationId(uploaded.id);
-      setStageLabel(statusLabel(uploaded.status));
-      await settle(token, uploaded.id);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 499) {
-        setStageLabel('Saved');
-        return;
-      }
-      setError(err instanceof ApiError ? err.message : 'Failed');
-      setStageLabel(null);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onSelect = (type: SourceType) => {
-    setSelected(type);
-    if (FILE_CAPTURE_TYPES.includes(type)) {
-      void runFileUpload(type);
-      return;
-    }
-    if (type === 'audio') {
-      router.push('/(app)/voice-capture');
-      return;
-    }
-    if (type === 'note' || type === 'link') {
-      return;
-    }
-    Alert.alert('Not supported');
-  };
+  const attachmentIcon =
+    attachment?.kind === 'voice'
+      ? 'mic'
+      : attachment?.mimeType.startsWith('image/')
+        ? 'image'
+        : 'insert-drive-file';
 
   return (
-    <SoftPage tabBar safeTop>
-      <SoftTitle>Capture</SoftTitle>
+    <TabScreenSwipe>
+      <ScreenGradient>
+        <FadeInContent>
+          <View
+            style={[
+              styles.screen,
+              {
+                paddingTop: insets.top + 8,
+                paddingBottom: insets.bottom + FLOATING_TAB_BAR_CONTENT + 16,
+              },
+            ]}
+          >
+            <Animated.View entering={FadeIn.duration(240)} style={styles.hero}>
+              <Text style={[styles.title, { color: colors.text }]}>Capture</Text>
+              <Text style={[styles.lead, { color: colors.textSecondary }]}>
+                What’s on your mind?
+              </Text>
+            </Animated.View>
 
-      <View style={styles.grid}>
-        {CAPTURE_TYPES.map((item, index) => {
-          const active = selected === item.type;
-          return (
-            <Animated.View
-              key={item.type}
-              entering={itemEntering(index)}
-              style={[styles.tileWrap, { opacity: busy ? 0.5 : 1 }]}
-            >
-              <PressScale
-                disabled={busy}
-                onPress={() => onSelect(item.type)}
-                accessibilityLabel={item.label}
-              >
-                <GlassPanel
-                  padded={false}
-                  contentStyle={[
-                    styles.tile,
-                    active && { borderColor: colors.accent, borderWidth: 1.5 },
+            <View style={[styles.widget, { backgroundColor: colors.surfaceElevated }]}>
+              {recording ? (
+                <View style={[styles.recordBar, { backgroundColor: colors.primaryContainer }]}>
+                  <View style={[styles.recordDot, { backgroundColor: colors.text }]} />
+                  <Text style={[styles.recordLabel, { color: colors.text }]}>
+                    Recording {formatClock(recorderState.durationMillis ?? 0)}
+                  </Text>
+                  <Pressable
+                    onPress={() => void cancelRecording()}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel recording"
+                  >
+                    <Text style={[styles.recordCancel, { color: colors.textSecondary }]}>Cancel</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              {attachment && !recording ? (
+                <View style={[styles.chip, { backgroundColor: colors.primaryContainer }]}>
+                  <MaterialIcons name={attachmentIcon} size={18} color={colors.text} />
+                  <Text style={[styles.chipName, { color: colors.text }]} numberOfLines={1}>
+                    {attachment.kind === 'voice' ? 'Voice note' : attachment.name}
+                  </Text>
+                  <Pressable
+                    onPress={() => setAttachment(null)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Remove attachment"
+                  >
+                    <MaterialIcons name="close" size={18} color={colors.textMuted} />
+                  </Pressable>
+                </View>
+              ) : null}
+
+              <TextInput
+                value={text}
+                onChangeText={setText}
+                placeholder={
+                  recording
+                    ? 'Add a title if you want…'
+                    : attachment
+                      ? 'Add a note or paste a link…'
+                      : 'Write a note, paste a link…'
+                }
+                placeholderTextColor={colors.inputPlaceholder}
+                multiline
+                editable={!busy}
+                keyboardAppearance={isLight ? 'light' : 'dark'}
+                accessibilityLabel="Capture"
+                style={[styles.input, { color: colors.text }]}
+              />
+
+              <View style={styles.toolbar}>
+                <Pressable
+                  onPress={() => void pickFile()}
+                  disabled={busy || recording}
+                  accessibilityRole="button"
+                  accessibilityLabel="Attach a file"
+                  style={[styles.toolBtn, { opacity: busy || recording ? 0.35 : 1 }]}
+                >
+                  <MaterialIcons name="add" size={24} color={colors.text} />
+                </Pressable>
+
+                <View style={styles.toolbarSpacer} />
+
+                <Pressable
+                  onPress={() => {
+                    if (recording) {
+                      void stopRecording();
+                      return;
+                    }
+                    void startRecording();
+                  }}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityLabel={recording ? 'Stop recording' : 'Record voice'}
+                  style={[
+                    styles.toolBtn,
+                    recording && { backgroundColor: colors.primaryContainer },
+                    { opacity: busy ? 0.35 : 1 },
                   ]}
                 >
-                  <View style={[styles.tileIcon, { backgroundColor: colors.accentGlow }]}>
-                    <Feather name={item.icon} size={20} color={colors.accent} />
-                  </View>
-                  <ThemedText colorKey="text" style={styles.tileLabel}>
-                    {item.label}
-                  </ThemedText>
-                </GlassPanel>
+                  <MaterialIcons
+                    name={recording ? 'stop' : 'mic'}
+                    size={22}
+                    color={colors.text}
+                  />
+                </Pressable>
+
+                <Pressable
+                  onPress={() => void send()}
+                  disabled={!canSend && !recording}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save capture"
+                  style={[
+                    styles.send,
+                    {
+                      backgroundColor:
+                        canSend || recording ? colors.primary : colors.surfaceContainerHigh,
+                    },
+                  ]}
+                >
+                  {busy ? (
+                    <ActivityIndicator color={colors.onPrimary} size="small" />
+                  ) : (
+                    <MaterialIcons
+                      name="arrow-upward"
+                      size={20}
+                      color={canSend || recording ? colors.onPrimary : colors.textDisabled}
+                    />
+                  )}
+                </Pressable>
+              </View>
+            </View>
+
+            <Text style={[styles.hint, { color: colors.textMuted }]}>
+              One place for files, voice, notes, and links
+            </Text>
+
+            {stageLabel ? (
+              <View style={[styles.statusCard, { backgroundColor: colors.surfaceElevated }]}>
+                {busy ? <ActivityIndicator color={colors.text} /> : null}
+                <Text style={[styles.status, { color: colors.textSecondary }]}>{stageLabel}</Text>
+              </View>
+            ) : null}
+
+            {error ? (
+              <Text style={[styles.error, { color: colors.text }]}>{error}</Text>
+            ) : null}
+
+            {observationId ? (
+              <PressScale
+                onPress={() => router.push(`/(app)/observation/${observationId}`)}
+                accessibilityLabel="Open memory"
+                style={[styles.openBtn, { backgroundColor: colors.primary }]}
+              >
+                <Text style={[styles.openLabel, { color: colors.onPrimary }]}>Open</Text>
               </PressScale>
-            </Animated.View>
-          );
-        })}
-      </View>
-
-      {selected === 'note' ? (
-        <View style={styles.form}>
-          <ThemedInput
-            value={title}
-            onChangeText={setTitle}
-            placeholder="Title"
-            accessibilityLabel="Note title"
-          />
-          <ThemedInput
-            value={note}
-            onChangeText={setNote}
-            placeholder="Note"
-            accessibilityLabel="Note"
-          />
-          <ThemedButton
-            label={busy ? '…' : 'Save'}
-            disabled={busy || !note.trim()}
-            onPress={() => void runTextUpload('note')}
-          />
-        </View>
-      ) : null}
-
-      {selected === 'link' ? (
-        <View style={styles.form}>
-          <ThemedInput
-            value={url}
-            onChangeText={setUrl}
-            placeholder="https://"
-            autoCapitalize="none"
-            accessibilityLabel="URL"
-          />
-          <ThemedButton
-            label={busy ? '…' : 'Save'}
-            disabled={busy || !url.trim()}
-            onPress={() => void runTextUpload('link')}
-          />
-        </View>
-      ) : null}
-
-      {busy || stageLabel ? (
-        <GlassPanel contentStyle={styles.statusRow} padded={false}>
-          {busy ? <ActivityIndicator color={colors.accent} /> : null}
-          <ThemedText colorKey="textMuted" style={styles.status}>
-            {stageLabel}
-          </ThemedText>
-        </GlassPanel>
-      ) : null}
-
-      {error ? (
-        <ThemedText colorKey="error" style={styles.error}>
-          {error}
-        </ThemedText>
-      ) : null}
-
-      {observationId ? (
-        <ThemedButton
-          label="Open"
-          onPress={() => router.push(`/(app)/observation/${observationId}`)}
-        />
-      ) : null}
-    </SoftPage>
+            ) : null}
+          </View>
+        </FadeInContent>
+      </ScreenGradient>
+    </TabScreenSwipe>
   );
 }
 
 const styles = StyleSheet.create({
-  grid: {
+  screen: {
+    flex: 1,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    gap: 16,
+  },
+  hero: {
+    alignItems: 'center',
+    gap: 6,
+    paddingBottom: 4,
+  },
+  title: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 34,
+    lineHeight: 41,
+    letterSpacing: 0.4,
+  },
+  lead: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 17,
+    lineHeight: 22,
+    letterSpacing: -0.41,
+  },
+  widget: {
+    borderRadius: 26,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 8,
+    gap: 10,
+  },
+  recordBar: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  tileWrap: {
-    width: '30%',
-    flexGrow: 1,
-    minWidth: 96,
+  recordDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
-  tile: {
+  recordLabel: {
+    flex: 1,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+  },
+  recordCancel: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+  },
+  chip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 16,
+    paddingLeft: 10,
+    paddingRight: 8,
+    paddingVertical: 7,
+    maxWidth: '100%',
+  },
+  chipName: {
+    flexShrink: 1,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+    maxWidth: 220,
+  },
+  input: {
+    minHeight: 96,
+    maxHeight: 180,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 17,
+    lineHeight: 22,
+    letterSpacing: -0.41,
+    paddingHorizontal: 4,
+    paddingTop: Platform.OS === 'ios' ? 6 : 4,
+    textAlignVertical: 'top',
+  },
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  toolbarSpacer: { flex: 1 },
+  toolBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  send: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hint: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  statusCard: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    paddingVertical: 20,
-    paddingHorizontal: 12,
-    minHeight: 100,
-  },
-  tileIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tileLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-  },
-  form: { gap: 12 },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  status: { fontFamily: 'Inter_400Regular', fontSize: 14 },
-  error: { fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center' },
+  status: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+  },
+  error: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  openBtn: {
+    alignSelf: 'center',
+    borderRadius: 14,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+  },
+  openLabel: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 17,
+    letterSpacing: -0.41,
+  },
 });

@@ -126,4 +126,63 @@ describe('ensureRecallReady', () => {
     await expect(ensureRecallReady(getToken)).resolves.toBeNull();
     expect(ApiError).toBeDefined();
   });
+
+  it('clears the Recall entitlement cache when the authenticated account changes', async () => {
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { feature: 'RECALL', status: 'active', allowed: true, validUntil: null, source: 'revenuecat' } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { feature: 'RECALL', status: 'inactive', allowed: false, validUntil: null, source: 'none' } }),
+      }) as unknown as typeof fetch;
+
+    const getToken = jest.fn().mockResolvedValue('token');
+    await ensureRecallReady(getToken, { userId: 'user-a' });
+    expect(getCachedRecallEntitlement('user-a')?.allowed).toBe(true);
+
+    const userB = await ensureRecallReady(getToken, { userId: 'user-b' });
+    expect(userB?.allowed).toBe(false);
+    expect(getCachedRecallEntitlement('user-b')?.allowed).toBe(false);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a late entitlement response from the previous account', async () => {
+    let resolveA!: (response: unknown) => void;
+    let resolveB!: (response: unknown) => void;
+    const fetchMock = jest
+      .fn()
+      .mockImplementationOnce(
+        () => new Promise((resolve) => { resolveA = resolve; }),
+      )
+      .mockImplementationOnce(
+        () => new Promise((resolve) => { resolveB = resolve; }),
+      );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const getToken = jest.fn().mockResolvedValue('token');
+    const response = (allowed: boolean) => ({
+      ok: true,
+      json: async () => ({
+        data: {
+          feature: 'RECALL',
+          status: allowed ? 'active' : 'inactive',
+          allowed,
+          validUntil: null,
+          source: allowed ? 'revenuecat' : 'none',
+        },
+      }),
+    });
+    const userA = ensureRecallReady(getToken, { userId: 'user-a' });
+    while (fetchMock.mock.calls.length < 1) await Promise.resolve();
+    const userB = ensureRecallReady(getToken, { userId: 'user-b' });
+    while (fetchMock.mock.calls.length < 2) await Promise.resolve();
+
+    resolveB(response(false));
+    await expect(userB).resolves.toMatchObject({ allowed: false });
+    resolveA(response(true));
+    await expect(userA).resolves.toBeNull();
+    expect(getCachedRecallEntitlement('user-b')?.allowed).toBe(false);
+  });
 });

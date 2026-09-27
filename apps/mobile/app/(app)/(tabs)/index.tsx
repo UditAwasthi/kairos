@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
+import { TabScreenSwipe } from '../../../components/TabScreenSwipe';
 import {
   AssistChip,
   HomeFab,
@@ -120,16 +121,20 @@ export default function HomeScreen() {
 
   if (loading && observations.length === 0 && !error) {
     return (
-      <View style={[styles.screen, { backgroundColor: colors.background }]}>
-        <LoadingSkeleton rows={5} />
-      </View>
+      <TabScreenSwipe>
+        <View style={[styles.screen, { backgroundColor: colors.background }]}>
+          <LoadingSkeleton rows={5} />
+        </View>
+      </TabScreenSwipe>
     );
   }
   if (error && observations.length === 0) {
     return (
-      <View style={[styles.screen, { backgroundColor: colors.background }]}>
-        <ErrorState title="Unable to load" onRetry={() => void load()} />
-      </View>
+      <TabScreenSwipe>
+        <View style={[styles.screen, { backgroundColor: colors.background }]}>
+          <ErrorState title="Unable to load" onRetry={() => void load()} />
+        </View>
+      </TabScreenSwipe>
     );
   }
 
@@ -140,6 +145,7 @@ export default function HomeScreen() {
   const createdToday = observations.filter((o) => o.createdAt.startsWith(todayKey)).length;
 
   return (
+    <TabScreenSwipe>
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <FadeInContent>
         <ScrollView
@@ -154,7 +160,7 @@ export default function HomeScreen() {
         >
           <View style={styles.headerRow}>
             <View style={styles.headerCopy}>
-              <Text style={[styles.brand, { color: colors.primary }]}>Kairos</Text>
+              <Text style={[styles.brand, { color: colors.text }]}>Kairos</Text>
               <Text style={[styles.greeting, { color: colors.textSecondary }]} numberOfLines={1}>
                 {hello}, {name}
               </Text>
@@ -284,7 +290,7 @@ export default function HomeScreen() {
           ) : null}
 
           <SectionHeader title="More" />
-          <View style={[styles.listCard, { backgroundColor: colors.surfaceElevated }]}>
+            <View style={[styles.listCard, { backgroundColor: colors.surfaceElevated }]}>
             <ShortcutRow
               icon="insights"
               label="Dashboard"
@@ -324,6 +330,7 @@ export default function HomeScreen() {
         onPress={() => router.push('/(app)/quick-capture')}
       />
     </View>
+    </TabScreenSwipe>
   );
 }
 
@@ -346,13 +353,16 @@ const styles = StyleSheet.create({
     paddingRight: 12,
   },
   brand: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 22,
-    letterSpacing: 0,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 34,
+    lineHeight: 41,
+    letterSpacing: 0.4,
   },
   greeting: {
     fontFamily: 'Inter_400Regular',
-    fontSize: 14,
+    fontSize: 17,
+    lineHeight: 22,
+    letterSpacing: -0.41,
     marginTop: 2,
   },
   avatar: { width: 36, height: 36, borderRadius: 18 },
@@ -380,7 +390,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   listCard: {
-    borderRadius: 12,
+    borderRadius: 10,
     overflow: 'hidden',
     paddingVertical: 4,
   },

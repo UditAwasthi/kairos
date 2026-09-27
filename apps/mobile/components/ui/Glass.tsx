@@ -7,7 +7,6 @@ type ScreenGradientProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Flat Material surface behind page content. */
 export function ScreenGradient({ children, style }: ScreenGradientProps) {
   const { colors } = useAppTheme();
 
@@ -22,7 +21,6 @@ type AccentGradientProps = {
   soft?: boolean;
 };
 
-/** Filled Material primary / primary-container block. */
 export function AccentGradient({ children, style, soft = false }: AccentGradientProps) {
   const { colors, radius } = useAppTheme();
 
@@ -51,7 +49,6 @@ type GlassPanelProps = {
   padded?: boolean;
 };
 
-/** Material 3 surface card. */
 export function GlassPanel({
   children,
   style,
@@ -60,16 +57,16 @@ export function GlassPanel({
   padded = true,
 }: GlassPanelProps) {
   const { colors, radius, spacing } = useAppTheme();
-  const shadow = elevated ? colors.shadowElevated : colors.shadow;
+  const shadow = elevated ? colors.shadowElevated : undefined;
 
   return (
     <View
       style={[
         {
-          borderRadius: radius.md,
+          borderRadius: radius.sm,
           overflow: 'hidden',
           backgroundColor: colors.surfaceElevated,
-          ...shadow,
+          ...(shadow ?? {}),
         },
         style,
       ]}

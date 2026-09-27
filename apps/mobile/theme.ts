@@ -1,9 +1,37 @@
 import { ColorSchemeName, ImageSourcePropType } from 'react-native';
 
 /**
- * Kairos — Material 3 / Google product tokens.
- * Surfaces, type, and elevation follow Google apps (Search, Keep, Drive, Photos).
+ * Kairos — monochrome iOS.
+ * System grouped backgrounds, label grays, no tint.
+ * https://developer.apple.com/design/human-interface-guidelines/color
  */
+
+export const nord = {
+  polarNight: {
+    0: '#2E3440',
+    1: '#3B4252',
+    2: '#434C5E',
+    3: '#4C566A',
+  },
+  snowStorm: {
+    0: '#D8DEE9',
+    1: '#E5E9F0',
+    2: '#ECEFF4',
+  },
+  frost: {
+    0: '#8FBCBB',
+    1: '#88C0D0',
+    2: '#81A1C1',
+    3: '#5E81AC',
+  },
+  aurora: {
+    red: '#BF616A',
+    orange: '#D08770',
+    yellow: '#EBCB8B',
+    green: '#A3BE8C',
+    purple: '#B48EAD',
+  },
+} as const;
 
 export const plum = {
   50: '#F8F9FA',
@@ -50,16 +78,15 @@ export type TypographyScale = {
   overline: { size: number; lineHeight: number; weight: FontWeight; letterSpacing: number; fontFamily: string };
 };
 
-/** Material 3 type scale, Inter standing in for Google Sans / Roboto. */
 export const typography: TypographyScale = {
-  display: { size: 36, lineHeight: 44, weight: '400', letterSpacing: 0, fontFamily: 'Inter_400Regular' },
-  title1: { size: 28, lineHeight: 36, weight: '400', letterSpacing: 0, fontFamily: 'Inter_400Regular' },
-  title2: { size: 22, lineHeight: 28, weight: '400', letterSpacing: 0, fontFamily: 'Inter_400Regular' },
-  title3: { size: 16, lineHeight: 24, weight: '500', letterSpacing: 0.15, fontFamily: 'Inter_500Medium' },
-  body: { size: 16, lineHeight: 24, weight: '400', letterSpacing: 0.5, fontFamily: 'Inter_400Regular' },
-  bodySmall: { size: 14, lineHeight: 20, weight: '400', letterSpacing: 0.25, fontFamily: 'Inter_400Regular' },
-  caption: { size: 12, lineHeight: 16, weight: '500', letterSpacing: 0.5, fontFamily: 'Inter_500Medium' },
-  overline: { size: 11, lineHeight: 16, weight: '500', letterSpacing: 0.5, fontFamily: 'Inter_500Medium' },
+  display: { size: 34, lineHeight: 41, weight: '700', letterSpacing: 0.4, fontFamily: 'Inter_600SemiBold' },
+  title1: { size: 28, lineHeight: 34, weight: '700', letterSpacing: 0.36, fontFamily: 'Inter_600SemiBold' },
+  title2: { size: 22, lineHeight: 28, weight: '700', letterSpacing: 0.35, fontFamily: 'Inter_600SemiBold' },
+  title3: { size: 20, lineHeight: 25, weight: '600', letterSpacing: 0.38, fontFamily: 'Inter_600SemiBold' },
+  body: { size: 17, lineHeight: 22, weight: '400', letterSpacing: -0.41, fontFamily: 'Inter_400Regular' },
+  bodySmall: { size: 15, lineHeight: 20, weight: '400', letterSpacing: -0.24, fontFamily: 'Inter_400Regular' },
+  caption: { size: 13, lineHeight: 18, weight: '400', letterSpacing: -0.08, fontFamily: 'Inter_400Regular' },
+  overline: { size: 12, lineHeight: 16, weight: '500', letterSpacing: 0, fontFamily: 'Inter_500Medium' },
 };
 
 export const spacing = {
@@ -81,7 +108,7 @@ export const spacing = {
 
 export type SpacingToken = keyof typeof spacing;
 
-/** Material motion — short, standard easing. */
+/** iOS-adjacent motion — short, standard easing. */
 export const motion = {
   instant: 100,
   fast: 150,
@@ -95,13 +122,12 @@ export const motion = {
 
 export type MotionToken = keyof typeof motion;
 
-/** Material 3 shape scale */
 export const radius = {
   none: 0,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 22,
   '2xl': 28,
   full: 9999,
 } as const;
@@ -114,7 +140,6 @@ export type ShadowToken = {
   elevation: number;
 };
 
-/** Material elevation — neutral key shadow */
 export const shadows = {
   none: {
     shadowColor: 'transparent',
@@ -126,36 +151,36 @@ export const shadows = {
   sm: {
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.04,
     shadowRadius: 2,
     elevation: 1,
   },
   md: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.16,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
     elevation: 2,
   },
   lg: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 4,
   },
   xl: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.14,
+    shadowRadius: 28,
+    elevation: 8,
   },
   glow: {
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.14,
-    shadowRadius: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
     elevation: 2,
   },
 } as const;
@@ -262,215 +287,215 @@ export type AppTheme = {
 };
 
 export const lightGradients: ThemeGradients = {
-  background: ['#F8F9FA', '#F8F9FA', '#F8F9FA'],
+  background: ['#F2F2F7', '#F2F2F7', '#F2F2F7'],
   surface: ['#FFFFFF', '#FFFFFF'],
-  accent: ['#1A73E8', '#1A73E8'],
-  accentSoft: ['#E8F0FE', '#E8F0FE'],
+  accent: ['#000000', '#000000'],
+  accentSoft: ['#E5E5EA', '#E5E5EA'],
   glass: ['#FFFFFF', '#FFFFFF'],
   composer: ['#FFFFFF', '#FFFFFF'],
-  vitality: ['#E8F0FE', '#F8F9FA'],
+  vitality: ['#E5E5EA', '#F2F2F7'],
 };
 
 export const darkGradients: ThemeGradients = {
-  background: ['#202124', '#202124', '#202124'],
-  surface: ['#292A2D', '#292A2D'],
-  accent: ['#8AB4F8', '#8AB4F8'],
-  accentSoft: ['#174EA6', '#174EA6'],
-  glass: ['#292A2D', '#292A2D'],
-  composer: ['#303134', '#303134'],
-  vitality: ['#303134', '#202124'],
+  background: ['#000000', '#000000', '#000000'],
+  surface: ['#1C1C1E', '#1C1C1E'],
+  accent: ['#FFFFFF', '#FFFFFF'],
+  accentSoft: ['#2C2C2E', '#2C2C2E'],
+  glass: ['#1C1C1E', '#1C1C1E'],
+  composer: ['#1C1C1E', '#1C1C1E'],
+  vitality: ['#2C2C2E', '#000000'],
 };
 
 export const lightTheme: AppTheme = {
-  background: '#F8F9FA',
+  background: '#F2F2F7',
   surface: '#FFFFFF',
   surfaceElevated: '#FFFFFF',
   surfaceGlass: '#FFFFFF',
   surfaceContainerLowest: '#FFFFFF',
-  surfaceContainerLow: '#F1F3F4',
-  surfaceContainer: '#E8EAED',
-  surfaceContainerHigh: '#DADCE0',
+  surfaceContainerLow: '#F2F2F7',
+  surfaceContainer: '#E5E5EA',
+  surfaceContainerHigh: '#D1D1D6',
 
   glassFill: '#FFFFFF',
-  glassBorder: '#DADCE0',
+  glassBorder: 'rgba(60,60,67,0.18)',
   glassHighlight: 'transparent',
   glassIntensity: 0,
 
-  text: '#202124',
-  textSecondary: '#5F6368',
-  textMuted: '#80868B',
-  textDisabled: '#9AA0A6',
+  text: '#000000',
+  textSecondary: 'rgba(60,60,67,0.60)',
+  textMuted: 'rgba(60,60,67,0.30)',
+  textDisabled: 'rgba(60,60,67,0.18)',
 
-  primary: '#1A73E8',
-  primaryContainer: '#D2E3FC',
+  primary: '#000000',
+  primaryContainer: '#E5E5EA',
   onPrimary: '#FFFFFF',
-  onPrimaryContainer: '#041E49',
+  onPrimaryContainer: '#000000',
 
-  secondary: '#5F6368',
-  secondaryContainer: '#E8F0FE',
+  secondary: '#8E8E93',
+  secondaryContainer: '#E5E5EA',
   onSecondary: '#FFFFFF',
-  onSecondaryContainer: '#174EA6',
+  onSecondaryContainer: '#000000',
 
-  tertiary: '#188038',
-  tertiaryContainer: '#CEFAD0',
-  onTertiaryContainer: '#0D652D',
+  tertiary: '#636366',
+  tertiaryContainer: '#F2F2F7',
+  onTertiaryContainer: '#000000',
 
-  accent: '#1A73E8',
-  accentGlow: 'rgba(26,115,232,0.12)',
-  accentRose: '#EA4335',
-  accentLavender: '#E8F0FE',
-  accentPeach: '#FCE8E6',
-  accentMorningBlue: '#E8F0FE',
-  accentLilac: '#F3E8FD',
+  accent: '#000000',
+  accentGlow: 'rgba(0,0,0,0.06)',
+  accentRose: '#3A3A3C',
+  accentLavender: '#E5E5EA',
+  accentPeach: '#F2F2F7',
+  accentMorningBlue: '#E5E5EA',
+  accentLilac: '#F2F2F7',
 
-  accentTeal: '#1A73E8',
-  accentGreen: '#34A853',
-  accentPurple: '#A142F4',
-  accentOrange: '#FA7B17',
-  accentYellow: '#FBBC04',
-  accentCoral: '#EA4335',
+  accentTeal: '#636366',
+  accentGreen: '#48484A',
+  accentPurple: '#3A3A3C',
+  accentOrange: '#636366',
+  accentYellow: '#8E8E93',
+  accentCoral: '#3A3A3C',
 
-  tintFrost: 'rgba(26,115,232,0.08)',
-  tintTeal: 'rgba(26,115,232,0.08)',
-  tintGreen: 'rgba(52,168,83,0.10)',
-  tintPurple: 'rgba(161,66,244,0.10)',
-  tintOrange: 'rgba(250,123,23,0.10)',
-  tintYellow: 'rgba(251,188,4,0.14)',
-  tintCoral: 'rgba(234,67,53,0.10)',
+  tintFrost: 'rgba(120,120,128,0.12)',
+  tintTeal: 'rgba(120,120,128,0.12)',
+  tintGreen: 'rgba(120,120,128,0.16)',
+  tintPurple: 'rgba(60,60,67,0.10)',
+  tintOrange: 'rgba(120,120,128,0.14)',
+  tintYellow: 'rgba(120,120,128,0.18)',
+  tintCoral: 'rgba(60,60,67,0.12)',
 
-  border: '#DADCE0',
-  borderActive: '#1A73E8',
-  borderAccent: '#1A73E8',
+  border: 'rgba(60,60,67,0.29)',
+  borderActive: '#000000',
+  borderAccent: '#8E8E93',
 
-  buttonFill: '#1A73E8',
+  buttonFill: '#000000',
   buttonText: '#FFFFFF',
-  buttonPressedFill: '#1558B0',
+  buttonPressedFill: '#3A3A3C',
   buttonPressedText: '#FFFFFF',
-  buttonDisabledFill: '#E8EAED',
-  buttonDisabledText: '#9AA0A6',
+  buttonDisabledFill: '#E5E5EA',
+  buttonDisabledText: '#C7C7CC',
 
-  inputFill: '#F1F3F4',
-  inputBorder: '#DADCE0',
-  inputBorderFocused: '#1A73E8',
-  inputPlaceholder: '#80868B',
+  inputFill: '#E5E5EA',
+  inputBorder: 'transparent',
+  inputBorderFocused: '#000000',
+  inputPlaceholder: 'rgba(60,60,67,0.30)',
 
-  dot: '#1A73E8',
-  dotInactive: '#DADCE0',
-  divider: '#DADCE0',
-  overlay: 'rgba(26,115,232,0.06)',
+  dot: '#000000',
+  dotInactive: '#C7C7CC',
+  divider: 'rgba(60,60,67,0.29)',
+  overlay: 'rgba(0,0,0,0.04)',
 
-  success: '#188038',
-  warning: '#F9AB00',
-  error: '#D93025',
-  errorSurface: '#FCE8E6',
+  success: '#8E8E93',
+  warning: '#636366',
+  error: '#3A3A3C',
+  errorSurface: '#E5E5EA',
 
   shadow: shadows.sm,
   shadowElevated: shadows.md,
 
-  scrim: 'rgba(32,33,36,0.40)',
+  scrim: 'rgba(0,0,0,0.36)',
   inverseText: '#FFFFFF',
 };
 
 export const darkTheme: AppTheme = {
-  background: '#202124',
-  surface: '#292A2D',
-  surfaceElevated: '#303134',
-  surfaceGlass: '#303134',
-  surfaceContainerLowest: '#202124',
-  surfaceContainerLow: '#292A2D',
-  surfaceContainer: '#35363A',
-  surfaceContainerHigh: '#3C4043',
+  background: '#000000',
+  surface: '#1C1C1E',
+  surfaceElevated: '#2C2C2E',
+  surfaceGlass: '#1C1C1E',
+  surfaceContainerLowest: '#000000',
+  surfaceContainerLow: '#1C1C1E',
+  surfaceContainer: '#2C2C2E',
+  surfaceContainerHigh: '#3A3A3C',
 
-  glassFill: '#303134',
-  glassBorder: '#3C4043',
+  glassFill: '#2C2C2E',
+  glassBorder: 'rgba(84,84,88,0.65)',
   glassHighlight: 'transparent',
   glassIntensity: 0,
 
-  text: '#E8EAED',
-  textSecondary: '#9AA0A6',
-  textMuted: '#80868B',
-  textDisabled: '#5F6368',
+  text: '#FFFFFF',
+  textSecondary: 'rgba(235,235,245,0.60)',
+  textMuted: 'rgba(235,235,245,0.30)',
+  textDisabled: 'rgba(235,235,245,0.16)',
 
-  primary: '#8AB4F8',
-  primaryContainer: '#174EA6',
-  onPrimary: '#202124',
-  onPrimaryContainer: '#D2E3FC',
+  primary: '#FFFFFF',
+  primaryContainer: '#2C2C2E',
+  onPrimary: '#000000',
+  onPrimaryContainer: '#FFFFFF',
 
-  secondary: '#9AA0A6',
-  secondaryContainer: '#3C4043',
-  onSecondary: '#202124',
-  onSecondaryContainer: '#D2E3FC',
+  secondary: '#8E8E93',
+  secondaryContainer: '#2C2C2E',
+  onSecondary: '#000000',
+  onSecondaryContainer: '#FFFFFF',
 
-  tertiary: '#81C995',
-  tertiaryContainer: '#0D652D',
-  onTertiaryContainer: '#CEFAD0',
+  tertiary: '#AEAEB2',
+  tertiaryContainer: '#1C1C1E',
+  onTertiaryContainer: '#FFFFFF',
 
-  accent: '#8AB4F8',
-  accentGlow: 'rgba(138,180,248,0.16)',
-  accentRose: '#F28B82',
-  accentLavender: '#174EA6',
-  accentPeach: '#5C2B29',
-  accentMorningBlue: '#174EA6',
-  accentLilac: '#46255C',
+  accent: '#FFFFFF',
+  accentGlow: 'rgba(255,255,255,0.08)',
+  accentRose: '#EBEBF5',
+  accentLavender: '#2C2C2E',
+  accentPeach: '#1C1C1E',
+  accentMorningBlue: '#2C2C2E',
+  accentLilac: '#1C1C1E',
 
-  accentTeal: '#8AB4F8',
-  accentGreen: '#81C995',
-  accentPurple: '#D7AEFB',
-  accentOrange: '#FCAD70',
-  accentYellow: '#FDD663',
-  accentCoral: '#F28B82',
+  accentTeal: '#AEAEB2',
+  accentGreen: '#C7C7CC',
+  accentPurple: '#EBEBF5',
+  accentOrange: '#AEAEB2',
+  accentYellow: '#8E8E93',
+  accentCoral: '#EBEBF5',
 
-  tintFrost: 'rgba(138,180,248,0.12)',
-  tintTeal: 'rgba(138,180,248,0.12)',
-  tintGreen: 'rgba(129,201,149,0.14)',
-  tintPurple: 'rgba(215,174,251,0.14)',
-  tintOrange: 'rgba(252,173,112,0.14)',
-  tintYellow: 'rgba(253,214,99,0.14)',
-  tintCoral: 'rgba(242,139,130,0.14)',
+  tintFrost: 'rgba(120,120,128,0.24)',
+  tintTeal: 'rgba(120,120,128,0.24)',
+  tintGreen: 'rgba(120,120,128,0.28)',
+  tintPurple: 'rgba(235,235,245,0.08)',
+  tintOrange: 'rgba(120,120,128,0.26)',
+  tintYellow: 'rgba(120,120,128,0.32)',
+  tintCoral: 'rgba(235,235,245,0.10)',
 
-  border: '#3C4043',
-  borderActive: '#8AB4F8',
-  borderAccent: '#8AB4F8',
+  border: 'rgba(84,84,88,0.65)',
+  borderActive: '#FFFFFF',
+  borderAccent: '#8E8E93',
 
-  buttonFill: '#8AB4F8',
-  buttonText: '#202124',
-  buttonPressedFill: '#AECBFA',
-  buttonPressedText: '#202124',
-  buttonDisabledFill: '#3C4043',
-  buttonDisabledText: '#80868B',
+  buttonFill: '#FFFFFF',
+  buttonText: '#000000',
+  buttonPressedFill: '#EBEBF0',
+  buttonPressedText: '#000000',
+  buttonDisabledFill: '#2C2C2E',
+  buttonDisabledText: '#636366',
 
-  inputFill: '#303134',
-  inputBorder: '#5F6368',
-  inputBorderFocused: '#8AB4F8',
-  inputPlaceholder: '#9AA0A6',
+  inputFill: '#1C1C1E',
+  inputBorder: 'transparent',
+  inputBorderFocused: '#FFFFFF',
+  inputPlaceholder: 'rgba(235,235,245,0.30)',
 
-  dot: '#8AB4F8',
-  dotInactive: '#5F6368',
-  divider: '#3C4043',
-  overlay: 'rgba(138,180,248,0.08)',
+  dot: '#FFFFFF',
+  dotInactive: '#48484A',
+  divider: 'rgba(84,84,88,0.65)',
+  overlay: 'rgba(255,255,255,0.06)',
 
-  success: '#81C995',
-  warning: '#FDD663',
-  error: '#F28B82',
-  errorSurface: '#5C2B29',
+  success: '#8E8E93',
+  warning: '#AEAEB2',
+  error: '#EBEBF5',
+  errorSurface: '#2C2C2E',
 
   shadow: {
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.4,
-    shadowRadius: 2,
+    shadowRadius: 3,
     elevation: 1,
   },
   shadowElevated: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 12,
+    elevation: 4,
   },
 
-  scrim: 'rgba(0,0,0,0.6)',
-  inverseText: '#202124',
+  scrim: 'rgba(0,0,0,0.72)',
+  inverseText: '#000000',
 };
 
 export function getThemeGradients(isLight: boolean): ThemeGradients {
@@ -539,7 +564,7 @@ export function getGlassSurface(scheme: ColorSchemeName) {
 const StyleSheetHairline = 1;
 
 export function shouldUseAccent(isInterrupt: boolean): string | undefined {
-  return isInterrupt ? plum[500] : undefined;
+  return isInterrupt ? '#000000' : undefined;
 }
 
 export function getTextColor(
@@ -564,23 +589,23 @@ export const nothing = {
 
 export const nordPalette = {
   frost: {
-    0: plum[300],
-    1: plum[400],
-    2: plum[600],
-    3: plum[700],
+    0: nord.frost[0],
+    1: nord.frost[1],
+    2: nord.frost[2],
+    3: nord.frost[3],
   },
   aurora: {
-    red: '#EA4335',
-    orange: '#FA7B17',
-    yellow: '#FBBC04',
-    green: '#34A853',
-    purple: '#A142F4',
+    red: nord.aurora.red,
+    orange: nord.aurora.orange,
+    yellow: nord.aurora.yellow,
+    green: nord.aurora.green,
+    purple: nord.aurora.purple,
   },
   polarNight: {
-    0: mist[950],
-    1: '#202124',
-    2: '#292A2D',
-    3: mist[700],
+    0: nord.polarNight[0],
+    1: nord.polarNight[1],
+    2: nord.polarNight[2],
+    3: nord.polarNight[3],
   },
 } as const;
 

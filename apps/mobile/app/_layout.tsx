@@ -9,6 +9,7 @@ import { assertClerkPublishableKey } from '../lib/config';
 import '../lib/notifications';
 import { OnboardingProvider } from '../providers/OnboardingProvider';
 import { ThemeProvider } from '../providers/ThemeProvider';
+import { SubscriptionProvider } from '../providers/SubscriptionProvider';
 
 export default function RootLayout() {
   const publishableKey = assertClerkPublishableKey();
@@ -18,9 +19,11 @@ export default function RootLayout() {
       <GestureHandlerRootView style={styles.root}>
         <KeyboardProvider>
           <ThemeProvider>
-            <OnboardingProvider>
-              <Slot />
-            </OnboardingProvider>
+            <SubscriptionProvider>
+              <OnboardingProvider>
+                <Slot />
+              </OnboardingProvider>
+            </SubscriptionProvider>
           </ThemeProvider>
         </KeyboardProvider>
       </GestureHandlerRootView>
