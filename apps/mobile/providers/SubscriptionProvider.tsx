@@ -18,6 +18,7 @@ import {
   getCustomerInfoAfterAction,
   hasRecallEntitlement,
 } from '../lib/revenuecatEntitlements';
+import { selectRevenueCatApiKey } from '../lib/revenuecatApiKey';
 
 type SubscriptionContextValue = {
   isLoading: boolean;
@@ -36,12 +37,14 @@ type SubscriptionContextValue = {
 const SubscriptionContext = createContext<SubscriptionContextValue | null>(
   null,
 );
-const API_KEY =
-  Platform.OS === 'ios'
-    ? process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY
-    : Platform.OS === 'android'
-      ? process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY
-      : undefined;
+const API_KEY = selectRevenueCatApiKey({
+  isDevelopment: __DEV__,
+  platform:
+    Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web',
+  testStoreKey: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
+  iosApiKey: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY,
+  androidApiKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY,
+});
 
 export function SubscriptionProvider({
   children,
@@ -114,7 +117,13 @@ export function SubscriptionProvider({
         }
 
         if (!API_KEY || Platform.OS === 'web') {
-          setError('Subscriptions are available in the Kairos mobile app.');
+          setError(
+            Platform.OS === 'web'
+              ? 'Subscriptions are available in the Kairos mobile app.'
+              : __DEV__
+                ? 'Add the RevenueCat Test Store key to the mobile environment to enable subscriptions.'
+                : 'Subscriptions are not configured for this platform.',
+          );
           setIsLoading(false);
           return;
         }
