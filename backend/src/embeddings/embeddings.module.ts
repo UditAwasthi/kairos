@@ -16,6 +16,9 @@ const logger = new Logger('EmbeddingsModule');
 function createEmbeddingProvider(): EmbeddingProvider {
   const config = readEmbeddingConfig();
   if (config.provider === 'local') {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('EMBEDDING_PROVIDER=local is not allowed in production.');
+    }
     logger.warn(
       'Using local deterministic embeddings (dev/test only). Not suitable for semantic quality.',
     );

@@ -175,7 +175,7 @@ export class SearchService {
       0,
       request.limit,
     );
-    const results = await this.hydrateResults(capped);
+    const results = await this.hydrateResults(user.id, capped);
 
     this.logger.log(
       JSON.stringify({
@@ -204,13 +204,14 @@ export class SearchService {
   }
 
   private async hydrateResults(
+    userId: string,
     hits: VectorSearchHit[],
   ): Promise<SemanticSearchResult[]> {
     if (hits.length === 0) return [];
 
     const observationIds = [...new Set(hits.map((hit) => hit.observationId))];
     const observations = await this.prisma.observation.findMany({
-      where: { id: { in: observationIds } },
+      where: { id: { in: observationIds }, userId },
       select: {
         id: true,
         originalFilename: true,

@@ -1,8 +1,4 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Conversation, ConversationMessage, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
@@ -234,17 +230,26 @@ export class ConversationsService {
     status: 'COMPLETED' | 'FAILED';
     citations: AskCitation[];
     insufficientEvidence: boolean;
+    replaceId?: string;
   }): Promise<ConversationMessage> {
-    const message = await this.prisma.conversationMessage.create({
-      data: {
-        conversationId: params.conversationId,
-        role: 'ASSISTANT',
-        content: params.content,
-        status: params.status,
-        citations: params.citations,
-        insufficientEvidence: params.insufficientEvidence,
-      },
-    });
+    const data = {
+      content: params.content,
+      status: params.status,
+      citations: params.citations as Prisma.InputJsonValue,
+      insufficientEvidence: params.insufficientEvidence,
+    };
+    const message = params.replaceId
+      ? await this.prisma.conversationMessage.update({
+          where: { id: params.replaceId },
+          data,
+        })
+      : await this.prisma.conversationMessage.create({
+          data: {
+            conversationId: params.conversationId,
+            role: 'ASSISTANT',
+            ...data,
+          },
+        });
     await this.touch(params.conversationId);
     return message;
   }
@@ -286,10 +291,10 @@ export class ConversationsService {
       });
     }
     if (conversation.userId !== userId) {
-      throw new ForbiddenException({
+      throw new NotFoundException({
         error: {
-          code: 'CONVERSATION_FORBIDDEN',
-          message: 'You do not have access to this conversation.',
+          code: 'CONVERSATION_NOT_FOUND',
+          message: 'Conversation not found.',
         },
       });
     }

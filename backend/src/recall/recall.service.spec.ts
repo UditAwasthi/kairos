@@ -1,5 +1,5 @@
-import { EntitlementFeature, EntitlementStatus } from '@prisma/client';
-import { ForbiddenException, HttpException } from '@nestjs/common';
+import { EntitlementFeature, EntitlementStatus, Prisma } from '@prisma/client';
+import { ForbiddenException } from '@nestjs/common';
 import { RecallService } from './recall.service';
 import { RECALL_ENTITLEMENT_REQUIRED } from '../entitlements/entitlement.types';
 
@@ -12,6 +12,7 @@ describe('RecallService', () => {
       findUnique: jest.Mock;
       findFirst: jest.Mock;
       create: jest.Mock;
+      update: jest.Mock;
       deleteMany: jest.Mock;
     };
     observation: { findMany: jest.Mock };
@@ -51,7 +52,8 @@ describe('RecallService', () => {
       recallEventReceipt: {
         findUnique: jest.fn().mockResolvedValue(null),
         findFirst: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({ id: 'receipt_1' }),
+        update: jest.fn().mockResolvedValue({}),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       observation: {
@@ -189,16 +191,44 @@ describe('RecallService', () => {
       ),
     ).toBe(true);
 
-    await expect(
-      service.ingestEventsForClerkUser(clerkUserId, {
-        events: [
-          baseEvent({
-            clientEventId: 'evt_rate_b_0001',
-            fingerprint: `fp_b_${'d'.repeat(28)}`,
-          }),
-        ],
+    const overflow = await service.ingestEventsForClerkUser(clerkUserId, {
+      events: [
+        baseEvent({
+          clientEventId: 'evt_rate_b_0001',
+          fingerprint: `fp_b_${'d'.repeat(28)}`,
+        }),
+      ],
+    });
+    expect(overflow.results[0]).toMatchObject({
+      status: 'rejected',
+      reason: 'Rate limited; retry later.',
+    });
+  });
+
+  it('reserves the receipt before creating an observation on concurrent duplicates', async () => {
+    prisma.recallEventReceipt.create.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('unique', {
+        code: 'P2002',
+        clientVersion: 'test',
       }),
-    ).rejects.toBeInstanceOf(HttpException);
+    );
+    prisma.recallEventReceipt.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'receipt_won',
+        observationId: 'obs_winner',
+        clientEventId: 'evt_recall_001',
+      });
+
+    const result = await service.ingestEventsForClerkUser(clerkUserId, {
+      events: [baseEvent()],
+    });
+    expect(result.results[0]).toMatchObject({
+      status: 'deduped',
+      observationId: 'obs_winner',
+      deduped: true,
+    });
+    expect(observations.createFromRecall).not.toHaveBeenCalled();
   });
 
   it('accepts a partial batch when only some capacity remains', async () => {

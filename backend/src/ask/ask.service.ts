@@ -2,7 +2,10 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AI_PROVIDER, type AIProvider } from '../ai/ai.types';
 import type { CaptureSource, ObservationType } from '@prisma/client';
 import { ObservationsService } from '../observations/observations.service';
-import { SearchService, type SemanticSearchResult } from '../search/search.service';
+import {
+  SearchService,
+  type SemanticSearchResult,
+} from '../search/search.service';
 import { UsersService } from '../users/users.service';
 import { type AskRequestBody, validateAskRequest } from './ask.validation';
 import { resolveCitations, type AskCitation } from './citation.resolver';
@@ -58,12 +61,13 @@ export class AskService {
       conversationId = created.id;
     }
 
+    let replaceAssistantId: string | undefined;
     if (request.clientRequestId) {
       const existing = await this.conversations.findIdempotentTurn(
         conversationId,
         request.clientRequestId,
       );
-      if (existing?.assistantMessage) {
+      if (existing?.assistantMessage?.status === 'COMPLETED') {
         return {
           question: request.question,
           answer: existing.assistantMessage.content,
@@ -74,6 +78,9 @@ export class AskService {
           userMessageId: existing.userMessage.id,
           assistantMessageId: existing.assistantMessage.id,
         };
+      }
+      if (existing?.assistantMessage?.status === 'FAILED') {
+        replaceAssistantId = existing.assistantMessage.id;
       }
     }
 
@@ -128,6 +135,7 @@ export class AskService {
             status: 'COMPLETED',
             citations: [],
             insufficientEvidence: true,
+            replaceId: replaceAssistantId,
           });
 
         this.logger.log(
@@ -182,6 +190,7 @@ export class AskService {
           status: 'COMPLETED',
           citations,
           insufficientEvidence,
+          replaceId: replaceAssistantId,
         },
       );
       const persistMs = Date.now() - persistStarted;
@@ -221,6 +230,7 @@ export class AskService {
         status: 'FAILED',
         citations: [],
         insufficientEvidence: true,
+        replaceId: replaceAssistantId,
       });
 
       this.logger.warn(

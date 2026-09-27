@@ -1,4 +1,5 @@
 import { Logger, Module } from '@nestjs/common';
+import { isProduction } from '../config/env';
 import { LocalStorageService } from './local-storage.service';
 import { readS3ConfigFromEnv, S3StorageService } from './s3-storage.service';
 import { STORAGE_SERVICE, type StorageService } from './storage.types';
@@ -16,6 +17,12 @@ function createStorageService(): StorageService {
       );
     }
     return new S3StorageService(s3Config);
+  }
+
+  if (isProduction()) {
+    throw new Error(
+      'Production requires STORAGE_PROVIDER=s3 or r2 with complete S3 credentials. Local filesystem fallback is disabled.',
+    );
   }
 
   logger.warn(

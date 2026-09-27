@@ -97,6 +97,7 @@ export class TopicsService {
             observation: { include: observationInclude },
           },
           orderBy: { createdAt: 'desc' },
+          take: 40,
         },
       },
     });

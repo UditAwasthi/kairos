@@ -9,6 +9,8 @@
     "mobile:web": "npm run web --prefix apps/mobile",
     "backend": "npm run start:dev --prefix backend",
     "backend:test": "npm test --prefix backend",
-    "backend:lint": "npm run lint --prefix backend"
+    "backend:lint": "npm run lint:check --prefix backend",
+    "backend:typecheck": "npm run typecheck --prefix backend",
+    "mobile:typecheck": "npm run typecheck --prefix apps/mobile"
   }
 }

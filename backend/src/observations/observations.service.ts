@@ -24,6 +24,7 @@ import {
   toObservationResponse,
   type ObservationResponse,
 } from './observation.mapper';
+import { ObservationJobsService } from '../queue/observation-jobs.service';
 import { ObservationProcessor } from './observation.processor';
 import {
   resolveEntityFilter,
@@ -73,6 +74,7 @@ export class ObservationsService {
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
     private readonly vectorSearch: VectorSearchService,
     @Optional() private readonly progression?: ProgressionService,
+    @Optional() private readonly jobs?: ObservationJobsService,
   ) {}
 
   async capture(params: {
@@ -175,6 +177,7 @@ export class ObservationsService {
     });
 
     const user = await this.users.findOrCreateByClerkId(params.clerkUserId);
+    await this.assertOwnedProject(user.id, params.projectId);
     const storageKey = buildStorageKey(user.id, validated.safeFilename);
 
     try {
@@ -193,27 +196,37 @@ export class ObservationsService {
     }
 
     const source = params.source ?? CaptureSource.MANUAL;
-    const observation = await this.prisma.observation.create({
-      data: {
-        userId: user.id,
-        type: validated.observationType,
-        source,
-        originalFilename: validated.safeFilename,
-        mimeType: validated.mimeType,
-        storageKey,
-        fileSizeBytes: params.file.buffer.byteLength,
-        processingStatus: ProcessingStatus.PENDING,
-        sourceMetadata: {
-          captureKind: source.toLowerCase(),
+    let observation;
+    try {
+      observation = await this.prisma.observation.create({
+        data: {
+          userId: user.id,
+          type: validated.observationType,
           source,
-          clientMimeType: params.file.mimetype ?? null,
-          ...(params.title ? { title: params.title } : {}),
-          ...(params.extraMeta ?? {}),
+          originalFilename: validated.safeFilename,
+          mimeType: validated.mimeType,
+          storageKey,
+          fileSizeBytes: params.file.buffer.byteLength,
+          processingStatus: ProcessingStatus.PENDING,
+          sourceMetadata: {
+            captureKind: source.toLowerCase(),
+            source,
+            clientMimeType: params.file.mimetype ?? null,
+            ...(params.title ? { title: params.title } : {}),
+            ...(params.extraMeta ?? {}),
+          },
+          ...(params.capturedAt ? { capturedAt: params.capturedAt } : {}),
         },
-        ...(params.capturedAt ? { capturedAt: params.capturedAt } : {}),
-      },
-      include: observationInclude,
-    });
+        include: observationInclude,
+      });
+    } catch (error) {
+      try {
+        await this.storage.delete(storageKey);
+      } catch {
+        // Best-effort orphan cleanup.
+      }
+      throw error;
+    }
 
     if (params.projectId) {
       await this.attachProjectIfRequested({
@@ -223,9 +236,7 @@ export class ObservationsService {
       });
     }
 
-    setImmediate(() => {
-      void this.processor.process(observation.id);
-    });
+    this.scheduleProcess(observation.id);
     this.noteCapture(user.id, observation.id);
 
     if (params.projectId) {
@@ -414,6 +425,7 @@ export class ObservationsService {
     projectId?: string;
   }): Promise<ObservationResponse> {
     const user = await this.users.findOrCreateByClerkId(params.clerkUserId);
+    await this.assertOwnedProject(user.id, params.projectId);
     const storageKey = buildStorageKey(user.id, params.safeFilename);
 
     try {
@@ -428,21 +440,31 @@ export class ObservationsService {
     }
 
     const source = params.source ?? CaptureSource.MANUAL;
-    const observation = await this.prisma.observation.create({
-      data: {
-        userId: user.id,
-        type: params.observationType,
-        source,
-        originalFilename: params.safeFilename,
-        mimeType: params.mimeType,
-        storageKey,
-        fileSizeBytes: params.buffer.byteLength,
-        processingStatus: ProcessingStatus.PENDING,
-        sourceMetadata: params.sourceMetadata,
-        ...(params.capturedAt ? { capturedAt: params.capturedAt } : {}),
-      },
-      include: observationInclude,
-    });
+    let observation;
+    try {
+      observation = await this.prisma.observation.create({
+        data: {
+          userId: user.id,
+          type: params.observationType,
+          source,
+          originalFilename: params.safeFilename,
+          mimeType: params.mimeType,
+          storageKey,
+          fileSizeBytes: params.buffer.byteLength,
+          processingStatus: ProcessingStatus.PENDING,
+          sourceMetadata: params.sourceMetadata,
+          ...(params.capturedAt ? { capturedAt: params.capturedAt } : {}),
+        },
+        include: observationInclude,
+      });
+    } catch (error) {
+      try {
+        await this.storage.delete(storageKey);
+      } catch {
+        // Best-effort orphan cleanup.
+      }
+      throw error;
+    }
 
     if (params.projectId) {
       await this.attachProjectIfRequested({
@@ -452,9 +474,7 @@ export class ObservationsService {
       });
     }
 
-    setImmediate(() => {
-      void this.processor.process(observation.id);
-    });
+    this.scheduleProcess(observation.id);
     this.noteCapture(user.id, observation.id);
 
     if (params.projectId) {
@@ -464,7 +484,9 @@ export class ObservationsService {
   }
 
   private noteCapture(userId: string, observationId: string): void {
-    void this.progression?.recordCapture({ userId, observationId }).catch(() => undefined);
+    void this.progression
+      ?.recordCapture({ userId, observationId })
+      .catch(() => undefined);
   }
 
   private async attachProjectIfRequested(params: {
@@ -603,7 +625,10 @@ export class ObservationsService {
 
     const data: Prisma.ObservationUpdateInput = {};
     if (title) {
-      data.originalFilename = applyEditedTitle(observation.originalFilename, title);
+      data.originalFilename = applyEditedTitle(
+        observation.originalFilename,
+        title,
+      );
     }
     const textChanged =
       content !== undefined && content !== (observation.extractedText ?? '');
@@ -619,9 +644,7 @@ export class ObservationsService {
     });
 
     if (textChanged) {
-      setImmediate(() => {
-        void this.processor.reindexFromText(observation.id, content ?? '');
-      });
+      this.scheduleReindex(observation.id, content ?? '');
     }
 
     const refreshed = await this.findOwned(clerkUserId, observationId);
@@ -652,7 +675,8 @@ export class ObservationsService {
       });
       for (const hit of hits) {
         const current = similar.get(hit.observationId) ?? 0;
-        if (hit.similarity > current) similar.set(hit.observationId, hit.similarity);
+        if (hit.similarity > current)
+          similar.set(hit.observationId, hit.similarity);
       }
     } catch {
       // Embeddings may be unconfigured; topic/entity overlap still works.
@@ -660,7 +684,9 @@ export class ObservationsService {
 
     const overlapWhere: Prisma.ObservationWhereInput[] = [];
     if (topicIds.length > 0) {
-      overlapWhere.push({ observationTopics: { some: { topicId: { in: topicIds } } } });
+      overlapWhere.push({
+        observationTopics: { some: { topicId: { in: topicIds } } },
+      });
     }
     if (entityIds.length > 0) {
       overlapWhere.push({
@@ -708,7 +734,8 @@ export class ObservationsService {
           projectIds.includes(row.project.id),
         );
         const hoursApart =
-          Math.abs(item.capturedAt.getTime() - seed.capturedAt.getTime()) / 36e5;
+          Math.abs(item.capturedAt.getTime() - seed.capturedAt.getTime()) /
+          36e5;
         const { score, reasons } = scoreRelatedMemory({
           similarity: similar.get(item.id),
           sharedTopicCount: sharedTopics,
@@ -799,11 +826,49 @@ export class ObservationsService {
         processingError: null,
       },
     });
-    setImmediate(() => {
-      void this.processor.process(observation.id);
-    });
+    this.scheduleProcess(observation.id);
     const refreshed = await this.findOwned(clerkUserId, observationId);
     return toObservationResponse(refreshed);
+  }
+
+  private scheduleProcess(observationId: string): void {
+    if (this.jobs) {
+      void this.jobs.enqueueProcess(observationId).catch(() => {
+        void this.processor.process(observationId);
+      });
+      return;
+    }
+    void this.processor.process(observationId);
+  }
+
+  private scheduleReindex(observationId: string, text: string): void {
+    if (this.jobs) {
+      void this.jobs.enqueueReindex(observationId, text).catch(() => {
+        void this.processor.reindexFromText(observationId, text);
+      });
+      return;
+    }
+    void this.processor.reindexFromText(observationId, text);
+  }
+
+  private async assertOwnedProject(
+    userId: string,
+    projectId?: string,
+  ): Promise<void> {
+    const id = projectId?.trim();
+    if (!id) return;
+    const project = await this.prisma.project.findFirst({
+      where: { id, userId },
+      select: { id: true },
+    });
+    if (!project) {
+      throw new BadRequestException({
+        error: {
+          code: 'PROJECT_NOT_FOUND',
+          message: 'That project was not found.',
+        },
+      });
+    }
   }
 
   private async findOwned(clerkUserId: string, observationId: string) {
@@ -865,7 +930,10 @@ function applyEditedTitle(currentFilename: string, title: string): string {
   const ext = currentFilename.includes('.')
     ? currentFilename.slice(currentFilename.lastIndexOf('.'))
     : '';
-  const safe = title.replace(/[\\/:*?"<>|]/g, '').slice(0, 120).trim();
+  const safe = title
+    .replace(/[\r\n\x00-\x1f\x7f\\/:*?"<>|]/g, '')
+    .slice(0, 120)
+    .trim();
   if (!safe) return currentFilename;
   if (ext && !safe.toLowerCase().endsWith(ext.toLowerCase())) {
     return `${safe}${ext}`;

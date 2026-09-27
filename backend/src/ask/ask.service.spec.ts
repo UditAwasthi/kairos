@@ -274,4 +274,56 @@ describe('AskService', () => {
     expect(ai.generateGroundedAnswer).toHaveBeenCalled();
     expect(response.insufficientEvidence).toBe(false);
   });
+
+  it('returns a completed idempotent turn without calling the LLM', async () => {
+    const { service, ai, conversations } = build();
+    conversations.findIdempotentTurn.mockResolvedValue({
+      userMessage: { id: 'msg_user', conversationId: 'conv_1' },
+      assistantMessage: {
+        id: 'msg_ok',
+        content: 'Cached grounded answer.',
+        status: 'COMPLETED',
+        citations: [],
+        insufficientEvidence: false,
+      },
+    });
+
+    const response = await service.ask('clerk_a', {
+      conversationId: 'conv_1',
+      question: 'What is Redis?',
+      clientRequestId: 'req_1',
+    });
+
+    expect(response.answer).toBe('Cached grounded answer.');
+    expect(ai.generateGroundedAnswer).not.toHaveBeenCalled();
+    expect(conversations.persistUserMessage).not.toHaveBeenCalled();
+  });
+
+  it('retries generation when the previous assistant turn failed', async () => {
+    const { service, ai, conversations } = build();
+    conversations.findIdempotentTurn.mockResolvedValue({
+      userMessage: { id: 'msg_user', conversationId: 'conv_1' },
+      assistantMessage: {
+        id: 'msg_failed',
+        content: 'Kairos could not answer right now. Try again.',
+        status: 'FAILED',
+        citations: [],
+        insufficientEvidence: true,
+      },
+    });
+
+    await service.ask('clerk_a', {
+      conversationId: 'conv_1',
+      question: 'What is Redis?',
+      clientRequestId: 'req_retry',
+    });
+
+    expect(ai.generateGroundedAnswer).toHaveBeenCalled();
+    expect(conversations.persistAssistantMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'COMPLETED',
+        replaceId: 'msg_failed',
+      }),
+    );
+  });
 });

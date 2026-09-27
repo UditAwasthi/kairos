@@ -1,8 +1,7 @@
 import {
   BadRequestException,
-  HttpException,
-  HttpStatus,
   Injectable,
+  Optional,
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { EntitlementFeature, Prisma } from '@prisma/client';
@@ -11,11 +10,14 @@ import { entitlementForbidden } from '../entitlements/entitlement.types';
 import { ObservationsService } from '../observations/observations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
+import { DistributedRateLimiter } from '../rate-limit/distributed-rate-limiter';
 import {
   FINGERPRINT_DEDUPE_WINDOW_MS,
   RecallRateLimiter,
 } from './recall-rate-limiter';
 import {
+  MAX_EVENTS_PER_DAY,
+  MAX_EVENTS_PER_MINUTE,
   MAX_REQUEST_BODY_CHARS,
   validateRecallBatch,
   type ValidatedRecallEvent,
@@ -40,6 +42,7 @@ export class RecallService {
     private readonly users: UsersService,
     private readonly entitlements: EntitlementService,
     private readonly observations: ObservationsService,
+    @Optional() private readonly distributedLimiter?: DistributedRateLimiter,
   ) {}
 
   async getEntitlementForClerkUser(clerkUserId: string) {
@@ -170,19 +173,7 @@ export class RecallService {
     }
 
     if (toAccept.length > 0) {
-      const allowed = this.rateLimiter.tryConsumeUpTo(user.id, toAccept.length);
-      if (allowed <= 0) {
-        throw new HttpException(
-          {
-            error: {
-              code: 'RECALL_RATE_LIMITED',
-              message: 'Recall event rate limit exceeded. Try again later.',
-            },
-          },
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
-      }
-
+      const allowed = await this.consumeRateLimit(user.id, toAccept.length);
       const accepting = toAccept.slice(0, allowed);
       const deferred = toAccept.slice(allowed);
       for (const event of deferred) {
@@ -194,48 +185,36 @@ export class RecallService {
           reason: 'Rate limited; retry later.',
         });
       }
-      // Replace toAccept with the capacity we actually reserved.
       toAccept.length = 0;
       toAccept.push(...accepting);
     }
 
     for (const event of toAccept) {
       try {
+        const reserved = await this.reserveReceipt({
+          userId: user.id,
+          clientEventId: event.clientEventId,
+          fingerprint: event.fingerprint,
+        });
+        if (reserved.existingObservationId) {
+          results.push({
+            clientEventId: event.clientEventId,
+            status: 'deduped',
+            observationId: reserved.existingObservationId,
+            deduped: true,
+          });
+          continue;
+        }
+
         const observation = await this.observations.createFromRecall({
           clerkUserId,
           event,
         });
 
-        try {
-          await this.prisma.recallEventReceipt.create({
-            data: {
-              userId: user.id,
-              clientEventId: event.clientEventId,
-              fingerprint: event.fingerprint,
-              observationId: observation.id,
-            },
-          });
-        } catch (error) {
-          if (isUniqueViolation(error)) {
-            // Race: another request won — treat as dedupe; observation already created.
-            const again = await this.prisma.recallEventReceipt.findUnique({
-              where: {
-                userId_clientEventId: {
-                  userId: user.id,
-                  clientEventId: event.clientEventId,
-                },
-              },
-            });
-            results.push({
-              clientEventId: event.clientEventId,
-              status: 'deduped',
-              observationId: again?.observationId ?? observation.id,
-              deduped: true,
-            });
-            continue;
-          }
-          throw error;
-        }
+        await this.prisma.recallEventReceipt.update({
+          where: { id: reserved.receiptId },
+          data: { observationId: observation.id },
+        });
 
         results.push({
           clientEventId: event.clientEventId,
@@ -244,16 +223,14 @@ export class RecallService {
           deduped: false,
         });
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'Failed to create observation.';
         results.push({
           clientEventId: event.clientEventId,
           status: 'rejected',
           observationId: null,
           deduped: false,
-          reason: message.slice(0, 200),
+          reason: isUniqueViolation(error)
+            ? 'Duplicate event.'
+            : 'Could not save this event.',
         });
       }
     }
@@ -307,6 +284,63 @@ export class RecallService {
   /** Test helper */
   resetRateLimiter(): void {
     this.rateLimiter.reset();
+  }
+
+  private async consumeRateLimit(
+    userId: string,
+    count: number,
+  ): Promise<number> {
+    if (this.distributedLimiter) {
+      return this.distributedLimiter.tryConsumeUpTo(
+        `recall:${userId}`,
+        count,
+        MAX_EVENTS_PER_MINUTE,
+        MAX_EVENTS_PER_DAY,
+      );
+    }
+    return this.rateLimiter.tryConsumeUpTo(userId, count);
+  }
+
+  /**
+   * Insert the receipt before creating an observation so a concurrent
+   * duplicate cannot leave a second observation behind.
+   */
+  private async reserveReceipt(params: {
+    userId: string;
+    clientEventId: string;
+    fingerprint: string;
+  }): Promise<{ receiptId: string; existingObservationId: string | null }> {
+    try {
+      const created = await this.prisma.recallEventReceipt.create({
+        data: {
+          userId: params.userId,
+          clientEventId: params.clientEventId,
+          fingerprint: params.fingerprint,
+          observationId: null,
+        },
+      });
+      return { receiptId: created.id, existingObservationId: null };
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      const existing = await this.prisma.recallEventReceipt.findUnique({
+        where: {
+          userId_clientEventId: {
+            userId: params.userId,
+            clientEventId: params.clientEventId,
+          },
+        },
+      });
+      if (existing?.observationId) {
+        return {
+          receiptId: existing.id,
+          existingObservationId: existing.observationId,
+        };
+      }
+      if (existing) {
+        return { receiptId: existing.id, existingObservationId: null };
+      }
+      throw error;
+    }
   }
 }
 

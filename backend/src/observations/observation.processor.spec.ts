@@ -28,6 +28,7 @@ describe('ObservationProcessor', () => {
       },
       topic: { upsert: jest.fn() },
       entity: { upsert: jest.fn() },
+      $executeRaw: jest.fn().mockResolvedValue(1),
       $transaction: jest.fn(async (arg: unknown) => {
         if (typeof arg === 'function') {
           return (arg as (tx: typeof prisma) => Promise<unknown>)(prisma);

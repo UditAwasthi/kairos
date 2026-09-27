@@ -4,6 +4,8 @@ import { AuthModule } from '../auth/auth.module';
 import { EmbeddingsModule } from '../embeddings/embeddings.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ProgressionModule } from '../progression/progression.module';
+import { QueueModule } from '../queue/queue.module';
+import { ObservationJobsWorker } from '../queue/observation-jobs.worker';
 import { StorageModule } from '../storage/storage.module';
 import { UsersModule } from '../users/users.module';
 import { CaptureController } from './capture.controller';
@@ -20,9 +22,10 @@ import { ObservationsService } from './observations.service';
     EmbeddingsModule,
     NotificationsModule,
     ProgressionModule,
+    QueueModule,
   ],
   controllers: [ObservationsController, CaptureController],
-  providers: [ObservationsService, ObservationProcessor],
+  providers: [ObservationsService, ObservationProcessor, ObservationJobsWorker],
   exports: [ObservationsService, ObservationProcessor],
 })
 export class ObservationsModule {}

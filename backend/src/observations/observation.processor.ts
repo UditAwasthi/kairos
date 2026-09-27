@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   EntityType,
   ObservationType,
@@ -6,6 +6,7 @@ import {
   ProcessingStatus,
 } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ObservationJobsService } from '../queue/observation-jobs.service';
 import { resolveGeminiChatModel } from '../ai/gemini-models';
 import { AI_PROVIDER, type AIProvider } from '../ai/ai.types';
 import { ChunkEmbeddingService } from '../embeddings/chunk-embedding.service';
@@ -39,6 +40,7 @@ export class ObservationProcessor {
     private readonly embeddingProvider: EmbeddingProvider,
     private readonly chunkEmbeddings: ChunkEmbeddingService,
     private readonly notifications: NotificationsService,
+    @Optional() private readonly jobs?: ObservationJobsService,
   ) {
     this.extractors = [
       new TextExtractor(),
@@ -65,20 +67,15 @@ export class ObservationProcessor {
       return;
     }
 
-    // Allow retry from FAILED / PENDING / mid-pipeline states.
-    if (
-      observation.processingStatus === ProcessingStatus.EXTRACTING ||
-      observation.processingStatus === ProcessingStatus.NORMALIZING ||
-      observation.processingStatus === ProcessingStatus.CHUNKING ||
-      observation.processingStatus === ProcessingStatus.ANALYZING ||
-      observation.processingStatus === ProcessingStatus.EMBEDDING ||
-      observation.processingStatus === ProcessingStatus.PROCESSING
-    ) {
-      // Continue / reclaim — idempotent replace below.
+    const claimed = await this.claimForProcessing(observationId);
+    if (!claimed) {
+      this.logger.warn(
+        `Skip concurrent processing for ${observationId} (status=${observation.processingStatus})`,
+      );
+      return;
     }
 
     try {
-      await this.setStatus(observationId, ProcessingStatus.EXTRACTING);
       const buffer = await this.storage.get(observation.storageKey);
       const extracted = await this.extract(
         observation.type,
@@ -332,6 +329,10 @@ export class ObservationProcessor {
         },
       });
       if (!row) return;
+      if (this.jobs) {
+        await this.jobs.enqueueNotify(observationId);
+        return;
+      }
       await this.notifications.notifyObservationSettled(row);
     } catch (error) {
       this.logger.warn(
@@ -340,6 +341,35 @@ export class ObservationProcessor {
         }`,
       );
     }
+  }
+
+  private async claimForProcessing(observationId: string): Promise<boolean> {
+    const updated = await this.prisma.$executeRaw`
+      UPDATE "observations"
+      SET
+        "processingStatus" = 'EXTRACTING'::"ProcessingStatus",
+        "processingError" = NULL,
+        "updatedAt" = NOW()
+      WHERE "id" = ${observationId}
+        AND (
+          "processingStatus" IN (
+            'PENDING'::"ProcessingStatus",
+            'FAILED'::"ProcessingStatus"
+          )
+          OR (
+            "processingStatus" IN (
+              'EXTRACTING'::"ProcessingStatus",
+              'NORMALIZING'::"ProcessingStatus",
+              'CHUNKING'::"ProcessingStatus",
+              'ANALYZING'::"ProcessingStatus",
+              'EMBEDDING'::"ProcessingStatus",
+              'PROCESSING'::"ProcessingStatus"
+            )
+            AND "updatedAt" < NOW() - INTERVAL '10 minutes'
+          )
+        )
+    `;
+    return Number(updated) > 0;
   }
 
   private async setStatus(

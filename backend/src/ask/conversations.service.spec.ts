@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { ConversationsService } from './conversations.service';
 
 describe('ConversationsService ownership', () => {
@@ -52,18 +52,18 @@ describe('ConversationsService ownership', () => {
     return { service, prisma };
   }
 
-  it('forbids User A from reading User B conversation', async () => {
+  it('hides User B conversation from User A as not found', async () => {
     const { service } = build();
     await expect(
       service.getForClerkUser('clerk_a', 'conv_b'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('forbids User A from deleting User B conversation', async () => {
+  it('hides User B conversation on delete as not found', async () => {
     const { service } = build();
     await expect(
       service.deleteForClerkUser('clerk_a', 'conv_b'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('returns not found for missing conversations', async () => {

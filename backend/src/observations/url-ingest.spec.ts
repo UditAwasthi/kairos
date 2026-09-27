@@ -22,5 +22,7 @@ describe('url-ingest security', () => {
     expect(isPrivateOrLocalIp('172.16.5.1')).toBe(true);
     expect(isPrivateOrLocalIp('192.168.0.1')).toBe(true);
     expect(isPrivateOrLocalIp('8.8.8.8')).toBe(false);
+    expect(isPrivateOrLocalIp('::ffff:169.254.169.254')).toBe(true);
+    expect(isPrivateOrLocalIp('::ffff:8.8.8.8')).toBe(false);
   });
 });

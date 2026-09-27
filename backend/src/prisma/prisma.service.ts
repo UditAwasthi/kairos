@@ -15,6 +15,9 @@ export class PrismaService
 
   async onModuleInit(): Promise<void> {
     if (process.env.SKIP_DB_CONNECT === 'true') {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('SKIP_DB_CONNECT cannot be enabled in production.');
+      }
       this.logger.warn('Skipping database connect (SKIP_DB_CONNECT=true)');
       return;
     }

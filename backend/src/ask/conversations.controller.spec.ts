@@ -1,7 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
-  ForbiddenException,
+  NotFoundException,
   INestApplication,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -90,10 +90,10 @@ describe('ConversationsController', () => {
 
   it('blocks access to another user conversation', async () => {
     conversations.getForClerkUser.mockRejectedValue(
-      new ForbiddenException({
+      new NotFoundException({
         error: {
-          code: 'CONVERSATION_FORBIDDEN',
-          message: 'You do not have access to this conversation.',
+          code: 'CONVERSATION_NOT_FOUND',
+          message: 'Conversation not found.',
         },
       }),
     );
@@ -101,7 +101,7 @@ describe('ConversationsController', () => {
     await request(app.getHttpServer())
       .get('/conversations/conv_b')
       .set('Authorization', 'Bearer valid-token')
-      .expect(403);
+      .expect(404);
   });
 
   it('asks inside a conversation', async () => {

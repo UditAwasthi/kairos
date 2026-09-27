@@ -183,20 +183,12 @@ export async function fetchUrlContent(
       });
     }
 
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const buffer = await readResponseBodyCapped(response, MAX_BYTES);
     if (buffer.byteLength === 0) {
       throw new BadRequestException({
         error: {
           code: 'URL_EMPTY',
           message: 'That URL returned no content.',
-        },
-      });
-    }
-    if (buffer.byteLength > MAX_BYTES) {
-      throw new BadRequestException({
-        error: {
-          code: 'URL_TOO_LARGE',
-          message: 'That page is too large to ingest.',
         },
       });
     }
@@ -235,6 +227,10 @@ export async function fetchUrlContent(
 
 export function isPrivateOrLocalIp(ip: string): boolean {
   if (!net.isIP(ip)) return true;
+  const normalized = ip.toLowerCase();
+  if (normalized.startsWith('::ffff:')) {
+    return isPrivateOrLocalIp(normalized.slice('::ffff:'.length));
+  }
   if (ip === '::1' || ip === '0.0.0.0') return true;
   if (ip.startsWith('fe80:') || ip.startsWith('fc') || ip.startsWith('fd')) {
     return true;
@@ -276,6 +272,49 @@ function htmlToText(html: string): string {
     .replace(/\n{3,}/g, '\n\n')
     .replace(/[ \t]{2,}/g, ' ')
     .trim();
+}
+
+async function readResponseBodyCapped(
+  response: Response,
+  maxBytes: number,
+): Promise<Buffer> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const fallback = Buffer.from(await response.arrayBuffer());
+    if (fallback.byteLength > maxBytes) {
+      throw new BadRequestException({
+        error: {
+          code: 'URL_TOO_LARGE',
+          message: 'That page is too large to ingest.',
+        },
+      });
+    }
+    return fallback;
+  }
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      try {
+        await reader.cancel();
+      } catch {
+        // ignore cancel errors
+      }
+      throw new BadRequestException({
+        error: {
+          code: 'URL_TOO_LARGE',
+          message: 'That page is too large to ingest.',
+        },
+      });
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks.map((c) => Buffer.from(c)));
 }
 
 function decodeEntities(value: string): string {

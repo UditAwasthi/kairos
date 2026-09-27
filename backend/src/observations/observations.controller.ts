@@ -15,6 +15,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { contentDispositionAttachment } from '../config/env';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { memoryStorage } from 'multer';
@@ -152,7 +153,7 @@ export class ObservationsController {
     const file = await this.observations.getFileForClerkUser(user.id, id);
     res.set({
       'Content-Type': file.mimeType,
-      'Content-Disposition': `attachment; filename="${file.filename.replace(/"/g, '')}"`,
+      'Content-Disposition': contentDispositionAttachment(file.filename),
     });
     return new StreamableFile(file.buffer);
   }

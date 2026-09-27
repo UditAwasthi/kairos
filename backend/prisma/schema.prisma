@@ -172,6 +172,8 @@ model RecallEventReceipt {
   observationId String?
   createdAt     DateTime @default(now())
 
+  observation   Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
+
   @@unique([userId, clientEventId])
   @@index([userId, fingerprint, createdAt])
   @@map("recall_event_receipts")
@@ -243,8 +245,10 @@ model Observation {
   observationTopics   ObservationTopic[]
   observationEntities ObservationEntity[]
   projectObservations ProjectObservation[]
+  recallEventReceipts RecallEventReceipt[]
 
   @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, capturedAt(sort: Desc)])
   @@index([userId, processingStatus])
   @@index([userId, source])
   @@map("observations")
@@ -311,6 +315,7 @@ model ObservationTopic {
   topic         Topic       @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
   @@id([observationId, topicId])
+  @@index([topicId])
   @@map("observation_topics")
 }
 
@@ -323,6 +328,7 @@ model ObservationEntity {
   entity        Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
 
   @@id([observationId, entityId])
+  @@index([entityId])
   @@map("observation_entities")
 }
 
@@ -394,4 +400,48 @@ model ConversationMessage {
   @@unique([conversationId, clientRequestId])
   @@index([conversationId, createdAt])
   @@map("conversation_messages")
+}
+
+enum ObservationJobKind {
+  PROCESS
+  REINDEX
+  NOTIFY
+}
+
+enum ObservationJobStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  FAILED
+}
+
+/// Durable observation work. Survives process restarts (SKIP LOCKED worker).
+model ObservationJob {
+  id            String               @id @default(cuid())
+  observationId String
+  kind          ObservationJobKind
+  status        ObservationJobStatus @default(PENDING)
+  payload       Json?
+  attempts      Int                  @default(0)
+  maxAttempts   Int                  @default(5)
+  availableAt   DateTime             @default(now())
+  lockedAt      DateTime?
+  lockToken     String?
+  lastError     String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@index([status, availableAt])
+  @@index([observationId, kind, status])
+  @@map("observation_jobs")
+}
+
+/// Distributed sliding-window hits (Recall and other HTTP limits).
+model RateLimitEvent {
+  id        String   @id @default(cuid())
+  bucketKey String
+  createdAt DateTime @default(now())
+
+  @@index([bucketKey, createdAt])
+  @@map("rate_limit_events")
 }
