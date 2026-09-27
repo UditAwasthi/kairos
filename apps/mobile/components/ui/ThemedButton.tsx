@@ -117,6 +117,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   label: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
   },
 });

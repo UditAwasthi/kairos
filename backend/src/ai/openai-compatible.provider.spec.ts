@@ -66,8 +66,8 @@ describe('OpenAICompatibleProvider rate control', () => {
 
   function buildProvider(gate?: AiRequestGate) {
     process.env.AI_API_KEY = 'test-key';
-    process.env.AI_BASE_URL = 'https://api.groq.com/openai/v1';
-    process.env.AI_MODEL = 'openai/gpt-oss-120b';
+    process.env.AI_BASE_URL = 'https://api.openai.com/v1';
+    process.env.AI_MODEL = 'gpt-4o-mini';
     process.env.AI_CHAT_MAX_RETRIES = '3';
     const provider = new OpenAICompatibleProvider();
     if (gate) {
@@ -105,8 +105,8 @@ describe('OpenAICompatibleProvider rate control', () => {
     process.env.AI_API_KEY_1 = 'k1';
     process.env.AI_API_KEY_2 = 'k2';
     process.env.AI_API_KEY_3 = 'k3';
-    process.env.AI_BASE_URL = 'https://api.groq.com/openai/v1';
-    process.env.AI_MODEL = 'openai/gpt-oss-120b';
+    process.env.AI_BASE_URL = 'https://api.openai.com/v1';
+    process.env.AI_MODEL = 'gpt-4o-mini';
     delete process.env.AI_CHAT_CONCURRENCY;
 
     const provider = new OpenAICompatibleProvider();
@@ -182,8 +182,8 @@ describe('OpenAICompatibleProvider rate control', () => {
   it('rotates to the next API key on 429 without waiting Retry-After', async () => {
     process.env.AI_API_KEY = 'key-a';
     process.env.AI_API_KEY_1 = 'key-b';
-    process.env.AI_BASE_URL = 'https://api.groq.com/openai/v1';
-    process.env.AI_MODEL = 'openai/gpt-oss-120b';
+    process.env.AI_BASE_URL = 'https://api.openai.com/v1';
+    process.env.AI_MODEL = 'gpt-4o-mini';
     process.env.AI_CHAT_MAX_RETRIES = '3';
     const provider = new OpenAICompatibleProvider();
     provider.replaceGateForTests(new AiRequestGate(1));

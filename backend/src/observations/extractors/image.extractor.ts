@@ -24,7 +24,7 @@ export class ImageExtractor implements ContentExtractor {
     const ocr = createOcrProvider();
     if (!ocr) {
       this.logger.warn(
-        'OCR skipped: provider not configured (set OCR_PROVIDER=gemini and OCR_API_KEY or EMBEDDING_API_KEY)',
+        'OCR skipped: provider not configured (set OCR_PROVIDER=gemini and OCR_API_KEY, EMBEDDING_API_KEY, or AI_API_KEY)',
       );
       return {
         text: null,
@@ -33,7 +33,7 @@ export class ImageExtractor implements ContentExtractor {
           ocrAvailable: false,
         },
         notes:
-          'OCR is not configured. Set OCR_PROVIDER=gemini and OCR_API_KEY (or EMBEDDING_API_KEY). Image metadata was stored without text.',
+          'OCR is not configured. Set OCR_PROVIDER=gemini and OCR_API_KEY (or EMBEDDING_API_KEY / AI_API_KEY). Image metadata was stored without text.',
       };
     }
 

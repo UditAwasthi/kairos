@@ -102,7 +102,7 @@ export default function EntitiesScreen() {
 const styles = StyleSheet.create({
   group: { gap: 8 },
   kicker: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 11,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
@@ -115,6 +115,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: 12,
   },
-  title: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 15 },
-  meta: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+  title: { flex: 1, fontFamily: 'Roboto_500Medium', fontSize: 15 },
+  meta: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
 });

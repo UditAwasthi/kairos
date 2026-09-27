@@ -91,12 +91,12 @@ const styles = StyleSheet.create({
   },
   copy: { flex: 1, gap: 2 },
   title: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 15,
     letterSpacing: -0.1,
   },
   meta: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 12,
   },
   dot: {

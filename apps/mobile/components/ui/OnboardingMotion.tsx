@@ -11,6 +11,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { useReducedMotionPref } from '../../hooks/useReducedMotionPref';
 import { motion } from '../../theme';
 
 export const enterTiming = { duration: 480, easing: Easing.out(Easing.cubic) };
@@ -26,18 +27,25 @@ export function FadeRise({
   children: React.ReactNode;
   style?: object;
 }) {
-  const progress = useSharedValue(active ? 1 : 0);
+  const reduced = useReducedMotionPref();
+  const progress = useSharedValue(active || reduced ? 1 : 0);
 
   useEffect(() => {
+    if (reduced) {
+      progress.value = active ? 1 : 0.16;
+      return;
+    }
     progress.value = withDelay(delay, withTiming(active ? 1 : 0.16, enterTiming));
-  }, [active, delay, progress]);
+  }, [active, delay, progress, reduced]);
 
   const animated = useAnimatedStyle(() => ({
     opacity: progress.value,
     transform: [{ translateY: interpolate(progress.value, [0, 1], [16, 0]) }],
   }));
 
-  return <Animated.View style={[style, animated]}>{children}</Animated.View>;
+  return (
+    <Animated.View style={[styles.fade, style, animated]}>{children}</Animated.View>
+  );
 }
 
 export function DriftBlob({
@@ -47,15 +55,20 @@ export function DriftBlob({
   color: string;
   style?: object;
 }) {
+  const reduced = useReducedMotionPref();
   const drift = useSharedValue(0);
 
   useEffect(() => {
+    if (reduced) {
+      drift.value = 0;
+      return;
+    }
     drift.value = withRepeat(
       withTiming(1, { duration: 7400, easing: Easing.inOut(Easing.sin) }),
       -1,
       true,
     );
-  }, [drift]);
+  }, [drift, reduced]);
 
   const animated = useAnimatedStyle(() => ({
     opacity: 0.55,
@@ -92,6 +105,10 @@ export function usePressScale() {
 }
 
 const styles = StyleSheet.create({
+  fade: {
+    width: '100%',
+    alignSelf: 'stretch',
+  },
   blob: {
     position: 'absolute',
     borderRadius: 999,

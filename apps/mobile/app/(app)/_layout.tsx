@@ -18,6 +18,10 @@ import { ensureRecallReady } from '../../lib/recallSync';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import Recall from 'kairos-recall';
 
+export const unstable_settings = {
+  initialRouteName: '(tabs)',
+};
+
 export default function AppLayout() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const { colors } = useAppTheme();
@@ -133,13 +137,13 @@ export default function AppLayout() {
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.text,
         headerTitleStyle: {
-          fontFamily: 'PlayfairDisplay_400Regular',
+          fontFamily: 'Roboto_500Medium',
           fontSize: 18,
         },
         headerShadowVisible: false,
         contentStyle: { backgroundColor: colors.background },
-        animation: 'slide_from_right',
-        animationDuration: 280,
+        animation: 'fade',
+        animationDuration: 240,
         gestureEnabled: true,
         fullScreenGestureEnabled: true,
         gestureDirection: 'horizontal',
@@ -151,6 +155,7 @@ export default function AppLayout() {
           : null),
       }}
     >
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="quick-capture"
@@ -160,11 +165,12 @@ export default function AppLayout() {
         name="voice-capture"
         options={{ title: 'Voice', presentation: 'modal' }}
       />
-      <Stack.Screen name="insight" options={{ title: 'Today' }} />
-      <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />
-      <Stack.Screen name="progression" options={{ title: 'World' }} />
-      <Stack.Screen name="predictions" options={{ title: 'Predictions' }} />
-      <Stack.Screen name="brief" options={{ title: 'Brief' }} />
+      <Stack.Screen name="discover" options={{ title: 'Discover', headerShown: false }} />
+      <Stack.Screen name="insight" options={{ title: 'Discover' }} />
+      <Stack.Screen name="dashboard" options={{ title: 'Discover' }} />
+      <Stack.Screen name="progression" options={{ title: 'Home' }} />
+      <Stack.Screen name="predictions" options={{ title: 'Discover' }} />
+      <Stack.Screen name="brief" options={{ title: 'Discover' }} />
       <Stack.Screen name="timeline" options={{ title: 'Timeline' }} />
       <Stack.Screen name="memory/[id]" options={{ title: 'Memory' }} />
       <Stack.Screen name="observation/[id]" options={{ title: 'Memory' }} />

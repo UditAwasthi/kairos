@@ -23,4 +23,16 @@ describe('OCR helpers', () => {
     expect(config.apiKey).toBe('test-key');
     expect(config.model).toBe('gemini-2.5-flash');
   });
+
+  it('falls back to the chat Gemini key pool when no OCR or embedding key is set', () => {
+    delete process.env.OCR_API_KEY;
+    delete process.env.EMBEDDING_API_KEY;
+    delete process.env.EMBEDDING_API_KEYS;
+    for (let i = 1; i <= 8; i += 1) {
+      delete process.env[`EMBEDDING_API_KEY_${i}`];
+    }
+    process.env.AI_API_KEY = 'chat-key';
+    process.env.OCR_PROVIDER = 'gemini';
+    expect(readOcrConfig().apiKey).toBe('chat-key');
+  });
 });

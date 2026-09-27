@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   errorText: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     marginVertical: 4,
   },

@@ -87,20 +87,25 @@ export class ObservationProcessor {
 
       await this.setStatus(observationId, ProcessingStatus.NORMALIZING);
       const normalized = this.normalize(extracted.text);
-      await this.indexNormalized(observationId, observation.userId, normalized, {
-        pageCount:
-          typeof extracted.metadata.pageCount === 'number'
-            ? extracted.metadata.pageCount
-            : null,
-        sourceMetadata: {
-          ...(typeof observation.sourceMetadata === 'object' &&
-          observation.sourceMetadata !== null
-            ? (observation.sourceMetadata as Record<string, unknown>)
-            : {}),
-          extraction: extracted.metadata,
-          processingNote: extracted.notes ?? null,
+      await this.indexNormalized(
+        observationId,
+        observation.userId,
+        normalized,
+        {
+          pageCount:
+            typeof extracted.metadata.pageCount === 'number'
+              ? extracted.metadata.pageCount
+              : null,
+          sourceMetadata: {
+            ...(typeof observation.sourceMetadata === 'object' &&
+            observation.sourceMetadata !== null
+              ? (observation.sourceMetadata as Record<string, unknown>)
+              : {}),
+            extraction: extracted.metadata,
+            processingNote: extracted.notes ?? null,
+          },
         },
-      });
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Processing failed';
@@ -134,13 +139,18 @@ export class ObservationProcessor {
     try {
       await this.setStatus(observationId, ProcessingStatus.NORMALIZING);
       const normalized = this.normalize(text);
-      await this.indexNormalized(observationId, observation.userId, normalized, {
-        sourceMetadata:
-          typeof observation.sourceMetadata === 'object' &&
-          observation.sourceMetadata !== null
-            ? (observation.sourceMetadata as Record<string, unknown>)
-            : {},
-      });
+      await this.indexNormalized(
+        observationId,
+        observation.userId,
+        normalized,
+        {
+          sourceMetadata:
+            typeof observation.sourceMetadata === 'object' &&
+            observation.sourceMetadata !== null
+              ? (observation.sourceMetadata as Record<string, unknown>)
+              : {},
+        },
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Processing failed';
@@ -174,118 +184,114 @@ export class ObservationProcessor {
         extractedText: normalized,
         characterCount: stats.characterCount,
         wordCount: stats.wordCount,
-        ...(extras.pageCount !== undefined ? { pageCount: extras.pageCount } : {}),
+        ...(extras.pageCount !== undefined
+          ? { pageCount: extras.pageCount }
+          : {}),
         processingError: null,
         sourceMetadata: extras.sourceMetadata as Prisma.InputJsonValue,
       },
     });
 
     await this.setStatus(observationId, ProcessingStatus.CHUNKING);
-      const chunks = chunkText(normalized ?? '');
-      await this.replaceChunks(observationId, chunks);
+    const chunks = chunkText(normalized ?? '');
+    await this.replaceChunks(observationId, chunks);
 
+    await this.prisma.observation.update({
+      where: { id: observationId },
+      data: { chunkCount: chunks.length },
+    });
+
+    await this.setStatus(observationId, ProcessingStatus.ANALYZING);
+
+    let analysisNote: string | undefined;
+    if (!normalized || chunks.length === 0) {
+      analysisNote =
+        'No extractable text available for summary/topics/entities.';
+      await this.clearAnalysisLinks(observationId);
       await this.prisma.observation.update({
         where: { id: observationId },
-        data: { chunkCount: chunks.length },
+        data: { summary: null },
       });
-
-      await this.setStatus(observationId, ProcessingStatus.ANALYZING);
-
-      let analysisNote: string | undefined;
-      if (!normalized || chunks.length === 0) {
-        analysisNote =
-          'No extractable text available for summary/topics/entities.';
-        await this.clearAnalysisLinks(observationId);
-        await this.prisma.observation.update({
-          where: { id: observationId },
-          data: { summary: null },
-        });
-      } else if (!this.ai.isConfigured()) {
-        analysisNote =
-          'AI provider is not configured. Chunks and metadata were saved without summary/topics/entities.';
-        await this.clearAnalysisLinks(observationId);
-        await this.prisma.observation.update({
-          where: { id: observationId },
-          data: { summary: null },
-        });
-      } else {
-        try {
-          const analysis = await this.ai.analyzeDocument(
-            chunks.map((c) => c.content),
-          );
-          await this.persistAnalysis(
-            observationId,
-            userId,
-            analysis,
-          );
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : 'AI analysis failed';
-          this.logger.warn(
-            `AI analysis failed for ${observationId}: ${message}`,
-          );
-          analysisNote = `AI analysis skipped: ${toSafeProcessingError(message)}`;
-          // Keep extracted text + chunks; do not fail the whole observation.
-        }
-      }
-
-      const current = await this.prisma.observation.findUnique({
+    } else if (!this.ai.isConfigured()) {
+      analysisNote =
+        'AI provider is not configured. Chunks and metadata were saved without summary/topics/entities.';
+      await this.clearAnalysisLinks(observationId);
+      await this.prisma.observation.update({
         where: { id: observationId },
+        data: { summary: null },
       });
-      const sourceMetadata = {
-        ...(typeof current?.sourceMetadata === 'object' &&
-        current.sourceMetadata !== null
-          ? current.sourceMetadata
-          : {}),
-        ...(analysisNote ? { analysisNote } : {}),
-        analysisProvider: this.ai.isConfigured() ? this.ai.name : 'none',
-        ...(this.ai.isConfigured()
-          ? { analysisModel: process.env.AI_MODEL?.trim() || 'gpt-4o-mini' }
-          : {}),
-      } as Prisma.InputJsonValue;
+    } else {
+      try {
+        const analysis = await this.ai.analyzeDocument(
+          chunks.map((c) => c.content),
+        );
+        await this.persistAnalysis(observationId, userId, analysis);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'AI analysis failed';
+        this.logger.warn(`AI analysis failed for ${observationId}: ${message}`);
+        analysisNote = `AI analysis skipped: ${toSafeProcessingError(message)}`;
+        // Keep extracted text + chunks; do not fail the whole observation.
+      }
+    }
 
+    const current = await this.prisma.observation.findUnique({
+      where: { id: observationId },
+    });
+    const sourceMetadata = {
+      ...(typeof current?.sourceMetadata === 'object' &&
+      current.sourceMetadata !== null
+        ? current.sourceMetadata
+        : {}),
+      ...(analysisNote ? { analysisNote } : {}),
+      analysisProvider: this.ai.isConfigured() ? this.ai.name : 'none',
+      ...(this.ai.isConfigured()
+        ? { analysisModel: process.env.AI_MODEL?.trim() || 'gemini-2.5-flash' }
+        : {}),
+    } as Prisma.InputJsonValue;
+
+    await this.prisma.observation.update({
+      where: { id: observationId },
+      data: {
+        sourceMetadata,
+      },
+    });
+
+    // Embeddings are required for eligible text chunks before COMPLETED.
+    if (chunks.length > 0) {
+      await this.setStatus(observationId, ProcessingStatus.EMBEDDING);
+      if (!this.embeddingProvider.isConfigured()) {
+        throw new Error(
+          'Embedding provider is not configured. Set EMBEDDING_API_KEY / AI_API_KEY or EMBEDDING_PROVIDER=local.',
+        );
+      }
+      const embedStats =
+        await this.chunkEmbeddings.embedMissingChunks(observationId);
       await this.prisma.observation.update({
         where: { id: observationId },
         data: {
-          sourceMetadata,
-        },
-      });
-
-      // Embeddings are required for eligible text chunks before COMPLETED.
-      if (chunks.length > 0) {
-        await this.setStatus(observationId, ProcessingStatus.EMBEDDING);
-        if (!this.embeddingProvider.isConfigured()) {
-          throw new Error(
-            'Embedding provider is not configured. Set EMBEDDING_API_KEY or EMBEDDING_PROVIDER=local.',
-          );
-        }
-        const embedStats =
-          await this.chunkEmbeddings.embedMissingChunks(observationId);
-        await this.prisma.observation.update({
-          where: { id: observationId },
-          data: {
-            sourceMetadata: {
-              ...(typeof sourceMetadata === 'object' && sourceMetadata !== null
-                ? (sourceMetadata as Record<string, unknown>)
-                : {}),
-              embeddingProvider: this.embeddingProvider.name,
-              embeddingModel: this.embeddingProvider.model,
-              embeddingDimensions: this.embeddingProvider.dimensions,
-              embeddingsCreated: embedStats.newlyEmbedded,
-              embeddingsReused: embedStats.alreadyEmbedded,
-            },
+          sourceMetadata: {
+            ...(typeof sourceMetadata === 'object' && sourceMetadata !== null
+              ? (sourceMetadata as Record<string, unknown>)
+              : {}),
+            embeddingProvider: this.embeddingProvider.name,
+            embeddingModel: this.embeddingProvider.model,
+            embeddingDimensions: this.embeddingProvider.dimensions,
+            embeddingsCreated: embedStats.newlyEmbedded,
+            embeddingsReused: embedStats.alreadyEmbedded,
           },
-        });
-      }
-
-      await this.prisma.observation.update({
-        where: { id: observationId },
-        data: {
-          processingStatus: ProcessingStatus.COMPLETED,
-          processingError: null,
         },
       });
-      await this.emitSettledNotification(observationId);
+    }
+
+    await this.prisma.observation.update({
+      where: { id: observationId },
+      data: {
+        processingStatus: ProcessingStatus.COMPLETED,
+        processingError: null,
+      },
+    });
+    await this.emitSettledNotification(observationId);
   }
 
   async extract(

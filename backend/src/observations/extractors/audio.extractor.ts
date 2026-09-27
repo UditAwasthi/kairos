@@ -9,7 +9,7 @@ export type AudioTranscriber = (
 
 /**
  * Voice / audio extraction. Transcribes via the existing AI provider
- * (OpenAI-compatible /audio/transcriptions) and preserves the transcript
+ * (Gemini generateContent, or OpenAI-compatible /audio/transcriptions) and preserves the transcript
  * for the standard chunk → analyze → embed pipeline.
  */
 export class AudioExtractor implements ContentExtractor {

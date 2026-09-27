@@ -21,6 +21,8 @@ import {
   resurfacedOptions,
   todayPulseStats,
   weekDays,
+  worldEdges,
+  worldGraph,
   worldNodes,
 } from '../lib/homeSummary';
 import type { ApiObservation, DailyBrief, DashboardSummary, PredictionItem, TodayInsight } from '../lib/api';
@@ -287,6 +289,26 @@ describe('home summary', () => {
 
   it('builds world nodes from real topics and projects only', () => {
     expect(worldNodes([], [])).toEqual([]);
+    const linked = observation({
+      topics: [{ id: 't1', name: 'Machine Learning', confidence: 0.9 }],
+      projects: [{ id: 'p1', name: 'Kairos' }],
+    });
+    const graph = worldGraph(
+      [{ id: 't1', name: 'Machine Learning', observationCount: 3 }],
+      [
+        {
+          id: 'p1',
+          name: 'Kairos',
+          description: null,
+          observationCount: 1,
+          createdAt: '2026-09-01T00:00:00.000Z',
+          updatedAt: '2026-09-01T00:00:00.000Z',
+        },
+      ],
+      [linked],
+    );
+    expect(graph.nodes.map((node) => node.name)).toEqual(['Machine Learning', 'Kairos']);
+    expect(worldEdges([linked], graph.nodes)).toEqual([{ from: 'topic-t1', to: 'project-p1' }]);
   });
 
   it('hides the week widget when there is no real activity', () => {

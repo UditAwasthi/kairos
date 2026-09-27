@@ -26,7 +26,7 @@ export function ThemedInput(props: TextInputProps) {
           color: colors.text,
           borderColor: focused ? colors.inputBorderFocused : colors.inputBorder,
           backgroundColor: colors.inputFill,
-          borderRadius: radius.md,
+          borderRadius: radius.xl,
           paddingHorizontal: spacing['4'],
           paddingVertical: spacing['3'] + 2,
           fontSize: typography.bodySmall.size,
@@ -41,6 +41,6 @@ export function ThemedInput(props: TextInputProps) {
 const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
   },
 });

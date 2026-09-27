@@ -1,62 +1,57 @@
-import type { AppTheme, ShadowToken } from '../theme';
-import { shadows } from '../theme';
+import { type AppTheme, type ShadowToken, ice, iceDeep, motion, shadows } from '../theme';
 
+/** Folded into theme.ts — kept so existing imports keep compiling. */
 export const homeFont = {
-  serif: 'PlayfairDisplay_400Regular',
-  serifMedium: 'PlayfairDisplay_500Medium',
+  serif: 'Roboto_500Medium',
+  serifMed: 'Roboto_500Medium',
   sans: 'Roboto_400Regular',
   sansMedium: 'Roboto_500Medium',
+  sansSemi: 'Roboto_600SemiBold',
+  sansBold: 'Roboto_700Bold',
+} as const;
+
+export const homeShape = {
+  ovalW: 40,
+  ovalH: 40,
+  ovalRadius: 20,
+  poster: 24,
+  pressScale: motion.pressScale,
 } as const;
 
 export type HomeSurface = {
   canvas: string;
+  panel: string;
+  well: string;
   text: string;
   muted: string;
+  faint: string;
   ink: string;
-  ask: readonly [string, string];
-  recall: string;
-  panel: string;
-  pill: string;
-  chipFills: readonly [string, string, string, string, string];
-  fab: string;
-  blob: string;
+  inverse: string;
+  border: string;
+  cyan: string;
+  azure: string;
+  glow: string;
   line: string;
   shadow: ShadowToken;
   pressScale: number;
 };
 
-/** Soft SaaS Home: dusty lavender, sand, blush — never ink-on-white. */
 export function homeSurface(colors: AppTheme, isLight: boolean): HomeSurface {
   return {
-    canvas: isLight ? colors.surfaceElevated : colors.background,
-    text: colors.textSecondary,
-    muted: colors.textMuted,
-    ink: isLight ? colors.accentPurple : colors.accentRose,
-    ask: isLight
-      ? [colors.accentLavender, colors.accentLilac]
-      : [colors.accentLilac, colors.surfaceContainer],
-    recall: isLight ? colors.surfaceContainer : colors.surfaceContainer,
-    panel: isLight ? colors.accentPeach : colors.surfaceContainerLow,
-    pill: isLight ? colors.surfaceContainer : colors.surfaceContainerHigh,
-    chipFills: isLight
-      ? [
-          colors.accentLavender,
-          colors.accentPeach,
-          colors.surfaceContainer,
-          colors.accentLilac,
-          colors.accentMorningBlue,
-        ]
-      : [
-          colors.accentLavender,
-          colors.accentPeach,
-          colors.surfaceContainer,
-          colors.accentLilac,
-          colors.accentMorningBlue,
-        ],
-    fab: isLight ? colors.surfaceContainer : colors.surfaceContainerHigh,
-    blob: isLight ? colors.accentLilac : colors.accentLavender,
+    canvas: colors.background,
+    panel: colors.surface,
+    well: isLight ? colors.surfaceContainer : colors.surfaceContainerLow,
+    text: colors.text,
+    muted: colors.textSecondary,
+    faint: colors.textMuted,
+    ink: colors.text,
+    inverse: colors.inverseText,
+    border: colors.border,
+    cyan: ice,
+    azure: iceDeep,
+    glow: colors.accentGlow,
     line: colors.divider,
     shadow: shadows.sm,
-    pressScale: 0.97,
+    pressScale: homeShape.pressScale,
   };
 }

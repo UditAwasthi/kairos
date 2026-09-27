@@ -66,13 +66,13 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   title: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 12,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
   subtitle: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 12,
     opacity: 0.8,
   },

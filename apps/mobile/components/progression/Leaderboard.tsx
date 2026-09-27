@@ -29,11 +29,11 @@ export function Leaderboard({
             style={[
               styles.tab,
               {
-                backgroundColor: scope === item ? colors.accentLavender : colors.surfaceContainer,
+                backgroundColor: scope === item ? colors.text : colors.surfaceContainer,
               },
             ]}
           >
-            <ThemedText colorKey="text" style={styles.tabLabel}>
+            <ThemedText colorKey={scope === item ? 'inverseText' : 'text'} style={styles.tabLabel}>
               {item === 'global' ? 'Everyone' : 'Circle'}
             </ThemedText>
           </Pressable>
@@ -50,7 +50,7 @@ export function Leaderboard({
         </ThemedText>
       )}
 
-      {data.rows.length === 0 ? (
+      {(data.rows ?? []).length === 0 ? (
         <GlassPanel>
           <ThemedText colorKey="textMuted" style={styles.empty}>
             {scope === 'circle'
@@ -59,7 +59,7 @@ export function Leaderboard({
           </ThemedText>
         </GlassPanel>
       ) : (
-        data.rows.map((row) => (
+        (data.rows ?? []).map((row) => (
           <GlassPanel
             key={row.userId}
             contentStyle={[
@@ -90,9 +90,9 @@ const styles = StyleSheet.create({
   stack: { gap: 10 },
   tabs: { flexDirection: 'row', gap: 8 },
   tab: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 },
-  tabLabel: { fontFamily: 'Inter_500Medium', fontSize: 13 },
-  rank: { fontFamily: 'Inter_400Regular', fontSize: 13, marginBottom: 4 },
-  empty: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20 },
+  tabLabel: { fontFamily: 'Roboto_500Medium', fontSize: 13 },
+  rank: { fontFamily: 'Roboto_400Regular', fontSize: 13, marginBottom: 4 },
+  empty: { fontFamily: 'Roboto_400Regular', fontSize: 14, lineHeight: 20 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -100,8 +100,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  pos: { fontFamily: 'Inter_500Medium', fontSize: 15, width: 28 },
+  pos: { fontFamily: 'PlayfairDisplay_400Regular', fontSize: 20, width: 32, letterSpacing: -0.4 },
   copy: { flex: 1, gap: 2 },
-  name: { fontFamily: 'Inter_500Medium', fontSize: 15 },
-  meta: { fontFamily: 'Inter_400Regular', fontSize: 12 },
+  name: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
+  meta: { fontFamily: 'Roboto_400Regular', fontSize: 12 },
 });

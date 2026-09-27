@@ -267,7 +267,7 @@ export function StatGrid({
 
 const styles = StyleSheet.create({
   kicker: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 12,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   streakEyebrow: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 12,
     letterSpacing: 0.7,
     textTransform: 'uppercase',
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   streakHint: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     lineHeight: 20,
     opacity: 0.86,
@@ -316,13 +316,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  streakActionText: { fontFamily: 'Inter_500Medium', fontSize: 13 },
+  streakActionText: { fontFamily: 'Roboto_500Medium', fontSize: 13 },
   habitTitle: {
     fontFamily: 'PlayfairDisplay_500Medium',
     fontSize: 20,
     letterSpacing: -0.2,
   },
-  habitHint: { fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: 4, marginBottom: 12 },
+  habitHint: { fontFamily: 'Roboto_400Regular', fontSize: 13, marginTop: 4, marginBottom: 12 },
   track: { height: 8, borderRadius: 999, overflow: 'hidden' },
   trackFill: { height: '100%', borderRadius: 999 },
   weekRow: {
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  weekLabel: { fontFamily: 'Inter_500Medium', fontSize: 11 },
+  weekLabel: { fontFamily: 'Roboto_500Medium', fontSize: 11 },
   chartTitle: {
     fontFamily: 'PlayfairDisplay_500Medium',
     fontSize: 20,
@@ -354,12 +354,12 @@ const styles = StyleSheet.create({
   },
   histCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
   histBar: { width: '78%', borderRadius: 7, minHeight: 4 },
-  histLabel: { fontFamily: 'Inter_500Medium', fontSize: 9 },
+  histLabel: { fontFamily: 'Roboto_500Medium', fontSize: 9 },
   barList: { gap: 12, marginTop: 4 },
   barRow: { gap: 6 },
   barHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  barLabel: { fontFamily: 'Inter_500Medium', fontSize: 14, flex: 1 },
-  barCount: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+  barLabel: { fontFamily: 'Roboto_500Medium', fontSize: 14, flex: 1 },
+  barCount: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   statCard: { flexGrow: 1, flexBasis: '30%', minWidth: 96 },
   statInner: { paddingVertical: 14, paddingHorizontal: 14, gap: 4 },
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   statLabel: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 11,
     letterSpacing: 0.4,
     textTransform: 'uppercase',

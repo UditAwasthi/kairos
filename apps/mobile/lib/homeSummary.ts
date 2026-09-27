@@ -64,7 +64,7 @@ export function homeDashboardCopy(dashboard: DashboardSummary | null): {
 } {
   if (!dashboard) return { body: 'No memories yet', hint: null };
   const body =
-    dashboard.daySummary.trim() ||
+    dashboard.daySummary?.trim() ||
     (dashboard.todayCount > 0
       ? `${dashboard.todayCount} today`
       : dashboard.weekCount > 0
@@ -78,7 +78,7 @@ export function homeDashboardCopy(dashboard: DashboardSummary | null): {
 }
 
 export function homePredictionItem(items: PredictionItem[]): PredictionItem | null {
-  return items.find((item) => item.title.trim().length > 0) ?? null;
+  return items.find((item) => item.title?.trim().length > 0) ?? null;
 }
 
 export function homeBriefCopy(brief: DailyBrief | null): { body: string; hint: string | null } {
@@ -89,7 +89,7 @@ export function homeBriefCopy(brief: DailyBrief | null): { body: string; hint: s
     noticed?.body ||
     brief.revisit?.title ||
     topic?.name ||
-    brief.title.trim() ||
+    brief.title?.trim() ||
     'No brief yet';
   const hint =
     brief.yesterdayCount > 0
@@ -104,7 +104,7 @@ export function homeProjectPreview(
   projects: ApiProjectSummary[],
   limit = 2,
 ): ApiProjectSummary[] {
-  return projects.filter((project) => project.name.trim()).slice(0, limit);
+  return projects.filter((project) => project.name?.trim()).slice(0, limit);
 }
 
 export function personalGreeting(period: string, name: string): string {
@@ -120,7 +120,7 @@ export function memoryTitle(filename: string, summary: string | null | undefined
 
 export function noticedInsight(insight: TodayInsight | null | undefined): TodayInsight | null {
   if (!insight || insight.empty) return null;
-  return insight.body.trim() ? insight : null;
+  return insight.body?.trim() ? insight : null;
 }
 
 export function lastRemembered(
@@ -137,6 +137,62 @@ export function todayPulseStats(dashboard: DashboardSummary): TodayPulseStats {
     alive: dashboard.todayCount > 0 || dashboard.processingCount > 0,
   };
 }
+
+const WORLD_SLOTS = [
+  { x: 0.5, y: 0.5 },
+  { x: 0.2, y: 0.26 },
+  { x: 0.8, y: 0.3 },
+  { x: 0.18, y: 0.74 },
+  { x: 0.78, y: 0.72 },
+] as const;
+
+export type WorldGraphNode = WorldNode & { x: number; y: number };
+
+export function worldEdges(
+  observations: ApiObservation[],
+  nodes: WorldNode[],
+): Array<{ from: string; to: string }> {
+  const known = new Set(nodes.map((node) => node.id));
+  const seen = new Set<string>();
+  const edges: Array<{ from: string; to: string }> = [];
+
+  for (const observation of observations) {
+    const present = [
+      ...(observation.topics ?? []).map((item) => `topic-${item.id}`),
+      ...(observation.projects ?? []).map((item) => `project-${item.id}`),
+    ].filter((id) => known.has(id));
+    for (let i = 0; i < present.length; i += 1) {
+      for (let j = i + 1; j < present.length; j += 1) {
+        const a = present[i];
+        const b = present[j];
+        if (!a || !b) continue;
+        const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        edges.push({ from: a, to: b });
+      }
+    }
+  }
+  return edges;
+}
+
+export function worldGraph(
+  topics: DashboardSummary['topics'] | ApiTopicLike[],
+  projects: ApiProjectSummary[],
+  observations: ApiObservation[],
+  limit = 5,
+): { nodes: WorldGraphNode[]; edges: Array<{ from: string; to: string }> } {
+  const nodes = worldNodes(topics as DashboardSummary['topics'], projects, limit).map(
+    (node, index) => ({
+      ...node,
+      x: WORLD_SLOTS[index]?.x ?? 0.5,
+      y: WORLD_SLOTS[index]?.y ?? 0.5,
+    }),
+  );
+  return { nodes, edges: worldEdges(observations, nodes) };
+}
+
+type ApiTopicLike = { id: string; name: string; observationCount?: number };
 
 export function worldNodes(
   topics: DashboardSummary['topics'],
@@ -188,8 +244,8 @@ export function rememberedStamp(iso: string, now = new Date()): string {
 
 export function rememberedTags(observation: ApiObservation | null | undefined): string[] {
   if (!observation) return [];
-  const projects = observation.projects.map((item) => item.name);
-  const topics = observation.topics.map((item) => item.name);
+  const projects = (observation.projects ?? []).map((item) => item.name);
+  const topics = (observation.topics ?? []).map((item) => item.name);
   return [...projects, ...topics].filter(Boolean).slice(0, 3);
 }
 
@@ -215,7 +271,11 @@ export function greetingWhisper(kind: ResurfaceKind | null): string | null {
 
 export function connectionCount(observation: ApiObservation | null | undefined): number {
   if (!observation) return 0;
-  return observation.topics.length + observation.projects.length + observation.entities.length;
+  return (
+    (observation.topics ?? []).length +
+    (observation.projects ?? []).length +
+    (observation.entities ?? []).length
+  );
 }
 
 export function observationLinks(
@@ -224,7 +284,7 @@ export function observationLinks(
 ): Array<{ id: string; name: string; href: string }> {
   if (!observation) return [];
   const links: Array<{ id: string; name: string; href: string }> = [];
-  for (const project of observation.projects) {
+  for (const project of observation.projects ?? []) {
     if (links.length >= limit) break;
     links.push({
       id: `project-${project.id}`,
@@ -232,7 +292,7 @@ export function observationLinks(
       href: `/(app)/projects/${project.id}`,
     });
   }
-  for (const topic of observation.topics) {
+  for (const topic of observation.topics ?? []) {
     if (links.length >= limit) break;
     links.push({
       id: `topic-${topic.id}`,
@@ -240,7 +300,7 @@ export function observationLinks(
       href: `/(app)/topics/${topic.id}`,
     });
   }
-  for (const entity of observation.entities) {
+  for (const entity of observation.entities ?? []) {
     if (links.length >= limit) break;
     links.push({
       id: `entity-${entity.id}`,
@@ -259,12 +319,14 @@ function mostConnected(items: ApiObservation[]): ApiObservation | null {
   if (items.length === 0) return null;
   const ranked = [...items].sort((a, b) => {
     const connected =
-      b.topics.length + b.projects.length - (a.topics.length + a.projects.length);
+      (b.topics ?? []).length +
+      (b.projects ?? []).length -
+      ((a.topics ?? []).length + (a.projects ?? []).length);
     if (connected !== 0) return connected;
     return new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime();
   });
   const best = ranked[0];
-  if (!best || best.topics.length + best.projects.length === 0) return null;
+  if (!best || (best.topics ?? []).length + (best.projects ?? []).length === 0) return null;
   return best;
 }
 
@@ -371,7 +433,7 @@ export function homeNudge(params: {
         params.processingCount === 1
           ? 'A memory is still settling.'
           : `${params.processingCount} memories are still settling.`,
-      href: '/(app)/activity',
+      href: '/(app)/timeline',
     });
   }
   const noticed = noticedInsight(params.insight);
@@ -380,7 +442,7 @@ export function homeNudge(params: {
       key: 'noticed',
       label: 'I noticed',
       body: noticed.body,
-      href: '/(app)/insight',
+      href: '/(app)/discover',
     });
   }
   const topic = params.topics[0];

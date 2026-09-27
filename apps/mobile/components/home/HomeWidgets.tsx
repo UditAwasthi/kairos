@@ -1,48 +1,31 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
+import Animated, { interpolate, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Svg, { Circle, Line } from 'react-native-svg';
 
+import { observationFileUri, type ApiObservation } from '../../lib/api';
 import {
-  observationFileUri,
-  type ApiObservation,
-  type ApiProjectSummary,
-  type PredictionItem,
-} from '../../lib/api';
-import {
-  connectionCount,
   memoryTitle,
-  observationLinks,
   rememberedStamp,
+  rememberedTags,
+  type HomeNudge,
+  type WorldGraphNode,
 } from '../../lib/homeSummary';
-import { homeFont, type HomeSurface } from '../../lib/homeTheme';
-import { ONBOARDING_STEPS } from '../../onboarding';
-import {
-  BarsMark,
-  BookScene,
-  HorizonMark,
-  PlantMark,
-  PlusMark,
-  StackMark,
-  TalkScene,
-  TalkWave,
-  WindowMark,
-} from './HomeMarks';
+import { homeFont, homeShape, type HomeSurface } from '../../lib/homeTheme';
+import { azure, cyan } from '../../theme';
+import { BookScene, CaptureScene, LeafScene, TalkScene } from './HomeMarks';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 function useHomePress(scale: number) {
   const press = useSharedValue(0);
   const style = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(press.value, [0, 1], [1, scale]) }],
+    transform: [
+      { scale: interpolate(press.value, [0, 1], [1, scale]) },
+      { translateY: interpolate(press.value, [0, 1], [0, 1]) },
+    ],
   }));
   return {
     style,
@@ -60,10 +43,14 @@ function hapticPress(onPress: () => void) {
   onPress();
 }
 
-export function TalkCard({
+export function HighlightAction({
+  label,
+  mark,
   surface,
   onPress,
 }: {
+  label: string;
+  mark: 'ask' | 'recall';
   surface: HomeSurface;
   onPress: () => void;
 }) {
@@ -74,24 +61,31 @@ export function TalkCard({
       onPressIn={press.onPressIn}
       onPressOut={press.onPressOut}
       accessibilityRole="button"
-      accessibilityLabel="Talk to Kairos"
-      style={[styles.heroTalk, surface.shadow, press.style]}
+      accessibilityLabel={label}
+      style={[styles.highlight, press.style]}
     >
-      <LinearGradient colors={[...surface.ask]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroTalkFill}>
-        <View style={styles.heroArt}>
-          <TalkScene color={surface.ink} size={96} />
-          <TalkWave color={surface.ink} />
-        </View>
-        <Text style={[styles.heroLabel, { color: surface.text }]}>Talk to Kairos</Text>
+      <LinearGradient colors={[cyan, azure] as const} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.highlightFill}>
+        {mark === 'ask' ? (
+          <TalkScene color="#101010" size={92} />
+        ) : (
+          <BookScene color="#101010" size={72} />
+        )}
+        <Text style={styles.highlightLabel}>{label}</Text>
       </LinearGradient>
     </AnimatedPressable>
   );
 }
 
-export function RecallCard({
+export function PictureAction({
+  label,
+  mark,
+  photo,
   surface,
   onPress,
 }: {
+  label: string;
+  mark: 'capture' | 'memory';
+  photo?: { uri: string; headers?: Record<string, string> } | null;
   surface: HomeSurface;
   onPress: () => void;
 }) {
@@ -102,213 +96,331 @@ export function RecallCard({
       onPressIn={press.onPressIn}
       onPressOut={press.onPressOut}
       accessibilityRole="button"
-      accessibilityLabel="Recall a memory"
-      style={[styles.heroRecall, surface.shadow, { backgroundColor: surface.recall }, press.style]}
+      accessibilityLabel={label}
+      style={[
+        styles.picture,
+        { backgroundColor: surface.panel, borderColor: surface.border },
+        press.style,
+      ]}
     >
-      <BookScene color={surface.ink} size={58} />
-      <Text style={[styles.heroRecallLabel, { color: surface.text }]}>Recall a memory</Text>
+      {photo ? (
+        <View style={styles.ovalFrame}>
+          <Image source={photo} style={styles.ovalImage} resizeMode="cover" />
+        </View>
+      ) : (
+        <View style={styles.pictureMark}>
+          {mark === 'capture' ? (
+            <CaptureScene color={surface.text} size={64} />
+          ) : (
+            <LeafScene color={surface.text} size={48} />
+          )}
+        </View>
+      )}
+      <Text style={[styles.pictureLabel, { color: surface.text }]}>{label}</Text>
     </AnimatedPressable>
   );
 }
 
-function useCountUp(total: number, play: boolean, token: string) {
-  const [shown, setShown] = useState(0);
-  const playId = useRef(0);
-
-  useEffect(() => {
-    if (!play || total <= 0) {
-      setShown(0);
-      return;
-    }
-    const current = ++playId.current;
-    let next = 0;
-    setShown(0);
-    const timer = setInterval(() => {
-      if (current !== playId.current) return;
-      next += 1;
-      setShown(next);
-      if (next >= total) clearInterval(timer);
-    }, 70);
-    return () => clearInterval(timer);
-  }, [play, total, token]);
-
-  return shown;
+export function Pill({
+  label,
+  surface,
+  active = false,
+  onPress,
+}: {
+  label: string;
+  surface: HomeSurface;
+  active?: boolean;
+  onPress?: () => void;
+}) {
+  const press = useHomePress(surface.pressScale);
+  return (
+    <AnimatedPressable
+      onPress={onPress ? () => hapticPress(onPress) : undefined}
+      onPressIn={onPress ? press.onPressIn : undefined}
+      onPressOut={onPress ? press.onPressOut : undefined}
+      accessibilityRole={onPress ? 'button' : 'text'}
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
+      style={[
+        styles.pill,
+        {
+          backgroundColor: active ? surface.text : surface.well,
+          borderColor: surface.border,
+        },
+        onPress ? press.style : null,
+      ]}
+    >
+      <Text style={[styles.pillLabel, { color: active ? surface.inverse : surface.text }]}>
+        {label}
+      </Text>
+    </AnimatedPressable>
+  );
 }
 
-export function ResurfacedPanel({
+export function WorldHero({
+  nodes,
+  edges,
+  width,
+  surface,
+  onPress,
+}: {
+  nodes: WorldGraphNode[];
+  edges: Array<{ from: string; to: string }>;
+  width: number;
+  surface: HomeSurface;
+  onPress: () => void;
+}) {
+  const press = useHomePress(surface.pressScale);
+  const fieldW = Math.max(280, width - 44);
+  const fieldH = 188;
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+
+  return (
+    <AnimatedPressable
+      onPress={() => hapticPress(onPress)}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      accessibilityRole="button"
+      accessibilityLabel="World"
+      style={[styles.hero, { backgroundColor: surface.panel, borderColor: surface.border }, press.style]}
+    >
+      <Text style={[styles.heroKicker, { color: surface.faint }]}>World</Text>
+      <Svg width={fieldW} height={fieldH} style={styles.field}>
+        {STARS.map((star) => (
+          <Circle key={`${star.x}-${star.y}`} cx={star.x * fieldW} cy={star.y * fieldH} r={1} fill={surface.faint} />
+        ))}
+        {edges.map((edge) => {
+          const from = byId.get(edge.from);
+          const to = byId.get(edge.to);
+          if (!from || !to) return null;
+          return (
+            <Line
+              key={`${edge.from}-${edge.to}`}
+              x1={from.x * fieldW}
+              y1={from.y * fieldH}
+              x2={to.x * fieldW}
+              y2={to.y * fieldH}
+              stroke={cyan}
+              strokeOpacity={0.35}
+              strokeWidth={1.25}
+            />
+          );
+        })}
+        <Circle cx={fieldW * 0.5} cy={fieldH * 0.5} r={16} fill={surface.glow} />
+        <Circle cx={fieldW * 0.5} cy={fieldH * 0.5} r={5} fill={azure} />
+        {nodes.map((node) => (
+          <Circle
+            key={`dot-${node.id}`}
+            cx={node.x * fieldW}
+            cy={node.y * fieldH}
+            r={node.x === 0.5 && node.y === 0.5 ? 0.01 : 4}
+            fill={surface.text}
+          />
+        ))}
+      </Svg>
+
+      {nodes.map((node) => (
+        <Text
+          key={node.id}
+          numberOfLines={1}
+          style={[
+            styles.nodeLabel,
+            {
+              color: surface.text,
+              left: node.x * fieldW - 52,
+              top: node.y * fieldH - 20,
+            },
+          ]}
+        >
+          {node.name}
+        </Text>
+      ))}
+    </AnimatedPressable>
+  );
+}
+
+const STARS = [
+  { x: 0.08, y: 0.14 },
+  { x: 0.18, y: 0.42 },
+  { x: 0.3, y: 0.12 },
+  { x: 0.42, y: 0.2 },
+  { x: 0.62, y: 0.16 },
+  { x: 0.88, y: 0.22 },
+  { x: 0.12, y: 0.62 },
+  { x: 0.34, y: 0.8 },
+  { x: 0.58, y: 0.84 },
+  { x: 0.9, y: 0.58 },
+  { x: 0.7, y: 0.46 },
+];
+
+export function MetricStrip({
+  items,
+  surface,
+}: {
+  items: Array<{ label: string; value: string }>;
+  surface: HomeSurface;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <View style={styles.metrics}>
+      {items.map((item) => (
+        <View
+          key={item.label}
+          style={[styles.metric, { backgroundColor: surface.panel, borderColor: surface.border }]}
+        >
+          <Text style={[styles.metricValue, { color: surface.text }]}>{item.value}</Text>
+          <Text style={[styles.metricLabel, { color: surface.faint }]}>{item.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+export function CommandBar({
+  icon,
+  label,
+  trailing,
+  surface,
+  live = false,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof Feather>['name'];
+  label: string;
+  trailing: React.ComponentProps<typeof Feather>['name'];
+  surface: HomeSurface;
+  live?: boolean;
+  onPress: () => void;
+}) {
+  const press = useHomePress(surface.pressScale);
+  return (
+    <AnimatedPressable
+      onPress={() => hapticPress(onPress)}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={[
+        styles.command,
+        { backgroundColor: surface.panel, borderColor: surface.border },
+        press.style,
+      ]}
+    >
+      <Feather name={icon} size={16} color={surface.text} />
+      <Text style={[styles.commandLabel, { color: surface.muted }]}>{label}</Text>
+      <View style={[styles.commandTrail, live ? { backgroundColor: surface.glow } : null]}>
+        <Feather name={trailing} size={16} color={live ? surface.cyan : surface.text} />
+      </View>
+    </AnimatedPressable>
+  );
+}
+
+export function AskConsole({
+  prompt,
+  chips,
+  surface,
+  onAsk,
+  onChip,
+}: {
+  prompt: string;
+  chips: string[];
+  surface: HomeSurface;
+  onAsk: () => void;
+  onChip: (text: string) => void;
+}) {
+  const press = useHomePress(surface.pressScale);
+  return (
+    <View style={[styles.console, { backgroundColor: surface.panel, borderColor: surface.border }]}>
+      <Text style={[styles.kicker, { color: surface.faint }]}>Ask Kairos</Text>
+      <AnimatedPressable
+        onPress={() => hapticPress(onAsk)}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
+        accessibilityRole="button"
+        accessibilityLabel={prompt}
+        style={[styles.consolePrompt, press.style]}
+      >
+        <Text style={[styles.consoleText, { color: surface.text }]}>{prompt}</Text>
+        <Feather name="arrow-right" size={18} color={surface.text} />
+      </AnimatedPressable>
+      {chips.length > 0 ? (
+        <View style={styles.chipRow}>
+          {chips.map((chip) => (
+            <Pill key={chip} label={chip} surface={surface} onPress={() => onChip(chip)} />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+export function MemoryCard({
   observation,
   label,
   surface,
   fileToken,
-  onAsk,
-  onOpenLink,
-  onEmpty,
+  onPress,
 }: {
   observation: ApiObservation | null;
   label: string;
   surface: HomeSurface;
   fileToken?: string | null;
-  onAsk: () => void;
-  onOpenLink: (href: string) => void;
-  onEmpty: () => void;
+  onPress: () => void;
 }) {
   const press = useHomePress(surface.pressScale);
-  const [open, setOpen] = useState(false);
-  const extra = useSharedValue(0);
-  const progress = useSharedValue(0);
   const title = observation
     ? memoryTitle(observation.filename, observation.summary)
-    : ONBOARDING_STEPS[2].hint;
-  const links = observationLinks(observation);
-  const connections = connectionCount(observation);
-  const counted = useCountUp(connections, open, observation?.id ?? 'empty');
+    : 'Remember a first thought';
+  const tags = rememberedTags(observation);
   const hasImage = observation?.type === 'IMAGE' && Boolean(fileToken);
-  const snippet = observation?.extractedText?.trim() || observation?.summary?.trim() || null;
-
-  const setExpanded = (next: boolean) => {
-    setOpen(next);
-    progress.value = withSpring(next ? 1 : 0, { damping: 18, stiffness: 200 });
-  };
-
-  const toggle = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (!observation) {
-      onEmpty();
-      return;
-    }
-    setExpanded(!open);
-  };
-
-  const swipe = Gesture.Pan()
-    .activeOffsetY([-18, 18])
-    .onEnd((event) => {
-      if (event.translationY > 28) runOnJS(setExpanded)(true);
-      else if (event.translationY < -28) runOnJS(setExpanded)(false);
-    });
-
-  const reveal = useAnimatedStyle(() => ({
-    height: extra.value * progress.value,
-    opacity: progress.value,
-    overflow: 'hidden' as const,
-  }));
 
   return (
-    <GestureDetector gesture={swipe}>
-      <AnimatedPressable
-        onPress={toggle}
-        onPressIn={press.onPressIn}
-        onPressOut={press.onPressOut}
-        accessibilityRole="button"
-        accessibilityLabel={observation ? title : 'Remember a first thought'}
-        accessibilityState={{ expanded: open }}
-        style={[styles.panel, surface.shadow, { backgroundColor: surface.panel }, press.style]}
-      >
-        <View style={styles.panelTop}>
-          {hasImage && observation && fileToken ? (
-            <Image
-              source={{
-                uri: observationFileUri(observation.id),
-                headers: { Authorization: `Bearer ${fileToken}` },
-              }}
-              style={styles.thumb}
-            />
-          ) : (
-            <PlantMark color={surface.ink} size={40} />
-          )}
-          <View style={styles.panelCopy}>
-            <Text style={[styles.panelKicker, { color: surface.ink }]}>{label}</Text>
-            <Text
-              style={[styles.panelBody, { color: surface.text }]}
-              numberOfLines={open ? 6 : 2}
-            >
-              {title}
-            </Text>
-            <Text style={[styles.panelHint, { color: surface.muted }]}>
-              {observation
-                ? open
-                  ? 'Swipe up to fold'
-                  : 'Tap or swipe to expand'
-                : ONBOARDING_STEPS[4].hint}
-            </Text>
-          </View>
+    <AnimatedPressable
+      onPress={() => hapticPress(onPress)}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      style={[styles.card, { backgroundColor: surface.panel, borderColor: surface.border }, press.style]}
+    >
+      <Text style={[styles.kicker, { color: surface.faint }]}>{label}</Text>
+      {hasImage && observation && fileToken ? (
+        <Image
+          source={{
+            uri: observationFileUri(observation.id),
+            headers: { Authorization: `Bearer ${fileToken}` },
+          }}
+          style={styles.memoryImage}
+        />
+      ) : null}
+      <Text style={[styles.cardBody, { color: surface.text }]} numberOfLines={3}>
+        {title}
+      </Text>
+      {observation ? (
+        <Text style={[styles.meta, { color: surface.faint }]}>
+          {rememberedStamp(observation.capturedAt)}
+        </Text>
+      ) : null}
+      {tags.length > 0 ? (
+        <View style={styles.chipRow}>
+          {tags.map((tag) => (
+            <View key={tag} style={[styles.tag, { backgroundColor: surface.well }]}>
+              <Text style={[styles.tagLabel, { color: surface.muted }]}>{tag}</Text>
+            </View>
+          ))}
         </View>
-
-        <Animated.View style={reveal}>
-          <View
-            onLayout={(event) => {
-              extra.value = event.nativeEvent.layout.height;
-            }}
-            style={styles.panelExtra}
-          >
-            {observation ? (
-              <>
-                {snippet && snippet !== title ? (
-                  <Text style={[styles.snippet, { color: surface.muted }]} numberOfLines={4}>
-                    {snippet}
-                  </Text>
-                ) : null}
-                <Text style={[styles.panelHint, { color: surface.muted }]}>
-                  {rememberedStamp(observation.capturedAt)}
-                  {connections > 0 ? ` · ${counted} connection${counted === 1 ? '' : 's'}` : ''}
-                </Text>
-                {links.length > 0 ? (
-                  <View style={styles.linkRow}>
-                    {links.map((link) => (
-                      <Pressable
-                        key={link.id}
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          onOpenLink(link.href);
-                        }}
-                        accessibilityRole="button"
-                        accessibilityLabel={link.name}
-                        style={[styles.miniChip, { backgroundColor: surface.pill }]}
-                      >
-                        <Text style={[styles.chipLabel, { color: surface.text }]} numberOfLines={1}>
-                          {link.name}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                ) : null}
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    onAsk();
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Ask Kairos about this"
-                  style={[styles.askChip, { backgroundColor: surface.chipFills[0] }]}
-                >
-                  <Text style={[styles.askChipLabel, { color: surface.ink }]}>Ask Kairos about this</Text>
-                </Pressable>
-              </>
-            ) : null}
-          </View>
-        </Animated.View>
-      </AnimatedPressable>
-    </GestureDetector>
+      ) : null}
+    </AnimatedPressable>
   );
 }
 
-export function QuietTile({
+export function InsightWidget({
+  nudge,
   surface,
-  fill,
-  kicker,
-  body,
-  hint,
-  mark,
   onPress,
-  children,
 }: {
+  nudge: HomeNudge;
   surface: HomeSurface;
-  fill: string;
-  kicker: string;
-  body: string;
-  hint?: string | null;
-  mark: ReactNode;
   onPress: () => void;
-  children?: ReactNode;
 }) {
   const press = useHomePress(surface.pressScale);
   return (
@@ -317,403 +429,395 @@ export function QuietTile({
       onPressIn={press.onPressIn}
       onPressOut={press.onPressOut}
       accessibilityRole="button"
-      accessibilityLabel={`${kicker}. ${body}`}
-      style={[styles.tile, surface.shadow, { backgroundColor: fill }, press.style]}
+      accessibilityLabel={nudge.body}
+      style={[styles.card, { backgroundColor: surface.panel, borderColor: surface.border }, press.style]}
     >
-      {mark}
-      <Text style={[styles.panelKicker, { color: surface.ink }]}>{kicker}</Text>
-      <Text style={[styles.tileBody, { color: surface.text }]} numberOfLines={2}>
-        {body}
+      <View style={styles.insightHead}>
+        <LinearGradient colors={[cyan, azure]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.spark} />
+        <Text style={[styles.kicker, { color: surface.faint }]}>Kairos noticed</Text>
+      </View>
+      <Text style={[styles.cardBody, { color: surface.text }]} numberOfLines={3}>
+        {nudge.body}
       </Text>
-      {hint ? (
-        <Text style={[styles.panelHint, { color: surface.muted }]} numberOfLines={1}>
-          {hint}
-        </Text>
-      ) : null}
-      {children}
+      <Text style={[styles.link, { color: surface.muted }]}>Explore pattern  →</Text>
     </AnimatedPressable>
   );
 }
 
-export function DashboardTile({
+export function MemoryRoute({
+  hops,
   surface,
-  body,
-  hint,
+}: {
+  hops: string[];
+  surface: HomeSurface;
+}) {
+  if (hops.length < 2) return null;
+  return (
+    <View style={[styles.card, { backgroundColor: surface.panel, borderColor: surface.border }]}>
+      <Text style={[styles.kicker, { color: surface.faint }]}>Connected</Text>
+      <View style={styles.route}>
+        {hops.map((hop, index) => (
+          <View key={`${hop}-${index}`} style={styles.routeItem}>
+            <Text style={[styles.routeLabel, { color: surface.text }]} numberOfLines={1}>
+              {hop}
+            </Text>
+            {index < hops.length - 1 ? (
+              <LinearGradient
+                colors={[cyan, azure]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.routeLine}
+              />
+            ) : null}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+export function WeekPath({
   days,
-  onPress,
+  surface,
 }: {
-  surface: HomeSurface;
-  body: string;
-  hint?: string | null;
   days: Array<{ date: string; label: string; count: number }>;
-  onPress: () => void;
+  surface: HomeSurface;
 }) {
+  if (days.length === 0) return null;
+  const max = Math.max(...days.map((day) => day.count), 1);
+  const w = 280;
+  const h = 56;
+
   return (
-    <QuietTile
-      surface={surface}
-      fill={surface.recall}
-      kicker="Dashboard"
-      body={body}
-      hint={hint}
-      mark={<BarsMark color={surface.ink} />}
-      onPress={onPress}
-    >
-      {days.length > 0 ? (
-        <View style={styles.week}>
-          {days.map((day) => (
-            <View
-              key={`${day.date}-${day.label}`}
-              style={[
-                styles.weekDot,
-                {
-                  backgroundColor: surface.ink,
-                  opacity: day.count > 0 ? 0.7 : 0.18,
-                },
-              ]}
+    <View style={[styles.card, { backgroundColor: surface.panel, borderColor: surface.border }]}>
+      <Text style={[styles.kicker, { color: surface.faint }]}>This week</Text>
+      <Svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`}>
+        <Line x1="6" y1={h - 8} x2={w - 6} y2={h - 8} stroke={surface.border} strokeWidth={1} />
+        <Line
+          x1={6}
+          y1={h - 10 - (days[0]!.count / max) * (h - 20)}
+          x2={w - 6}
+          y2={h - 10 - (days[days.length - 1]!.count / max) * (h - 20)}
+          stroke={azure}
+          strokeOpacity={0.15}
+          strokeWidth={1}
+        />
+        {days.slice(1).map((day, index) => {
+          const prev = days[index]!;
+          const x1 = (index / Math.max(days.length - 1, 1)) * (w - 12) + 6;
+          const y1 = h - 10 - (prev.count / max) * (h - 20);
+          const x2 = ((index + 1) / Math.max(days.length - 1, 1)) * (w - 12) + 6;
+          const y2 = h - 10 - (day.count / max) * (h - 20);
+          return (
+            <Line
+              key={`${prev.date}-${day.date}`}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke={index === 0 ? cyan : azure}
+              strokeWidth={1.5}
             />
-          ))}
-        </View>
-      ) : null}
-    </QuietTile>
+          );
+        })}
+        {days.map((day, index) => {
+          const x = (index / Math.max(days.length - 1, 1)) * (w - 12) + 6;
+          const y = h - 10 - (day.count / max) * (h - 20);
+          return <Circle key={day.date} cx={x} cy={y} r={day.count > 0 ? 3 : 2} fill={day.count > 0 ? azure : surface.faint} />;
+        })}
+      </Svg>
+      <View style={styles.weekLabels}>
+        {days.map((day) => (
+          <Text key={day.date} style={[styles.weekLabel, { color: surface.faint }]}>
+            {day.label.slice(0, 1)}
+          </Text>
+        ))}
+      </View>
+    </View>
   );
 }
 
-export function BriefTile({
-  surface,
-  body,
-  hint,
-  onPress,
-}: {
-  surface: HomeSurface;
-  body: string;
-  hint?: string | null;
-  onPress: () => void;
-}) {
-  return (
-    <QuietTile
-      surface={surface}
-      fill={surface.chipFills[4]}
-      kicker="Daily brief"
-      body={body}
-      hint={hint}
-      mark={<WindowMark color={surface.ink} />}
-      onPress={onPress}
-    />
-  );
-}
-
-export function DiscoverRail({
-  prediction,
-  projects,
-  topics,
-  surface,
-  onPrediction,
-  onProjects,
-  onTopic,
-}: {
-  prediction: PredictionItem | null;
-  projects: ApiProjectSummary[];
-  topics: Array<{ id: string; name: string }>;
-  surface: HomeSurface;
-  onPrediction: () => void;
-  onProjects: () => void;
-  onTopic: (id: string) => void;
-}) {
-  const items: Array<{
-    key: string;
-    kicker: string;
-    body: string;
-    fill: string;
-    mark: ReactNode;
-    onPress: () => void;
-  }> = [];
-
-  items.push({
-    key: 'predictions',
-    kicker: 'Predictions',
-    body: prediction?.title ?? 'No patterns yet',
-    fill: surface.chipFills[0],
-    mark: <HorizonMark color={surface.ink} size={22} />,
-    onPress: onPrediction,
-  });
-  items.push({
-    key: 'projects',
-    kicker: 'Projects',
-    body: projects[0]?.name ?? 'None yet',
-    fill: surface.panel,
-    mark: <StackMark color={surface.ink} size={22} />,
-    onPress: onProjects,
-  });
-  topics.forEach((topic, index) => {
-    items.push({
-      key: `topic-${topic.id}`,
-      kicker: 'Topic',
-      body: topic.name,
-      fill: surface.chipFills[(index + 2) % surface.chipFills.length] ?? surface.pill,
-      mark: <View style={[styles.chipDot, { backgroundColor: surface.ink }]} />,
-      onPress: () => onTopic(topic.id),
-    });
-  });
-
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.rail}
-    >
-      {items.map((item) => (
-        <CompactCard key={item.key} surface={surface} item={item} />
-      ))}
-    </ScrollView>
-  );
-}
-
-function CompactCard({
-  surface,
-  item,
-}: {
-  surface: HomeSurface;
-  item: {
-    kicker: string;
-    body: string;
-    fill: string;
-    mark: ReactNode;
-    onPress: () => void;
-  };
-}) {
-  const press = useHomePress(surface.pressScale);
-  return (
-    <AnimatedPressable
-      onPress={() => hapticPress(item.onPress)}
-      onPressIn={press.onPressIn}
-      onPressOut={press.onPressOut}
-      accessibilityRole="button"
-      accessibilityLabel={`${item.kicker}. ${item.body}`}
-      style={[styles.compact, surface.shadow, { backgroundColor: item.fill }, press.style]}
-    >
-      {item.mark}
-      <Text style={[styles.panelKicker, { color: surface.ink }]}>{item.kicker}</Text>
-      <Text style={[styles.compactBody, { color: surface.text }]} numberOfLines={2}>
-        {item.body}
-      </Text>
-    </AnimatedPressable>
-  );
-}
-
-export function StatusStrip({
-  text,
-  color,
-  streak,
-}: {
-  text: string;
-  color: string;
-  streak?: number;
-}) {
-  const shown = useCountUp(streak && streak > 0 ? streak : 0, Boolean(streak && streak > 0), String(streak ?? 0));
-  const line =
-    streak && streak > 0 && text.includes('recall streak')
-      ? `${shown}-day recall streak`
-      : text;
-  return <Text style={[styles.status, { color }]}>{line}</Text>;
-}
-
-export function CaptureFab({
-  surface,
-  onPress,
-}: {
-  surface: HomeSurface;
-  onPress: () => void;
-}) {
-  const press = useHomePress(surface.pressScale);
-  return (
-    <AnimatedPressable
-      onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        onPress();
-      }}
-      onPressIn={press.onPressIn}
-      onPressOut={press.onPressOut}
-      accessibilityRole="button"
-      accessibilityLabel="Remember"
-      style={[styles.fab, surface.shadow, { backgroundColor: surface.fab }, press.style]}
-    >
-      <PlusMark color={surface.ink} size={24} />
-    </AnimatedPressable>
-  );
+export function StatusLine({ text, color }: { text: string; color: string }) {
+  return <Text style={[styles.status, { color }]}>{text}</Text>;
 }
 
 const styles = StyleSheet.create({
-  heroTalk: {
-    minHeight: 188,
-    borderRadius: 28,
+  highlight: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    height: 196,
+    borderRadius: homeShape.poster,
     overflow: 'hidden',
   },
-  heroTalkFill: {
+  highlightFill: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    justifyContent: 'space-between',
-  },
-  heroArt: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  heroLabel: {
-    fontFamily: homeFont.serif,
-    fontSize: 26,
-    lineHeight: 32,
-    letterSpacing: -0.4,
-  },
-  heroRecall: {
-    minHeight: 112,
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  heroRecallLabel: {
-    fontFamily: homeFont.serif,
-    fontSize: 22,
-    lineHeight: 28,
-    letterSpacing: -0.3,
-    flex: 1,
-  },
-  tile: {
-    flex: 1,
-    minHeight: 112,
     padding: 14,
-    borderRadius: 22,
-    gap: 6,
+    justifyContent: 'space-between',
   },
-  tileBody: {
+  highlightImage: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.28,
+  },
+  highlightShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+  },
+  highlightLabel: {
     fontFamily: homeFont.serif,
-    fontSize: 15,
-    lineHeight: 20,
-    letterSpacing: -0.15,
+    fontSize: 24,
+    letterSpacing: -0.4,
+    color: '#101010',
   },
-  week: {
-    flexDirection: 'row',
-    gap: 5,
-    marginTop: 2,
+  picture: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    height: 168,
+    borderRadius: homeShape.poster,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 14,
+    justifyContent: 'space-between',
   },
-  weekDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+  ovalFrame: {
+    width: 56,
+    height: 72,
+    borderRadius: 36,
+    overflow: 'hidden',
   },
-  panel: {
-    padding: 18,
-    borderRadius: 24,
-    gap: 4,
+  ovalImage: {
+    width: '100%',
+    height: '100%',
   },
-  panelTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
+  pictureMark: {
+    alignItems: 'flex-start',
   },
-  panelCopy: {
-    flex: 1,
-    gap: 4,
-  },
-  panelKicker: {
-    fontFamily: homeFont.sansMedium,
-    fontSize: 12,
-    letterSpacing: 0.15,
-  },
-  panelBody: {
+  pictureLabel: {
     fontFamily: homeFont.serif,
-    fontSize: 18,
-    lineHeight: 25,
-    letterSpacing: -0.2,
+    fontSize: 20,
+    letterSpacing: -0.3,
   },
-  panelHint: {
-    fontFamily: homeFont.sans,
-    fontSize: 12,
-    letterSpacing: 0.1,
-    marginTop: 2,
+  hero: {
+    width: '100%',
+    height: 228,
+    borderRadius: homeShape.poster,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  panelExtra: {
+  heroKicker: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    paddingTop: 12,
+    top: 14,
+    left: 16,
+    zIndex: 2,
+    fontFamily: homeFont.sansMedium,
+    fontSize: 11,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+  },
+  metrics: {
+    width: '100%',
+    flexDirection: 'row',
     gap: 10,
   },
-  snippet: {
-    fontFamily: homeFont.sans,
-    fontSize: 14,
-    lineHeight: 20,
-    letterSpacing: 0.1,
+  metric: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minHeight: 88,
+    borderRadius: homeShape.poster,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    justifyContent: 'space-between',
   },
-  linkRow: {
+  metricValue: {
+    fontFamily: homeFont.serif,
+    fontSize: 28,
+    letterSpacing: -0.6,
+    lineHeight: 32,
+  },
+  metricLabel: {
+    fontFamily: homeFont.sansMedium,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  heroImage: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.22,
+  },
+  field: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+  },
+  nodeLabel: {
+    position: 'absolute',
+    width: 104,
+    textAlign: 'center',
+    fontFamily: homeFont.sansMedium,
+    fontSize: 11,
+    letterSpacing: 0.2,
+  },
+  heroTop: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+    right: 14,
+  },
+  heroBottom: {
+    position: 'absolute',
+    bottom: 14,
+    left: 14,
+    right: 14,
+    alignItems: 'flex-start',
+  },
+  heroPills: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  miniChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    maxWidth: 160,
-  },
-  askChip: {
-    alignSelf: 'flex-start',
+  pill: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  askChipLabel: {
+  pillLabel: {
+    fontFamily: homeFont.sansMedium,
+    fontSize: 12,
+    letterSpacing: 0.3,
+  },
+  command: {
+    width: '100%',
+    minHeight: 56,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  commandLabel: {
+    flex: 1,
+    fontFamily: homeFont.sans,
+    fontSize: 16,
+  },
+  commandTrail: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  console: {
+    width: '100%',
+    borderRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 18,
+    gap: 12,
+  },
+  consolePrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  consoleText: {
+    flex: 1,
+    fontFamily: homeFont.sansSemi,
+    fontSize: 20,
+    lineHeight: 26,
+    letterSpacing: -0.2,
+  },
+  card: {
+    width: '100%',
+    borderRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 18,
+    gap: 10,
+  },
+  kicker: {
+    fontFamily: homeFont.sansMedium,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  cardBody: {
+    fontFamily: homeFont.sansSemi,
+    fontSize: 17,
+    lineHeight: 24,
+    letterSpacing: -0.15,
+  },
+  meta: {
+    fontFamily: homeFont.sans,
+    fontSize: 12,
+    letterSpacing: 0.15,
+  },
+  link: {
     fontFamily: homeFont.sansMedium,
     fontSize: 13,
-    letterSpacing: 0.1,
+    letterSpacing: 0.15,
   },
-  thumb: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+  memoryImage: {
+    width: '100%',
+    height: 128,
+    borderRadius: 18,
   },
-  rail: {
-    gap: 10,
-    paddingRight: 8,
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  compact: {
-    width: 148,
-    minHeight: 92,
-    padding: 12,
-    borderRadius: 20,
-    gap: 6,
+  tag: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
   },
-  compactBody: {
-    fontFamily: homeFont.serif,
-    fontSize: 14,
-    lineHeight: 19,
+  tagLabel: {
+    fontFamily: homeFont.sansMedium,
+    fontSize: 12,
+  },
+  insightHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  spark: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  route: {
+    gap: 8,
+  },
+  routeItem: {
+    gap: 8,
+  },
+  routeLabel: {
+    fontFamily: homeFont.sansBold,
+    fontSize: 15,
     letterSpacing: -0.1,
   },
-  chipDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    opacity: 0.55,
+  routeLine: {
+    height: 2,
+    width: 56,
+    borderRadius: 99,
   },
-  chipLabel: {
-    fontFamily: homeFont.sans,
-    fontSize: 13,
-    letterSpacing: 0.1,
+  weekLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  weekLabel: {
+    fontFamily: homeFont.sansMedium,
+    fontSize: 11,
+    letterSpacing: 0.3,
+    width: 16,
+    textAlign: 'center',
   },
   status: {
     fontFamily: homeFont.sans,
     fontSize: 12,
     letterSpacing: 0.15,
-  },
-  fab: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

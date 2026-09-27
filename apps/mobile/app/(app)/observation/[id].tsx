@@ -15,6 +15,8 @@ import {
   ApiError,
   deleteObservation,
   fetchObservation,
+  fetchRelatedMemories,
+  type RelatedMemoryItem,
   formatObservationReadyTime,
   isProcessingObservationStatus,
   isTerminalObservationStatus,
@@ -26,6 +28,7 @@ import {
   type ApiObservation,
 } from '../../../lib/api';
 import { captureSourceLabel } from '../../../lib/capture';
+import { connectionCopy } from '../../../lib/discovery';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import type { Observation, ProcessingStatus, SourceType } from '../../../types';
 
@@ -156,6 +159,7 @@ export default function ObservationDetailScreen() {
   const [draftTitle, setDraftTitle] = useState('');
   const [draftText, setDraftText] = useState('');
   const [fileToken, setFileToken] = useState<string | null>(null);
+  const [related, setRelated] = useState<RelatedMemoryItem[]>([]);
   const matchedSnippet =
     typeof highlight === 'string' && highlight.trim().length > 0
       ? highlight.trim()
@@ -181,6 +185,9 @@ export default function ObservationDetailScreen() {
       setData(mapApiObservation(api));
       setError(null);
       loadedIdRef.current = observationId;
+      void fetchRelatedMemories(token, observationId)
+        .then(setRelated)
+        .catch(() => setRelated([]));
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setError('Not found');
@@ -546,6 +553,30 @@ export default function ObservationDetailScreen() {
           )}
         </GlassPanel>
 
+        {related.length > 0 ? (
+          <GlassPanel>
+            <ThemedText colorKey="textMuted" style={styles.kicker}>
+              Connected to
+            </ThemedText>
+            {related.slice(0, 5).map((item) => (
+              <Pressable
+                key={item.observationId}
+                onPress={() => router.push(`/(app)/observation/${item.observationId}`)}
+                accessibilityRole="button"
+                accessibilityLabel={item.filename}
+                style={styles.relatedRow}
+              >
+                <ThemedText colorKey="text" style={styles.sourceTitle} numberOfLines={1}>
+                  {item.filename.replace(/\.[a-z0-9]+$/i, '')}
+                </ThemedText>
+                <ThemedText colorKey="textMuted" style={styles.meta}>
+                  {connectionCopy(item)}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </GlassPanel>
+        ) : null}
+
         <SoftLinkList
           items={[
             {
@@ -554,7 +585,7 @@ export default function ObservationDetailScreen() {
               onPress: editing ? cancelEdit : beginEdit,
             },
             {
-              label: 'Ask about this memory',
+              label: 'Ask about this',
               icon: 'message-circle',
               onPress: () =>
                 router.push({
@@ -566,11 +597,6 @@ export default function ObservationDetailScreen() {
                     q: `What did I say in this memory?`,
                   },
                 }),
-            },
-            {
-              label: 'Related memories',
-              icon: 'git-merge',
-              onPress: () => router.push(`/(app)/related/${String(id)}`),
             },
             {
               label: 'Add to project',
@@ -639,16 +665,16 @@ export default function ObservationDetailScreen() {
 
 const styles = StyleSheet.create({
   titleBlock: { gap: 8 },
-  meta: { fontFamily: 'Inter_400Regular', fontSize: 12 },
+  meta: { fontFamily: 'Roboto_400Regular', fontSize: 12 },
   kicker: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 11,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
-  body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21 },
-  placeholder: { fontFamily: 'Inter_400Regular', fontSize: 13 },
-  sourceTitle: { fontFamily: 'Inter_500Medium', fontSize: 15 },
+  body: { fontFamily: 'Roboto_400Regular', fontSize: 14, lineHeight: 21 },
+  placeholder: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
+  sourceTitle: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     borderWidth: StyleSheet.hairlineWidth * 2,
@@ -656,8 +682,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  chipText: { fontFamily: 'Inter_500Medium', fontSize: 12 },
+  chipText: { fontFamily: 'Roboto_500Medium', fontSize: 12 },
   inlineBtn: { marginTop: 8 },
   preview: { width: '100%', height: 220, borderRadius: 20 },
   editBody: { minHeight: 140, textAlignVertical: 'top' },
+  relatedRow: { gap: 4, paddingVertical: 8, minHeight: 44 },
 });

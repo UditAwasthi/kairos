@@ -6,15 +6,15 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/logo-light.png",
+      "image": "./assets/logo-dark.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F6F1EA",
+      "backgroundColor": "#101010",
       "dark": {
         "image": "./assets/logo-dark.png",
-        "backgroundColor": "#100C12"
+        "backgroundColor": "#101010"
       }
     },
     "ios": {
@@ -38,7 +38,7 @@
         "android.permission.POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#F6F1EA",
+        "backgroundColor": "#F5F5F5",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -63,7 +63,7 @@
         "expo-notifications",
         {
           "icon": "./assets/android-icon-monochrome.png",
-          "color": "#4A2341",
+          "color": "#9DD8E8",
           "defaultChannel": "kairos_updates"
         }
       ],

@@ -1,7 +1,10 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { ProgressionSummary } from '../../lib/api';
 import { rewardLine, streakAssetHint, worldStrengthLabel } from '../../lib/progression';
+import { azure, cyan } from '../../theme';
+import { homeFont } from '../../lib/homeTheme';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import { ThemedText } from '../ThemedText';
 import { ThemedButton } from '../ui/ThemedButton';
@@ -19,9 +22,9 @@ export function ProgressDashboard({
   buying?: boolean;
 }) {
   const { colors } = useAppTheme();
-  const reward = rewardLine(data.lastEvent);
-  const titles = data.unlocks.filter((item) => item.kind === 'title');
-  const auras = data.unlocks.filter((item) => item.kind === 'aura');
+  const reward = rewardLine(data.lastEvent ?? null);
+  const titles = (data.unlocks ?? []).filter((item) => item.kind === 'title');
+  const auras = (data.unlocks ?? []).filter((item) => item.kind === 'aura');
 
   return (
     <View style={styles.stack}>
@@ -33,12 +36,14 @@ export function ProgressDashboard({
           {worldStrengthLabel(data.level)}
         </ThemedText>
         <View style={[styles.track, { backgroundColor: colors.surfaceContainer }]}>
-          <View
+          <LinearGradient
+            colors={[cyan, azure]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
             style={[
               styles.fill,
               {
-                backgroundColor: colors.accentPurple,
-                width: `${Math.round(data.progress * 100)}%`,
+                width: `${Math.round(Math.min(1, Math.max(0, data.progress ?? 0)) * 100)}%`,
               },
             ]}
           />
@@ -53,10 +58,10 @@ export function ProgressDashboard({
           The run
         </ThemedText>
         <ThemedText colorKey="text" style={styles.streak}>
-          {data.currentStreak} day{data.currentStreak === 1 ? '' : 's'}
+          {data.currentStreak ?? 0} day{data.currentStreak === 1 ? '' : 's'}
         </ThemedText>
         <ThemedText colorKey="textMuted" style={styles.meta}>
-          Longest {data.longestStreak}. {streakAssetHint(data)}
+          Longest {data.longestStreak ?? 0}. {streakAssetHint(data)}
         </ThemedText>
         {data.equippedTitleLabel || data.equippedAuraLabel ? (
           <ThemedText colorKey="text" style={styles.wear}>
@@ -143,21 +148,23 @@ export function ProgressDashboard({
 const styles = StyleSheet.create({
   stack: { gap: 14 },
   kicker: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: homeFont.sansMedium,
     fontSize: 11,
-    letterSpacing: 0.8,
+    letterSpacing: 1.1,
     textTransform: 'uppercase',
     marginBottom: 6,
   },
   level: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 28,
-    letterSpacing: -0.4,
+    fontFamily: homeFont.serif,
+    fontSize: 34,
+    letterSpacing: -0.6,
+    lineHeight: 38,
   },
   streak: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 26,
-    letterSpacing: -0.3,
+    fontFamily: homeFont.serif,
+    fontSize: 34,
+    letterSpacing: -0.6,
+    lineHeight: 38,
   },
   track: {
     height: 8,
@@ -166,11 +173,11 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   fill: { height: 8, borderRadius: 99 },
-  meta: { fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: 8 },
-  wear: { fontFamily: 'Inter_500Medium', fontSize: 15, marginTop: 10 },
-  reward: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 22 },
+  meta: { fontFamily: homeFont.sans, fontSize: 13, marginTop: 8 },
+  wear: { fontFamily: homeFont.sansMedium, fontSize: 15, marginTop: 10 },
+  reward: { fontFamily: homeFont.sans, fontSize: 15, lineHeight: 22 },
   freezeBtn: { alignSelf: 'flex-start', marginTop: 14 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999 },
-  chipLabel: { fontFamily: 'Inter_500Medium', fontSize: 13 },
+  chipLabel: { fontFamily: homeFont.sansMedium, fontSize: 13 },
 });

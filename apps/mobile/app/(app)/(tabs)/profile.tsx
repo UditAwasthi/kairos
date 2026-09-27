@@ -3,11 +3,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 
-import { ThemeToggleButton } from '../../../components/ThemeToggleButton';
-import { GlassPanel } from '../../../components/ui/Glass';
 import { SoftLinkList, SoftPage } from '../../../components/ui/SoftScreen';
-import { ThemedButton } from '../../../components/ui/ThemedButton';
-import { ThemedText } from '../../../components/ThemedText';
+import { KairosButton, KairosSurface, KairosText } from '../../../components/ui/Kairos';
 import { listPendingCaptures } from '../../../lib/captureQueue';
 import {
   profileSyncCopy,
@@ -21,7 +18,7 @@ export default function ProfileScreen() {
   const { user } = useUser();
   const { signOut } = useAuth();
   const { resetOnboarding } = useOnboarding();
-  const { colors, themeProgress, toggleTheme } = useAppTheme();
+  const { colors } = useAppTheme();
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [syncCopy, setSyncCopy] = useState(() => profileSyncCopy(0));
@@ -61,78 +58,50 @@ export default function ProfileScreen() {
         {user?.imageUrl ? (
           <Image source={{ uri: user.imageUrl }} style={styles.avatar} />
         ) : (
-          <View style={[styles.avatarFallback, { backgroundColor: colors.accentGlow }]}>
-            <ThemedText colorKey="accent" style={styles.avatarLetter}>
-              {name.slice(0, 1).toUpperCase()}
-            </ThemedText>
+          <View style={[styles.avatarFallback, { backgroundColor: colors.surface }]}>
+            <KairosText variant="title">{name.slice(0, 1).toUpperCase()}</KairosText>
           </View>
         )}
         <View style={styles.headerText}>
-          <ThemedText colorKey="text" style={styles.name} numberOfLines={1}>
-            {name}
-          </ThemedText>
+          <KairosText variant="heading">{name}</KairosText>
           {email ? (
-            <ThemedText colorKey="textMuted" style={styles.email} numberOfLines={1}>
+            <KairosText variant="caption" color="textSecondary" numberOfLines={1}>
               {email}
-            </ThemedText>
+            </KairosText>
           ) : null}
         </View>
-        <ThemeToggleButton themeProgress={themeProgress} onToggle={toggleTheme} />
       </View>
 
-      <GlassPanel>
-        <ThemedText colorKey="textMuted" style={styles.syncKicker}>
-          Offline captures
-        </ThemedText>
-        <ThemedText colorKey="text" style={styles.syncTitle}>
-          {syncCopy.title}
-        </ThemedText>
-        <ThemedText colorKey="textMuted" style={styles.syncDetail}>
+      <KairosSurface contentStyle={{ padding: 20, gap: 8 }}>
+        <KairosText variant="label" color="textMuted">
+          Sync
+        </KairosText>
+        <KairosText variant="title">{syncCopy.title}</KairosText>
+        <KairosText variant="caption" color="textSecondary">
           {syncCopy.detail}
-        </ThemedText>
-      </GlassPanel>
+        </KairosText>
+      </KairosSurface>
 
       <SoftLinkList
         items={[
-          { label: 'Settings', icon: 'settings', onPress: () => router.push('/(app)/settings') },
-          { label: 'World', icon: 'compass', onPress: () => router.push('/(app)/progression') },
-          { label: 'Dashboard', icon: 'bar-chart-2', onPress: () => router.push('/(app)/dashboard') },
-          { label: 'Predictions', icon: 'zap', onPress: () => router.push('/(app)/predictions') },
-          { label: 'Today', icon: 'sun', onPress: () => router.push('/(app)/insight') },
-          { label: 'Daily brief', icon: 'book-open', onPress: () => router.push('/(app)/brief') },
-          { label: 'Timeline', icon: 'clock', onPress: () => router.push('/(app)/timeline') },
-          {
-            label: 'Notifications',
-            icon: 'bell',
-            onPress: () => router.push('/(app)/notifications'),
-          },
-          { label: 'Devices', icon: 'smartphone', onPress: () => router.push('/(app)/devices') },
-          { label: 'Privacy', icon: 'shield', onPress: () => router.push('/(app)/privacy') },
+          { label: 'Privacy & Recall', icon: 'shield', onPress: () => router.push('/(app)/privacy') },
           { label: 'Data', icon: 'database', onPress: () => router.push('/(app)/data') },
-          { label: 'Topics', icon: 'hash', onPress: () => router.push('/(app)/topics') },
-          { label: 'Projects', icon: 'folder', onPress: () => router.push('/(app)/projects') },
-          { label: 'Activity', icon: 'layers', onPress: () => router.push('/(app)/activity') },
-          {
-            label: 'How it works',
-            icon: 'book-open',
-            onPress: () => router.push('/(app)/how-it-works'),
-          },
+          { label: 'How it works', icon: 'book-open', onPress: () => router.push('/(app)/how-it-works') },
           { label: 'About', icon: 'info', onPress: () => router.push('/(app)/about') },
         ]}
       />
 
-      <ThemedButton
+      <KairosButton
         disabled={isSigningOut}
         label={isSigningOut ? '…' : 'Sign out'}
         onPress={() => void handleSignOut()}
-        style={styles.signOut}
       />
     </SoftPage>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   avatar: { width: 56, height: 56, borderRadius: 28 },
   avatarFallback: {
     width: 56,
@@ -141,21 +110,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarLetter: { fontFamily: 'Inter_600SemiBold', fontSize: 20 },
-  headerText: { flex: 1, gap: 2 },
-  name: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 24,
-    letterSpacing: -0.3,
-  },
-  email: { fontFamily: 'Inter_400Regular', fontSize: 13 },
-  syncKicker: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 11,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  syncTitle: { fontFamily: 'Inter_500Medium', fontSize: 16 },
-  syncDetail: { fontFamily: 'Inter_400Regular', fontSize: 13 },
-  signOut: { marginTop: 4 },
+  headerText: { flex: 1, gap: 4 },
 });

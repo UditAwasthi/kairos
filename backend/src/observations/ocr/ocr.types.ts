@@ -1,3 +1,5 @@
+import { readEmbeddingApiKeys } from '../../ai/ai-api-key-pool';
+
 export type OcrConfig = {
   provider: string;
   model: string;
@@ -27,9 +29,7 @@ export function readOcrConfig(): OcrConfig {
     provider,
     model: process.env.OCR_MODEL?.trim() || defaultModel,
     apiKey:
-      process.env.OCR_API_KEY?.trim() ||
-      process.env.EMBEDDING_API_KEY?.trim() ||
-      undefined,
+      process.env.OCR_API_KEY?.trim() || readEmbeddingApiKeys()[0] || undefined,
     baseUrl: (
       process.env.OCR_BASE_URL?.trim() ||
       process.env.EMBEDDING_BASE_URL?.trim() ||

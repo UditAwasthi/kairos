@@ -26,11 +26,11 @@ function createEmbeddingProvider(): EmbeddingProvider {
     const gemini = new GeminiEmbeddingProvider();
     if (!gemini.isConfigured()) {
       logger.warn(
-        'Gemini embedding API key missing. Set EMBEDDING_API_KEY for EMBEDDING_PROVIDER=gemini.',
+        'Gemini embedding API key missing. Set EMBEDDING_API_KEY / EMBEDDING_API_KEY_1.. or reuse AI_API_KEY*.',
       );
     } else {
       logger.log(
-        `Using Gemini embeddings (model=${gemini.model}, dimensions=${gemini.dimensions}).`,
+        `Using Gemini embeddings (keys=${gemini.apiKeyCount}, model=${gemini.model}, dimensions=${gemini.dimensions}).`,
       );
     }
     return gemini;

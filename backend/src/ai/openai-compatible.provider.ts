@@ -480,6 +480,7 @@ export class OpenAICompatibleProvider implements AIProvider {
     const rateLimitHeaders = collectRateLimitHeaders(response.headers);
     const requestId =
       response.headers.get('x-request-id') ||
+      response.headers.get('x-goog-request-id') ||
       response.headers.get('x-groq-request-id') ||
       response.headers.get('cf-ray') ||
       undefined;

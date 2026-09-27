@@ -1,5 +1,5 @@
 /**
- * Rotating pool of OpenAI-compatible API keys (e.g. multiple Groq keys).
+ * Rotating pool of Gemini API keys (chat and embeddings).
  * On 429, the hot key cools down while the next free key is used immediately.
  * In-flight checkouts prefer idle keys so N keys ≈ N parallel requests.
  */
@@ -115,6 +115,24 @@ export class AiApiKeyPool {
  * - AI_API_KEYS=comma,separated,list
  */
 export function readAiApiKeys(env: NodeJS.ProcessEnv = process.env): string[] {
+  return readPrefixedApiKeys('AI_API_KEY', env);
+}
+
+/**
+ * Embedding keys: EMBEDDING_API_KEY / _1.._8 / EMBEDDING_API_KEYS.
+ * Falls back to the chat Gemini key pool so one set of keys can serve both.
+ */
+export function readEmbeddingApiKeys(
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const dedicated = readPrefixedApiKeys('EMBEDDING_API_KEY', env);
+  return dedicated.length > 0 ? dedicated : readAiApiKeys(env);
+}
+
+export function readPrefixedApiKeys(
+  prefix: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
 
@@ -125,13 +143,13 @@ export function readAiApiKeys(env: NodeJS.ProcessEnv = process.env): string[] {
     out.push(key);
   };
 
-  push(env.AI_API_KEY);
+  push(env[prefix]);
 
   for (let i = 1; i <= 8; i += 1) {
-    push(env[`AI_API_KEY_${i}`]);
+    push(env[`${prefix}_${i}`]);
   }
 
-  const list = env.AI_API_KEYS?.trim();
+  const list = env[`${prefix}S`]?.trim();
   if (list) {
     for (const part of list.split(/[,;\s]+/)) {
       push(part);

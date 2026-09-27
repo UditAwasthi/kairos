@@ -72,18 +72,18 @@ export type OnboardingSurface = {
   rememberText: string;
 };
 
-export function onboardingSurface(colors: AppTheme, isLight: boolean): OnboardingSurface {
+export function onboardingSurface(colors: AppTheme, _isLight: boolean): OnboardingSurface {
   return {
     canvas: colors.background,
     text: colors.text,
     muted: colors.textMuted,
-    lavender: isLight ? colors.accentLavender : colors.accentLilac,
-    lavenderInk: isLight ? colors.accentPurple : colors.accentRose,
-    blob: isLight ? colors.accentLilac : '#2A2230',
+    lavender: colors.surfaceContainer,
+    lavenderInk: colors.text,
+    blob: colors.surfaceContainer,
     line: colors.border,
     cta: colors.buttonFill,
     ctaText: colors.buttonText,
-    remember: isLight ? colors.accentLavender : colors.accentLilac,
+    remember: colors.surfaceElevated,
     rememberText: colors.text,
   };
 }

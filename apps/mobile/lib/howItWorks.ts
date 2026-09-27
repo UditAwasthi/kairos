@@ -214,7 +214,7 @@ export const HOW_IT_WORKS_FEATURES: HowItWorksFeature[] = [
       'Tap evidence to return to the original memory.',
     ],
     tryLabel: 'Open Dashboard',
-    tryHref: '/(app)/dashboard',
+    tryHref: '/(app)/discover',
   },
   {
     id: 'predictions',
@@ -228,7 +228,7 @@ export const HOW_IT_WORKS_FEATURES: HowItWorksFeature[] = [
       'Open the linked memories if you want to check the source.',
     ],
     tryLabel: 'Open Predictions',
-    tryHref: '/(app)/predictions',
+    tryHref: '/(app)/discover',
   },
   {
     id: 'brief',
@@ -242,7 +242,7 @@ export const HOW_IT_WORKS_FEATURES: HowItWorksFeature[] = [
       'Open a memory if you want the full note.',
     ],
     tryLabel: 'Open Daily Brief',
-    tryHref: '/(app)/brief',
+    tryHref: '/(app)/discover',
   },
   {
     id: 'notifications',

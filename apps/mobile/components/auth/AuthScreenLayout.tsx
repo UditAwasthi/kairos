@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
   },
 });

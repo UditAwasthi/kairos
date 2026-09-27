@@ -1,580 +1,306 @@
 import { useAuth } from '@clerk/expo';
-import { Feather } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Pressable,
-  StyleSheet,
-  View,
-} from 'react-native';
-import Animated, {
-  Easing,
-  Extrapolation,
-  interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { SoftAurora } from '../../../components/SoftAurora';
-import { ThemedText } from '../../../components/ThemedText';
-import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
-import { GlassPanel, ScreenGradient } from '../../../components/ui/Glass';
+import {
+  KairosBottomSheet,
+  KairosEnter,
+  KairosMemoryCard,
+  KairosPill,
+  KairosSectionHeader,
+  KairosState,
+  KairosText,
+} from '../../../components/ui/Kairos';
+import { SoftPage } from '../../../components/ui/SoftScreen';
+import { ThemedInput } from '../../../components/ui/ThemedInput';
 import {
   ApiError,
-  deleteRecallData,
-  type RecallEntitlement,
+  fetchProjects,
+  fetchTopics,
+  semanticSearch,
+  type ApiProjectSummary,
+  type ApiSemanticSearchResponse,
+  type ApiTopicSummary,
+  type CaptureSource,
 } from '../../../lib/api';
+import { askPrompts, recallPlaceholders } from '../../../lib/discovery';
+import { memoryTitle } from '../../../lib/homeSummary';
+import { listRecentSearches, rememberSearch } from '../../../lib/recentSearches';
 import {
-  ensureRecallReady,
-  getCachedRecallEntitlement,
-} from '../../../lib/recallSync';
+  SEARCH_DATE_OPTIONS,
+  SEARCH_SOURCE_OPTIONS,
+  dateRangeForPreset,
+  type SearchDatePreset,
+} from '../../../lib/searchFilters';
+import { inferSearchHints } from '../../../lib/searchHints';
 import { useAppTheme } from '../../../providers/ThemeProvider';
-import Recall, { type RecallStatus } from 'kairos-recall';
-
-function relativeTime(ts: number | null | undefined): string {
-  if (!ts) return '—';
-  const diff = Math.max(0, Date.now() - ts);
-  const sec = Math.floor(diff / 1000);
-  if (sec < 60) return `${sec}s`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m`;
-  const hr = Math.floor(min / 60);
-  if (hr < 48) return `${hr}h`;
-  return `${Math.floor(hr / 24)}d`;
-}
-
-function statusWord(status: RecallStatus | null, entitlement: RecallEntitlement | null): string {
-  if (!Recall.isAvailable() || Platform.OS !== 'android') return 'Android';
-  if (entitlement && !entitlement.allowed) return 'Locked';
-  if (!status) return '…';
-  if (status.uploading || (status.queuedCount ?? 0) > 0) return 'Syncing';
-  if (status.capturing || status.on) return 'On';
-  if (status.state === 'needs_consent' || status.userEnabled) return 'Resume';
-  if (status.state === 'paused') return 'Paused';
-  return 'Off';
-}
-
-function PulseOrb({
-  active,
-  busy,
-  disabled,
-  onPress,
-}: {
-  active: boolean;
-  busy: boolean;
-  disabled: boolean;
-  onPress: () => void;
-}) {
-  const { colors, isLight } = useAppTheme();
-  const pulse = useSharedValue(0);
-  const press = useSharedValue(0);
-
-  useEffect(() => {
-    if (active) {
-      pulse.value = withRepeat(
-        withTiming(1, { duration: 2200, easing: Easing.inOut(Easing.sin) }),
-        -1,
-        true,
-      );
-    } else {
-      pulse.value = withTiming(0, { duration: 320 });
-    }
-  }, [active, pulse]);
-
-  const ringA = useAnimatedStyle(() => ({
-    opacity: interpolate(pulse.value, [0, 1], [0.18, 0.42], Extrapolation.CLAMP),
-    transform: [{ scale: interpolate(pulse.value, [0, 1], [1, 1.18]) }],
-  }));
-
-  const ringB = useAnimatedStyle(() => ({
-    opacity: interpolate(pulse.value, [0, 1], [0.1, 0.28], Extrapolation.CLAMP),
-    transform: [{ scale: interpolate(pulse.value, [0, 1], [1, 1.32]) }],
-  }));
-
-  const core = useAnimatedStyle(() => {
-    const pressScale = interpolate(press.value, [0, 1], [1, 0.94]);
-    const pulseScale = interpolate(pulse.value, [0, 1], [1, 1.03]);
-    return {
-      transform: [{ scale: pressScale * pulseScale }],
-    };
-  });
-
-  return (
-    <Pressable
-      disabled={disabled || busy}
-      onPress={onPress}
-      onPressIn={() => {
-        press.value = withSpring(1, { damping: 16, stiffness: 280 });
-      }}
-      onPressOut={() => {
-        press.value = withSpring(0, { damping: 14, stiffness: 240 });
-      }}
-      accessibilityRole="button"
-      accessibilityLabel={active ? 'Turn Recall off' : 'Turn Recall on'}
-      style={styles.orbHit}
-    >
-      <View style={styles.orbStack}>
-        <Animated.View
-          style={[
-            styles.orbRing,
-            {
-              borderColor: isLight ? `${colors.accent}33` : `${colors.accent}44`,
-            },
-            ringB,
-          ]}
-        />
-        <Animated.View
-          style={[
-            styles.orbRing,
-            styles.orbRingMid,
-            {
-              borderColor: isLight ? `${colors.accent}55` : `${colors.accent}66`,
-            },
-            ringA,
-          ]}
-        />
-        <Animated.View
-          style={[
-            styles.orbCore,
-            {
-              backgroundColor: active ? colors.buttonFill : colors.surfaceElevated,
-              borderColor: colors.glassBorder,
-            },
-            colors.shadowElevated,
-            core,
-          ]}
-        >
-          <Feather
-            name={active ? 'eye' : 'eye-off'}
-            size={36}
-            color={active ? colors.buttonText : colors.accent}
-          />
-        </Animated.View>
-      </View>
-    </Pressable>
-  );
-}
 
 export default function RecallScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors } = useAppTheme();
   const { getToken } = useAuth();
-  const [entitlement, setEntitlement] = useState<RecallEntitlement | null>(
-    () => getCachedRecallEntitlement(),
-  );
-  const [status, setStatus] = useState<RecallStatus | null>(null);
-  const [busy, setBusy] = useState(false);
+  const params = useLocalSearchParams<{
+    q?: string;
+    topicId?: string;
+    topicName?: string;
+    entityId?: string;
+    projectId?: string;
+  }>();
 
-  const refresh = useCallback(async (force = false) => {
-    try {
-      const ent = await ensureRecallReady(getToken, { force });
-      if (ent) setEntitlement(ent);
-      if (Recall.isAvailable()) {
-        await Recall.setConfig({
-          sampleIntervalMs: 700,
-          maxOcrPerMinute: 14,
-        });
-        const st = await Recall.getStatus();
-        setStatus(st);
+  const placeholders = recallPlaceholders();
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [query, setQuery] = useState(typeof params.q === 'string' ? params.q : '');
+  const [topics, setTopics] = useState<ApiTopicSummary[]>([]);
+  const [projects, setProjects] = useState<ApiProjectSummary[]>([]);
+  const [recent, setRecent] = useState(listRecentSearches);
+  const [projectId, setProjectId] = useState<string | undefined>(
+    typeof params.projectId === 'string' ? params.projectId : undefined,
+  );
+  const [topicId, setTopicId] = useState<string | undefined>(
+    typeof params.topicId === 'string' ? params.topicId : undefined,
+  );
+  const [entityId, setEntityId] = useState<string | undefined>(
+    typeof params.entityId === 'string' ? params.entityId : undefined,
+  );
+  const [source, setSource] = useState<CaptureSource | undefined>();
+  const [datePreset, setDatePreset] = useState<SearchDatePreset | undefined>();
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ApiSemanticSearchResponse | null>(null);
+  const [searched, setSearched] = useState(false);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setPlaceholderIndex((index) => (index + 1) % placeholders.length);
+    }, 4000);
+    return () => clearInterval(id);
+  }, [placeholders.length]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const [topicData, projectData] = await Promise.all([
+          fetchTopics({ token, limit: 20 }),
+          fetchProjects({ token, limit: 20 }),
+        ]);
+        setTopics(topicData.items);
+        setProjects(projectData.items);
+      } catch {
+        /* optional */
       }
-    } catch {
-      /* keep last good status */
-    }
+    })();
   }, [getToken]);
 
-  useEffect(() => {
-    void refresh(false);
-  }, [refresh]);
-
-  // Live status + proactive flush while there is a backlog.
-  useEffect(() => {
-    if (!Recall.isAvailable()) return;
-
-    let cancelled = false;
-    let flushInFlight = false;
-
-    const tick = async () => {
-      try {
-        let st = await Recall.getStatus();
-        if (cancelled) return;
-        setStatus(st);
-
-        const queued = st.queuedCount ?? 0;
-        if (queued > 0 && !st.uploading && !flushInFlight) {
-          flushInFlight = true;
-          try {
-            st = await Recall.flushUploads();
-            if (!cancelled) setStatus(st);
-          } finally {
-            flushInFlight = false;
-          }
-        }
-      } catch {
-        /* ignore transient native errors */
-      }
-    };
-
-    void tick();
-    const id = setInterval(() => {
-      void tick();
-    }, 1200);
-
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
-
-  const run = async (action: () => Promise<unknown>) => {
+  const runSearch = async (q: string = query) => {
+    const trimmed = q.trim();
+    if (!trimmed) return;
+    setQuery(trimmed);
+    setRecent(rememberSearch(trimmed));
+    setLoading(true);
+    setError(null);
+    setSearched(true);
     try {
-      setBusy(true);
-      await action();
-      await refresh();
+      const token = await getToken();
+      if (!token) throw new ApiError('Sign in required.', 401);
+      const hints = inferSearchHints(trimmed);
+      const dates = datePreset ? dateRangeForPreset(datePreset) : undefined;
+      const response = await semanticSearch({
+        token,
+        query: hints.query,
+        limit: 12,
+        filters: {
+          projectId,
+          topicId,
+          entityId,
+          from: dates?.from ?? hints.from,
+          to: dates?.to ?? hints.to,
+          source: source ?? hints.source,
+        },
+      });
+      setResult(response);
     } catch (err) {
-      Alert.alert(
-        'Recall',
-        err instanceof Error ? err.message : 'Something went wrong.',
-      );
+      setError(err instanceof ApiError ? err.message : 'Search failed');
     } finally {
-      setBusy(false);
+      setLoading(false);
     }
   };
 
-  const isOn = Recall.isOn(status);
-  const canUse = Recall.isAvailable() && entitlement?.allowed === true && !busy;
-  const word = statusWord(status, entitlement);
-  const queued = status?.queuedCount ?? 0;
-  const uploading = Boolean(status?.uploading);
-  const syncing = uploading || queued > 0;
-  const lastSync = uploading ? '…' : relativeTime(status?.lastUploadAt);
-  const syncHint = uploading
-    ? queued > 0
-      ? `Uploading · ${queued} left`
-      : 'Uploading…'
-    : queued > 0
-      ? `${queued} waiting to sync`
-      : null;
-
-  const toggle = () => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (isOn) {
-      void run(async () => {
-        await Recall.turnOff();
-      });
-    } else {
-      void run(async () => {
-        await Recall.turnOn();
-      });
+  useEffect(() => {
+    if (typeof params.q === 'string' && params.q.trim()) {
+      void runSearch(params.q);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.q]);
+
+  const suggestions = [
+    ...askPrompts({ topics, projects, weekCount: 1 }),
+    ...topics.slice(0, 3).map((topic) => topic.name),
+  ].slice(0, 5);
 
   return (
-    <ScreenGradient>
-      <View
-        style={[
-          styles.screen,
-          {
-            paddingTop: insets.top + 12,
-            paddingBottom: insets.bottom + FLOATING_TAB_BAR_CONTENT + 24,
-          },
-        ]}
-      >
-        <View style={styles.top}>
-          <ThemedText colorKey="text" style={styles.title}>
-            Recall
-          </ThemedText>
-          <View style={[styles.pill, { backgroundColor: colors.accentGlow }]}>
-            <View
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: syncing
-                    ? colors.accent
-                    : isOn
-                      ? colors.success
-                      : word === 'Locked'
-                        ? colors.warning
-                        : colors.textMuted,
-                },
-              ]}
-            />
-            <ThemedText colorKey="textMuted" style={styles.pillText}>
-              {word}
-            </ThemedText>
+    <SoftPage tabBar safeTop>
+      <KairosText variant="heading">Recall</KairosText>
+      <ThemedInput
+        value={query}
+        onChangeText={setQuery}
+        placeholder={placeholders[placeholderIndex]}
+        accessibilityLabel="Search memories"
+        returnKeyType="search"
+        onSubmitEditing={() => void runSearch()}
+      />
+      <View style={styles.row}>
+        <KairosPill label="Filters" selected={Boolean(source || datePreset || topicId || projectId)} onPress={() => setFiltersOpen(true)} />
+        <Pressable
+          onPress={() => void runSearch()}
+          disabled={!query.trim()}
+          accessibilityRole="button"
+          accessibilityLabel="Search"
+          style={({ pressed }) => [
+            styles.searchBtn,
+            { backgroundColor: colors.buttonFill, opacity: !query.trim() ? 0.4 : pressed ? 0.85 : 1 },
+          ]}
+        >
+          <KairosText variant="caption" color="text" style={{ color: colors.buttonText }}>
+            Search
+          </KairosText>
+        </Pressable>
+      </View>
+
+      {!searched && recent.length > 0 ? (
+        <View style={styles.block}>
+          <KairosSectionHeader label="Recent" />
+          <View style={styles.chips}>
+            {recent.map((item) => (
+              <KairosPill key={item} label={item} onPress={() => void runSearch(item)} />
+            ))}
           </View>
         </View>
+      ) : null}
 
-        <View style={styles.hero}>
-          <SoftAurora />
-          <PulseOrb
-            active={isOn}
-            busy={busy}
-            disabled={!canUse && !isOn}
-            onPress={toggle}
-          />
-        </View>
-
-        {syncHint ? (
-          <View
-            style={[
-              styles.syncBanner,
-              { backgroundColor: colors.surfaceElevated, borderColor: colors.glassBorder },
-            ]}
-          >
-            <ActivityIndicator size="small" color={colors.accent} />
-            <ThemedText colorKey="textSecondary" style={styles.syncBannerText}>
-              {syncHint}
-            </ThemedText>
+      {!searched ? (
+        <View style={styles.block}>
+          <KairosSectionHeader label="Suggestions" />
+          <View style={styles.chips}>
+            {suggestions.map((item) => (
+              <KairosPill key={item} label={item} onPress={() => void runSearch(item)} />
+            ))}
           </View>
-        ) : null}
-
-        <View style={styles.metrics}>
-          <GlassPanel style={styles.metric} contentStyle={styles.metricInner} padded={false}>
-            <Feather name="layers" size={16} color={colors.accent} />
-            <ThemedText colorKey="text" style={styles.metricValue}>
-              {queued}
-            </ThemedText>
-            <ThemedText colorKey="textMuted" style={styles.metricLabel}>
-              Queue
-            </ThemedText>
-          </GlassPanel>
-          <GlassPanel style={styles.metric} contentStyle={styles.metricInner} padded={false}>
-            <Feather
-              name={uploading ? 'refresh-cw' : 'upload-cloud'}
-              size={16}
-              color={colors.accent}
-            />
-            <ThemedText colorKey="text" style={styles.metricValue}>
-              {lastSync}
-            </ThemedText>
-            <ThemedText colorKey="textMuted" style={styles.metricLabel}>
-              {uploading ? 'Syncing' : 'Synced'}
-            </ThemedText>
-          </GlassPanel>
-          <GlassPanel style={styles.metric} contentStyle={styles.metricInner} padded={false}>
-            <Feather
-              name={entitlement?.allowed ? 'shield' : 'shield-off'}
-              size={16}
-              color={colors.accent}
-            />
-            <ThemedText colorKey="text" style={styles.metricValue}>
-              {entitlement?.allowed ? 'OK' : '—'}
-            </ThemedText>
-            <ThemedText colorKey="textMuted" style={styles.metricLabel}>
-              Access
-            </ThemedText>
-          </GlassPanel>
         </View>
+      ) : null}
 
-        <View style={styles.actions}>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/(app)/(tabs)/ask');
-            }}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              { backgroundColor: colors.surfaceElevated, opacity: pressed ? 0.85 : 1 },
-            ]}
-            accessibilityLabel="Ask"
-          >
-            <Feather name="message-circle" size={18} color={colors.accent} />
-          </Pressable>
-          <Pressable
-            disabled={busy || !Recall.isAvailable()}
+      {loading ? <KairosState kind="loading" title="Looking through your memories" /> : null}
+      {error ? <KairosState kind="error" title="Unable to search" message={error} actionLabel="Retry" onAction={() => void runSearch()} /> : null}
+
+      {searched && !loading && result && result.results.length === 0 ? (
+        <KairosState kind="empty" title="Nothing matched" message="Try a topic, a date, or fewer words." />
+      ) : null}
+
+      {result?.results.map((item, index) => (
+        <KairosEnter key={item.chunkId} delay={index * 40}>
+          <KairosMemoryCard
+            title={memoryTitle(item.observation.filename, item.observation.summary)}
+            date={new Date(item.observation.capturedAt).toLocaleDateString(undefined, {
+              month: 'short',
+              day: 'numeric',
+            })}
+            snippet={item.content}
             onPress={() =>
-              void run(async () => {
-                await Recall.clearLocalData();
+              router.push({
+                pathname: '/(app)/observation/[id]',
+                params: { id: item.observationId, highlight: item.content.slice(0, 180) },
               })
             }
-            style={({ pressed }) => [
-              styles.actionBtn,
-              { backgroundColor: colors.surfaceElevated, opacity: pressed ? 0.85 : 1 },
-            ]}
-            accessibilityLabel="Clear queue"
-          >
-            <Feather name="trash" size={18} color={colors.textSecondary} />
-          </Pressable>
-          <Pressable
-            disabled={busy}
-            onPress={() => {
-              Alert.alert('Delete?', undefined, [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Delete',
-                  style: 'destructive',
-                  onPress: () =>
-                    void run(async () => {
-                      const token = await getToken();
-                      if (!token) throw new ApiError('Sign in required.', 401);
-                      await Recall.turnOff().catch(() => undefined);
-                      await Recall.clearLocalData().catch(() => undefined);
-                      await deleteRecallData(token);
-                    }),
-                },
-              ]);
-            }}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              { backgroundColor: colors.surfaceElevated, opacity: pressed ? 0.85 : 1 },
-            ]}
-            accessibilityLabel="Delete server data"
-          >
-            <Feather name="cloud-off" size={18} color={colors.textSecondary} />
-          </Pressable>
-          <Pressable
-            disabled={busy}
-            onPress={() => void run(async () => { await refresh(true); })}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              { backgroundColor: colors.surfaceElevated, opacity: pressed ? 0.85 : 1 },
-            ]}
-            accessibilityLabel="Refresh"
-          >
-            <Feather name="refresh-cw" size={18} color={colors.textSecondary} />
-          </Pressable>
-        </View>
+          />
+        </KairosEnter>
+      ))}
 
-        {status?.lastError ? (
-          <ThemedText colorKey="warning" style={styles.error} numberOfLines={2}>
-            {status.lastError}
-          </ThemedText>
-        ) : null}
-      </View>
-    </ScreenGradient>
+      <KairosBottomSheet visible={filtersOpen} title="Filters" onClose={() => setFiltersOpen(false)}>
+        <ScrollView contentContainerStyle={styles.sheet}>
+          <KairosText variant="label" color="textMuted">
+            Source
+          </KairosText>
+          <View style={styles.chips}>
+            {SEARCH_SOURCE_OPTIONS.map((option) => (
+              <KairosPill
+                key={option.value}
+                label={option.label}
+                selected={source === option.value}
+                onPress={() => setSource((current) => (current === option.value ? undefined : option.value))}
+              />
+            ))}
+          </View>
+          <KairosText variant="label" color="textMuted">
+            Date
+          </KairosText>
+          <View style={styles.chips}>
+            {SEARCH_DATE_OPTIONS.map((option) => (
+              <KairosPill
+                key={option.value}
+                label={option.label}
+                selected={datePreset === option.value}
+                onPress={() =>
+                  setDatePreset((current) => (current === option.value ? undefined : option.value))
+                }
+              />
+            ))}
+          </View>
+          {topics.length > 0 ? (
+            <>
+              <KairosText variant="label" color="textMuted">
+                Topics
+              </KairosText>
+              <View style={styles.chips}>
+                {topics.slice(0, 8).map((topic) => (
+                  <KairosPill
+                    key={topic.id}
+                    label={topic.name}
+                    selected={topicId === topic.id}
+                    onPress={() => setTopicId((current) => (current === topic.id ? undefined : topic.id))}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
+          {projects.length > 0 ? (
+            <>
+              <KairosText variant="label" color="textMuted">
+                Projects
+              </KairosText>
+              <View style={styles.chips}>
+                {projects.slice(0, 8).map((project) => (
+                  <KairosPill
+                    key={project.id}
+                    label={project.name}
+                    selected={projectId === project.id}
+                    onPress={() =>
+                      setProjectId((current) => (current === project.id ? undefined : project.id))
+                    }
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
+        </ScrollView>
+      </KairosBottomSheet>
+    </SoftPage>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    paddingHorizontal: 20,
-    gap: 20,
-  },
-  top: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  title: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 32,
-    letterSpacing: -0.6,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  pillText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-  },
-  hero: {
-    flex: 1,
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  searchBtn: {
+    minHeight: 44,
+    minWidth: 88,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 280,
-    overflow: 'hidden',
-    borderRadius: 32,
-  },
-  orbHit: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  orbStack: {
-    width: 200,
-    height: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  orbRing: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    borderWidth: 1.5,
-  },
-  orbRingMid: {
-    width: 168,
-    height: 168,
-    borderRadius: 84,
-  },
-  orbCore: {
-    width: 128,
-    height: 128,
-    borderRadius: 64,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  metrics: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  metric: {
-    flex: 1,
-  },
-  metricInner: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 14,
-  },
-  metricValue: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 16,
-  },
-  metricLabel: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 11,
-  },
-  syncBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
   },
-  syncBannerText: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  actionBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  error: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    textAlign: 'center',
-  },
+  block: { gap: 10 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  sheet: { gap: 12, paddingBottom: 24 },
 });

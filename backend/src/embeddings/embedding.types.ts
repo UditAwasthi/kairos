@@ -1,3 +1,5 @@
+import { readEmbeddingApiKeys } from '../ai/ai-api-key-pool';
+
 export const EMBEDDING_PROVIDER = Symbol('EMBEDDING_PROVIDER');
 
 export type EmbeddingResult = {
@@ -22,11 +24,12 @@ export type EmbeddingConfig = {
   batchSize: number;
   maxRetries: number;
   apiKey?: string;
+  apiKeys: string[];
   baseUrl?: string;
 };
 
 export function readEmbeddingConfig(): EmbeddingConfig {
-  const provider = (process.env.EMBEDDING_PROVIDER ?? 'openai').toLowerCase();
+  const provider = (process.env.EMBEDDING_PROVIDER ?? 'gemini').toLowerCase();
   const dimensions = Number.parseInt(
     process.env.EMBEDDING_DIMENSIONS ?? '1536',
     10,
@@ -47,13 +50,13 @@ export function readEmbeddingConfig(): EmbeddingConfig {
       ? 'https://generativelanguage.googleapis.com'
       : 'https://api.openai.com/v1';
 
-  // Never fall back to AI_BASE_URL for Gemini — chat may use Groq/OpenAI while
-  // embeddings use a different host.
   const baseUrl =
     process.env.EMBEDDING_BASE_URL?.trim() ||
     (provider === 'gemini'
       ? defaultBaseUrl
       : process.env.AI_BASE_URL?.trim() || defaultBaseUrl);
+
+  const apiKeys = readEmbeddingApiKeys();
 
   return {
     provider,
@@ -68,10 +71,8 @@ export function readEmbeddingConfig(): EmbeddingConfig {
       Number.isFinite(maxRetries) && maxRetries >= 0
         ? Math.min(maxRetries, 5)
         : 3,
-    apiKey:
-      process.env.EMBEDDING_API_KEY?.trim() ||
-      (provider === 'gemini' ? undefined : process.env.AI_API_KEY?.trim()) ||
-      undefined,
+    apiKey: apiKeys[0],
+    apiKeys,
     baseUrl: baseUrl.replace(/\/+$/, ''),
   };
 }

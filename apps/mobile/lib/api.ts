@@ -1183,7 +1183,7 @@ export type ApiSemanticSearchResult = {
   observation: {
     id: string;
     filename: string;
-    type: 'DOCUMENT' | 'PDF' | 'IMAGE' | 'TEXT';
+    type: 'DOCUMENT' | 'PDF' | 'IMAGE' | 'TEXT' | 'AUDIO';
     mimeType: string;
     createdAt: string;
     capturedAt: string;
@@ -1507,6 +1507,14 @@ export type LeaderboardSummary = {
   rows: LeaderboardRow[];
 };
 
+function readEnvelope<T>(body: unknown): T {
+  if (body && typeof body === 'object' && 'data' in body) {
+    const inner = (body as { data: unknown }).data;
+    if (inner != null) return inner as T;
+  }
+  return body as T;
+}
+
 export async function fetchProgression(token: string): Promise<ProgressionSummary> {
   const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/progression`, {
     method: 'GET',
@@ -1516,8 +1524,7 @@ export async function fetchProgression(token: string): Promise<ProgressionSummar
     },
   });
   if (!response.ok) throw await parseError(response);
-  const body = (await response.json()) as { data: ProgressionSummary };
-  return body.data;
+  return readEnvelope<ProgressionSummary>(await response.json());
 }
 
 export async function patchProgression(
@@ -1539,8 +1546,7 @@ export async function patchProgression(
     body: JSON.stringify(patch),
   });
   if (!response.ok) throw await parseError(response);
-  const body = (await response.json()) as { data: ProgressionSummary };
-  return body.data;
+  return readEnvelope<ProgressionSummary>(await response.json());
 }
 
 export async function buyProgressionFreeze(token: string): Promise<ProgressionSummary> {
@@ -1552,8 +1558,7 @@ export async function buyProgressionFreeze(token: string): Promise<ProgressionSu
     },
   });
   if (!response.ok) throw await parseError(response);
-  const body = (await response.json()) as { data: ProgressionSummary };
-  return body.data;
+  return readEnvelope<ProgressionSummary>(await response.json());
 }
 
 export async function fetchLeaderboard(
@@ -1571,6 +1576,5 @@ export async function fetchLeaderboard(
     },
   );
   if (!response.ok) throw await parseError(response);
-  const body = (await response.json()) as { data: LeaderboardSummary };
-  return body.data;
+  return readEnvelope<LeaderboardSummary>(await response.json());
 }

@@ -327,33 +327,33 @@ export function ProcessingIndicator({ job }: { job: ProcessingJob }) {
 
 const styles = StyleSheet.create({
   chipLabel: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 12,
     letterSpacing: 0.2,
   },
   kicker: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 11,
     letterSpacing: 0.3,
   },
   cardTitle: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 16,
     letterSpacing: -0.1,
   },
   body: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     lineHeight: 22,
     letterSpacing: 0.1,
   },
   meta: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 12,
     letterSpacing: 0.1,
   },
   time: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 12,
     letterSpacing: 0.2,
   },
@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
     minHeight: 28,
   },
   stepGlyph: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 14,
     width: 16,
     textAlign: 'center',

@@ -48,17 +48,17 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   meta: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
   },
   body: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     lineHeight: 21,
     textAlign: 'center',
   },
   version: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 12,
   },
 });
