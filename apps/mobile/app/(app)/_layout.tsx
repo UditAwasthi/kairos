@@ -162,6 +162,7 @@ export default function AppLayout() {
       />
       <Stack.Screen name="insight" options={{ title: 'Today' }} />
       <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />
+      <Stack.Screen name="progression" options={{ title: 'World' }} />
       <Stack.Screen name="predictions" options={{ title: 'Predictions' }} />
       <Stack.Screen name="brief" options={{ title: 'Brief' }} />
       <Stack.Screen name="timeline" options={{ title: 'Timeline' }} />

@@ -1445,3 +1445,132 @@ export async function deleteRecallData(token: string): Promise<{
   };
   return body.data;
 }
+
+export type ProgressionUnlock = {
+  key: string;
+  kind: string;
+  label: string;
+  streakGated: boolean;
+  available: boolean;
+};
+
+export type ProgressionEventView = {
+  action: 'CAPTURE' | 'ASK' | 'RECALL' | 'FREEZE';
+  xpAwarded: number;
+  keepsAwarded: number;
+  multiplier: number;
+  bonus: boolean;
+  freezeUsed: number;
+  streakAfter: number;
+  firstOfDay: boolean;
+  broke: boolean;
+  replayed: boolean;
+};
+
+export type ProgressionSummary = {
+  xp: number;
+  level: number;
+  intoLevel: number;
+  nextLevelXp: number;
+  progress: number;
+  keeps: number;
+  currentStreak: number;
+  longestStreak: number;
+  lastActiveDate: string | null;
+  freezeTokens: number;
+  freezeCost: number;
+  equippedTitle: string | null;
+  equippedAura: string | null;
+  equippedTitleLabel: string | null;
+  equippedAuraLabel: string | null;
+  leaderboardVisible: boolean;
+  displayName: string | null;
+  unlocks: ProgressionUnlock[];
+  lastEvent: ProgressionEventView | null;
+};
+
+export type LeaderboardRow = {
+  rank: number;
+  userId: string;
+  displayName: string;
+  level: number;
+  xp: number;
+  currentStreak: number;
+  title: string | null;
+  self: boolean;
+};
+
+export type LeaderboardSummary = {
+  scope: 'global' | 'circle';
+  visible: boolean;
+  selfRank: number | null;
+  rows: LeaderboardRow[];
+};
+
+export async function fetchProgression(token: string): Promise<ProgressionSummary> {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/progression`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: ProgressionSummary };
+  return body.data;
+}
+
+export async function patchProgression(
+  token: string,
+  patch: {
+    leaderboardVisible?: boolean;
+    displayName?: string;
+    equippedTitle?: string;
+    equippedAura?: string;
+  },
+): Promise<ProgressionSummary> {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/progression`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(patch),
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: ProgressionSummary };
+  return body.data;
+}
+
+export async function buyProgressionFreeze(token: string): Promise<ProgressionSummary> {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}/progression/freeze`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: ProgressionSummary };
+  return body.data;
+}
+
+export async function fetchLeaderboard(
+  token: string,
+  scope: 'global' | 'circle' = 'global',
+): Promise<LeaderboardSummary> {
+  const response = await apiFetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/progression/leaderboard?scope=${scope}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: LeaderboardSummary };
+  return body.data;
+}

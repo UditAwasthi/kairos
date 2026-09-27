@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   CaptureSource,
@@ -37,6 +38,7 @@ import {
   parseOptionalCapturedAt,
 } from './capture-source';
 import { VectorSearchService } from '../embeddings/vector-search.service';
+import { ProgressionService } from '../progression/progression.service';
 import {
   scoreRelatedMemory,
   shouldKeepRelated,
@@ -70,6 +72,7 @@ export class ObservationsService {
     private readonly processor: ObservationProcessor,
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
     private readonly vectorSearch: VectorSearchService,
+    @Optional() private readonly progression?: ProgressionService,
   ) {}
 
   async capture(params: {
@@ -223,6 +226,7 @@ export class ObservationsService {
     setImmediate(() => {
       void this.processor.process(observation.id);
     });
+    this.noteCapture(user.id, observation.id);
 
     if (params.projectId) {
       return this.getForClerkUser(params.clerkUserId, observation.id);
@@ -451,11 +455,16 @@ export class ObservationsService {
     setImmediate(() => {
       void this.processor.process(observation.id);
     });
+    this.noteCapture(user.id, observation.id);
 
     if (params.projectId) {
       return this.getForClerkUser(params.clerkUserId, observation.id);
     }
     return toObservationResponse(observation);
+  }
+
+  private noteCapture(userId: string, observationId: string): void {
+    void this.progression?.recordCapture({ userId, observationId }).catch(() => undefined);
   }
 
   private async attachProjectIfRequested(params: {

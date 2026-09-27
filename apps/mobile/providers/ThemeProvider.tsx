@@ -11,6 +11,10 @@ import {
   PlayfairDisplay_400Regular,
   PlayfairDisplay_500Medium,
 } from '@expo-google-fonts/playfair-display';
+import {
+  Roboto_400Regular,
+  Roboto_500Medium,
+} from '@expo-google-fonts/roboto';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import React, {
@@ -77,6 +81,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     Inter_600SemiBold,
     PlayfairDisplay_400Regular,
     PlayfairDisplay_500Medium,
+    Roboto_400Regular,
+    Roboto_500Medium,
   });
 
   const { themeProgress, toggleTheme } = useThemeTransition();

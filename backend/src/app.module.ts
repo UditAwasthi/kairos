@@ -15,6 +15,7 @@ import { UsersModule } from './users/users.module';
 import { EntitlementsModule } from './entitlements/entitlements.module';
 import { InsightsModule } from './insights/insights.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ProgressionModule } from './progression/progression.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     EntitlementsModule,
     InsightsModule,
     NotificationsModule,
+    ProgressionModule,
     RecallModule,
   ],
   controllers: [AppController],

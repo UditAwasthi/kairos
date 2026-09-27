@@ -1,99 +1,85 @@
 import { useAuth, useUser } from '@clerk/expo';
-import { Feather } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import {
-  Dimensions,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { SoftAurora } from '../../../components/SoftAurora';
-import { ThemedText } from '../../../components/ThemedText';
+import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
 import {
-  EmptyState,
-  ErrorState,
-  FadeInContent,
-  LoadingSkeleton,
-} from '../../../components/ui/EmptyState';
-import { AccentGradient, GlassPanel, ScreenGradient } from '../../../components/ui/Glass';
-import { SoftTile } from '../../../components/ui/SoftScreen';
-import { toneForIndex } from '../../../components/ui/MemoryCards';
-import {
-  fetchObservations,
-  fetchTopics,
-  isProcessingObservationStatus,
-  observationStageLabel,
-  type ApiObservation,
-  type ApiTopicSummary,
-} from '../../../lib/api';
-import { getCaptureSync, subscribeCaptureSync, syncBannerText } from '../../../lib/syncStatus';
+  BriefTile,
+  CaptureFab,
+  DashboardTile,
+  DiscoverRail,
+  RecallCard,
+  ResurfacedPanel,
+  StatusStrip,
+  TalkCard,
+} from '../../../components/home/HomeWidgets';
+import { ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
+import { DriftBlob, FadeRise } from '../../../components/ui/OnboardingMotion';
 import { readQueryCache, writeQueryCache } from '../../../hooks/useAsync';
+import {
+  fetchDailyBrief,
+  fetchDashboard,
+  fetchObservations,
+  fetchPredictions,
+  fetchProjects,
+  fetchTopics,
+  type ApiObservation,
+  type ApiProjectSummary,
+  type ApiTopicSummary,
+  type DailyBrief,
+  type DashboardSummary,
+  type PredictionsSummary,
+} from '../../../lib/api';
+import {
+  exploreTopics,
+  greetingAccent,
+  greetingParts,
+  greetingWhisper,
+  homeBriefCopy,
+  homeDashboardCopy,
+  homePredictionItem,
+  homeProjectPreview,
+  homeStatusLine,
+  memoryTitle,
+  resurfacedMemory,
+  weekDays,
+} from '../../../lib/homeSummary';
+import { homeFont, homeSurface } from '../../../lib/homeTheme';
+import { getCaptureSync, subscribeCaptureSync, syncBannerText } from '../../../lib/syncStatus';
 import { useAppTheme } from '../../../providers/ThemeProvider';
-import { auroraToneColors } from '../../../theme';
 
 type HomeCache = {
+  dashboard: DashboardSummary | null;
   observations: ApiObservation[];
   topics: ApiTopicSummary[];
+  predictions: PredictionsSummary | null;
+  brief: DailyBrief | null;
+  projects: ApiProjectSummary[];
 };
+
 const HOME_CACHE = 'home-feed';
+const GUTTER = 22;
 
-const SCREEN_W = Dimensions.get('window').width;
-const H_PAD = 22;
-const GAP = 12;
-const COL = (SCREEN_W - H_PAD * 2 - GAP) / 2;
-
-type IconName = React.ComponentProps<typeof Feather>['name'];
-
-function observationIcon(type: ApiObservation['type']): IconName {
-  switch (type) {
-    case 'IMAGE':
-      return 'camera';
-    case 'PDF':
-    case 'DOCUMENT':
-      return 'file-text';
-    case 'TEXT':
-    default:
-      return 'edit-3';
-  }
+function readHomeCache(): HomeCache | null {
+  const raw = readQueryCache<Partial<HomeCache>>(HOME_CACHE);
+  if (!raw?.observations && !raw?.dashboard) return null;
+  return {
+    dashboard: raw.dashboard ?? null,
+    observations: raw.observations ?? [],
+    topics: raw.topics ?? [],
+    predictions: raw.predictions ?? null,
+    brief: raw.brief ?? null,
+    projects: raw.projects ?? [],
+  };
 }
 
-function ObservationTile({
-  observation,
-  onPress,
-}: {
-  observation: ApiObservation;
-  onPress: () => void;
-}) {
-  const { colors } = useAppTheme();
-  const ready = observation.status === 'COMPLETED';
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={observation.filename}
-      style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
-    >
-      <GlassPanel style={styles.memoryTile} contentStyle={styles.memoryInner} padded={false}>
-        <View style={[styles.memoryIcon, { backgroundColor: colors.accentGlow }]}>
-          <Feather name={observationIcon(observation.type)} size={18} color={colors.accent} />
-        </View>
-        <ThemedText colorKey="text" style={styles.memoryTitle} numberOfLines={2}>
-          {observation.filename}
-        </ThemedText>
-        <ThemedText colorKey="textMuted" style={styles.memoryMeta} numberOfLines={1}>
-          {ready
-            ? new Date(observation.processedAt || observation.updatedAt).toLocaleDateString()
-            : observationStageLabel(observation)}
-        </ThemedText>
-      </GlassPanel>
-    </Pressable>
-  );
+function typeScale(width: number) {
+  const t = Math.min(1, Math.max(0.84, width / 390));
+  return {
+    greet: Math.round(34 * t),
+  };
 }
 
 export default function HomeScreen() {
@@ -101,31 +87,59 @@ export default function HomeScreen() {
   const { getToken } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, radius } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const { colors, isLight } = useAppTheme();
+  const surface = homeSurface(colors, isLight);
+  const scale = typeScale(width);
 
-  const cachedHome = readQueryCache<HomeCache>(HOME_CACHE);
-  const [observations, setObservations] = useState<ApiObservation[]>(
-    cachedHome?.observations ?? [],
+  const cached = readHomeCache();
+  const [dashboard, setDashboard] = useState<DashboardSummary | null>(cached?.dashboard ?? null);
+  const [observations, setObservations] = useState<ApiObservation[]>(cached?.observations ?? []);
+  const [topics, setTopics] = useState<ApiTopicSummary[]>(cached?.topics ?? []);
+  const [predictions, setPredictions] = useState<PredictionsSummary | null>(
+    cached?.predictions ?? null,
   );
-  const [topics, setTopics] = useState<ApiTopicSummary[]>(cachedHome?.topics ?? []);
-  const [loading, setLoading] = useState(!cachedHome);
+  const [brief, setBrief] = useState<DailyBrief | null>(cached?.brief ?? null);
+  const [projects, setProjects] = useState<ApiProjectSummary[]>(cached?.projects ?? []);
+  const [fileToken, setFileToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
   const [syncText, setSyncText] = useState<string | null>(syncBannerText());
-  const hasDataRef = useRef(Boolean(cachedHome));
+  const hasDataRef = useRef(Boolean(cached));
 
   const load = useCallback(async () => {
     try {
       setError(null);
       const token = await getToken();
       if (!token) throw new Error('Sign in to view your home.');
-      const [obs, topicData] = await Promise.all([
-        fetchObservations(token),
-        fetchTopics({ token, limit: 8 }),
-      ]);
-      setObservations(obs);
+      setFileToken(token);
+      const [nextObservations, topicData, nextDashboard, nextPredictions, nextBrief, projectData] =
+        await Promise.all([
+          fetchObservations(token, { limit: 12 }),
+          fetchTopics({ token, limit: 12 }).catch(() => ({ items: [] as ApiTopicSummary[] })),
+          fetchDashboard(token).catch(() => null),
+          fetchPredictions(token).catch(() => null),
+          fetchDailyBrief(token).catch(() => null),
+          fetchProjects({ token, limit: 6 }).catch(() => ({ items: [] as ApiProjectSummary[] })),
+        ]);
+      setObservations(nextObservations);
       setTopics(topicData.items);
+      setPredictions(nextPredictions);
+      setBrief(nextBrief);
+      setProjects(projectData.items);
+      setDashboard((prev) => {
+        const next = nextDashboard ?? prev;
+        writeQueryCache(HOME_CACHE, {
+          dashboard: next,
+          observations: nextObservations,
+          topics: topicData.items,
+          predictions: nextPredictions,
+          brief: nextBrief,
+          projects: projectData.items,
+        });
+        return next;
+      });
       hasDataRef.current = true;
-      writeQueryCache(HOME_CACHE, { observations: obs, topics: topicData.items });
     } catch {
       setError('Unable to load.');
     }
@@ -154,379 +168,230 @@ export default function HomeScreen() {
     user?.fullName ||
     user?.primaryEmailAddress?.emailAddress?.split('@')[0] ||
     'there';
+  const greeting = greetingParts(dashboard?.greeting ?? 'Hello', name);
+  const accent = greetingAccent(greeting.period);
+  const resurfaced = resurfacedMemory(observations);
+  const whisper = greetingWhisper(resurfaced?.kind ?? null);
+  const chips = exploreTopics(topics.length > 0 ? topics : dashboard?.topics ?? [], 5).shown;
+  const dashboardCopy = homeDashboardCopy(dashboard);
+  const briefCopy = homeBriefCopy(brief);
+  const prediction = homePredictionItem(predictions?.items ?? []);
+  const projectPreview = homeProjectPreview(projects, projects.length);
+  const days = dashboard
+    ? weekDays(dashboard.habit.week, dashboard.activity, dashboard.weekCount)
+    : [];
+  const status = homeStatusLine({
+    streak: dashboard?.streak.current ?? 0,
+    processingCount: dashboard?.processingCount ?? 0,
+    syncText,
+  });
 
-  if (loading && observations.length === 0 && !error) {
+  if (loading && observations.length === 0 && !dashboard && !error) {
     return (
-      <ScreenGradient>
-        <LoadingSkeleton rows={5} />
-      </ScreenGradient>
+      <View style={[styles.root, { backgroundColor: surface.canvas }]}>
+        <LoadingSkeleton rows={4} />
+      </View>
     );
   }
-  if (error && observations.length === 0) {
+
+  if (error && observations.length === 0 && !dashboard) {
     return (
-      <ScreenGradient>
+      <View style={[styles.root, { backgroundColor: surface.canvas }]}>
         <ErrorState title="Unable to load" onRetry={() => void load()} />
-      </ScreenGradient>
+      </View>
     );
   }
-
-  const processing = observations.filter((o) => isProcessingObservationStatus(o.status));
-  const completed = observations.filter((o) => o.status === 'COMPLETED');
-  const recent = completed.slice(0, 6);
-  const todayKey = new Date().toISOString().slice(0, 10);
-  const createdToday = observations.filter((o) => o.createdAt.startsWith(todayKey)).length;
 
   return (
-    <ScreenGradient>
-      <FadeInContent>
-        <ScrollView
-          contentContainerStyle={[
-            styles.content,
-            { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 108 },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
+    <View style={[styles.root, { backgroundColor: surface.canvas }]}>
+      <DriftBlob color={surface.blob} style={styles.blob} />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.page,
+          {
+            paddingTop: insets.top + 12,
+            paddingBottom: insets.bottom + FLOATING_TAB_BAR_CONTENT + 80,
+          },
+        ]}
+      >
+        <FadeRise delay={0}>
           <View style={styles.headerRow}>
-            <ThemedText colorKey="text" style={styles.greeting} numberOfLines={1}>
-              {name}
-            </ThemedText>
+            <View />
             <Pressable
               onPress={() => router.push('/(app)/(tabs)/profile')}
+              accessibilityRole="button"
               accessibilityLabel="Profile"
-              hitSlop={8}
+              hitSlop={12}
             >
               {user?.imageUrl ? (
                 <Image source={{ uri: user.imageUrl }} style={styles.avatar} />
               ) : (
-                <View
-                  style={[
-                    styles.avatarFallback,
-                    { backgroundColor: colors.accentGlow, borderColor: colors.glassBorder },
-                  ]}
-                >
-                  <ThemedText colorKey="accent" style={styles.avatarLetter}>
+                <View style={[styles.avatarFallback, { backgroundColor: surface.pill }]}>
+                  <Text style={[styles.avatarLetter, { color: surface.ink }]}>
                     {name.slice(0, 1).toUpperCase()}
-                  </ThemedText>
+                  </Text>
                 </View>
               )}
             </Pressable>
           </View>
+        </FadeRise>
 
-          <Pressable
-            onPress={() => router.push('/(app)/dashboard')}
-            accessibilityRole="button"
-            accessibilityLabel="Dashboard"
-          >
-          <GlassPanel style={styles.signalCard} contentStyle={styles.signalInner} padded={false}>
-            <SoftAurora compact />
-            <View style={styles.signalLeft}>
-              <ThemedText colorKey="text" style={styles.signalValue}>
-                {createdToday}
-              </ThemedText>
-              <ThemedText colorKey="textMuted" style={styles.signalHint}>
-                today
-              </ThemedText>
-            </View>
-            {processing.length > 0 ? (
-              <Pressable
-                onPress={() => router.push('/(app)/activity')}
-                style={[styles.signalBadge, { backgroundColor: colors.accentGlow }]}
-                accessibilityLabel="Processing"
-              >
-                <Feather name="loader" size={14} color={colors.accent} />
-                <ThemedText colorKey="accent" style={styles.signalBadgeText}>
-                  {processing.length}
-                </ThemedText>
-              </Pressable>
+        <FadeRise delay={20}>
+          <View style={styles.greetBlock}>
+            <Text
+              style={[
+                styles.greeting,
+                {
+                  color: surface.text,
+                  fontSize: scale.greet,
+                  lineHeight: scale.greet + 8,
+                },
+              ]}
+            >
+              {accent.lead ? `${accent.lead} ` : null}
+              <Text style={{ color: surface.ink }}>{accent.accent}</Text>
+              {', '}
+              {greeting.name}.
+            </Text>
+            {whisper ? (
+              <Text style={[styles.whisper, { color: surface.muted }]}>{whisper}</Text>
             ) : null}
-          </GlassPanel>
-          </Pressable>
-
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              router.push('/(app)/(tabs)/ask');
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Ask"
-          >
-            <AccentGradient style={[styles.askCard, { borderRadius: radius.xl }]}>
-              <Feather name="message-circle" size={20} color={colors.inverseText} />
-              <ThemedText colorKey="inverseText" style={styles.askTitle}>
-                Ask
-              </ThemedText>
-              <Feather name="arrow-up-right" size={16} color={colors.inverseText} />
-            </AccentGradient>
-          </Pressable>
-
-          <View style={styles.row}>
-            <SoftTile
-              label="Capture"
-              icon="plus"
-              width={COL}
-              onPress={() => router.push('/(app)/quick-capture')}
-            />
-            <SoftTile
-              label="Search"
-              icon="search"
-              width={COL}
-              onPress={() => router.push('/(app)/search')}
-            />
           </View>
+        </FadeRise>
 
-          <View style={styles.row}>
-            <SoftTile
-              label="Dashboard"
-              icon="bar-chart-2"
-              width={COL}
+        <FadeRise delay={40}>
+          <View style={styles.hero}>
+            <TalkCard surface={surface} onPress={() => router.push('/(app)/(tabs)/ask')} />
+            <RecallCard surface={surface} onPress={() => router.push('/(app)/(tabs)/recall')} />
+          </View>
+        </FadeRise>
+
+        <FadeRise delay={120}>
+          <ResurfacedPanel
+            observation={resurfaced?.observation ?? null}
+            label={resurfaced?.label ?? 'Resurfaced for you'}
+            surface={surface}
+            fileToken={fileToken}
+            onAsk={() => {
+              if (!resurfaced) return;
+              router.push({
+                pathname: '/(app)/(tabs)/ask',
+                params: {
+                  scopeType: 'observation',
+                  scopeId: resurfaced.observation.id,
+                  scopeName: memoryTitle(
+                    resurfaced.observation.filename,
+                    resurfaced.observation.summary,
+                  ).slice(0, 48),
+                },
+              });
+            }}
+            onOpenLink={(href) => router.push(href as never)}
+            onEmpty={() => router.push('/(app)/quick-capture')}
+          />
+        </FadeRise>
+
+        <FadeRise delay={200}>
+          <View style={styles.secondary}>
+            <DashboardTile
+              surface={surface}
+              body={dashboardCopy.body}
+              hint={dashboardCopy.hint}
+              days={days}
               onPress={() => router.push('/(app)/dashboard')}
             />
-            <SoftTile
-              label="Predictions"
-              icon="zap"
-              width={COL}
-              onPress={() => router.push('/(app)/predictions')}
+            <BriefTile
+              surface={surface}
+              body={briefCopy.body}
+              hint={briefCopy.hint}
+              onPress={() => router.push('/(app)/brief')}
             />
           </View>
+        </FadeRise>
 
-          {syncText ? (
-            <GlassPanel>
-              <ThemedText colorKey="textMuted" style={styles.syncText}>
-                {syncText}
-              </ThemedText>
-            </GlassPanel>
-          ) : null}
+        <FadeRise delay={280}>
+          <DiscoverRail
+            prediction={prediction}
+            projects={projectPreview}
+            topics={chips}
+            surface={surface}
+            onPrediction={() => router.push('/(app)/predictions')}
+            onProjects={() => router.push('/(app)/projects')}
+            onTopic={(id) => router.push(`/(app)/topics/${id}`)}
+          />
+        </FadeRise>
 
-          <View style={styles.navRow}>
-            {(
-              [
-                { icon: 'clock' as const, label: 'Timeline', href: '/(app)/timeline' },
-                { icon: 'book-open' as const, label: 'Brief', href: '/(app)/brief' },
-                { icon: 'hash' as const, label: 'Topics', href: '/(app)/topics' },
-                { icon: 'folder' as const, label: 'Projects', href: '/(app)/projects' },
-              ] as const
-            ).map((item) => (
-              <Pressable
-                key={item.label}
-                onPress={() => router.push(item.href)}
-                accessibilityRole="button"
-                accessibilityLabel={item.label}
-                style={styles.navItem}
-              >
-                <View style={[styles.navIcon, { backgroundColor: colors.accentGlow }]}>
-                  <Feather name={item.icon} size={18} color={colors.accent} />
-                </View>
-              </Pressable>
-            ))}
-          </View>
-
-          {recent.length === 0 ? (
-            <EmptyState
-              title="Nothing yet"
-              actionLabel="Capture something"
-              onAction={() => router.push('/(app)/quick-capture')}
+        {status ? (
+          <FadeRise delay={320}>
+            <StatusStrip
+              text={status}
+              color={surface.muted}
+              streak={dashboard?.streak.current}
             />
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.hScroll}
-              decelerationRate="fast"
-            >
-              {recent.map((observation) => (
-                <ObservationTile
-                  key={observation.id}
-                  observation={observation}
-                  onPress={() => router.push(`/(app)/observation/${observation.id}`)}
-                />
-              ))}
-            </ScrollView>
-          )}
+          </FadeRise>
+        ) : null}
+      </ScrollView>
 
-          {topics.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.hScroll}
-            >
-              {topics.map((topic, index) => {
-                const palette = auroraToneColors(colors, toneForIndex(index % 3));
-                return (
-                  <Pressable
-                    key={topic.id}
-                    onPress={() => router.push(`/(app)/topics/${topic.id}`)}
-                    accessibilityRole="button"
-                    accessibilityLabel={topic.name}
-                  >
-                    <GlassPanel
-                      padded={false}
-                      style={{ borderRadius: radius.full }}
-                      contentStyle={styles.topicChip}
-                    >
-                      <View style={[styles.topicDot, { backgroundColor: palette.accent }]} />
-                      <ThemedText colorKey="text" style={styles.topicLabel} numberOfLines={1}>
-                        {topic.name}
-                      </ThemedText>
-                    </GlassPanel>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          ) : null}
-        </ScrollView>
-      </FadeInContent>
-    </ScreenGradient>
+      <View
+        style={[
+          styles.fabWrap,
+          { bottom: insets.bottom + FLOATING_TAB_BAR_CONTENT + 10, right: GUTTER },
+        ]}
+      >
+        <CaptureFab surface={surface} onPress={() => router.push('/(app)/quick-capture')} />
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: H_PAD,
-    gap: 18,
+  root: { flex: 1 },
+  blob: {
+    width: 260,
+    height: 260,
+    top: -70,
+    right: -90,
+  },
+  page: {
+    paddingHorizontal: GUTTER,
+    gap: 20,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
   },
-  greeting: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 32,
-    letterSpacing: -0.6,
-    flex: 1,
-    paddingRight: 12,
-  },
-  avatar: { width: 40, height: 40, borderRadius: 20 },
+  avatar: { width: 32, height: 32, borderRadius: 16 },
   avatarFallback: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarLetter: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
-
-  signalCard: {
-    overflow: 'hidden',
-    minHeight: 72,
-  },
-  signalInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-  },
-  signalLeft: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-    zIndex: 1,
-  },
-  signalValue: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 32,
-    letterSpacing: -0.4,
-  },
-  signalHint: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-  },
-  signalBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    zIndex: 1,
-  },
-  signalBadgeText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-  },
-
-  askCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-  },
-  askTitle: {
-    flex: 1,
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 17,
-    letterSpacing: -0.2,
-  },
-
-  row: {
-    flexDirection: 'row',
-    gap: GAP,
-  },
-  navRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-  },
-  navItem: {
-    alignItems: 'center',
-  },
-  navIcon: {
-    width: 48,
-    height: 48,
+    width: 32,
+    height: 32,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  hScroll: {
-    gap: 10,
-    paddingVertical: 2,
-  },
-  memoryTile: {
-    width: 132,
-    height: 118,
-  },
-  memoryInner: {
-    height: 118,
-    padding: 14,
-    gap: 8,
-    justifyContent: 'space-between',
-  },
-  memoryIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  memoryTitle: {
-    fontFamily: 'Inter_500Medium',
+  avatarLetter: {
+    fontFamily: homeFont.sansMedium,
     fontSize: 13,
-    lineHeight: 17,
+    letterSpacing: 0.2,
   },
-  memoryMeta: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 11,
+  greetBlock: { gap: 6 },
+  greeting: {
+    fontFamily: homeFont.serif,
+    letterSpacing: -0.5,
+    paddingRight: 36,
   },
-  topicChip: {
+  whisper: {
+    fontFamily: homeFont.sans,
+    fontSize: 13,
+    letterSpacing: 0.15,
+  },
+  hero: { gap: 10 },
+  secondary: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    minHeight: 40,
+    gap: 10,
   },
-  topicDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+  fabWrap: {
+    position: 'absolute',
   },
-  topicLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-    maxWidth: 110,
-  },
-  syncText: { fontFamily: 'Inter_400Regular', fontSize: 13 },
 });

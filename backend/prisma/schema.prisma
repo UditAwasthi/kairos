@@ -25,8 +25,90 @@ model User {
   entitlements      Entitlement[]
   recallEventReceipts RecallEventReceipt[]
   deviceTokens      DeviceToken[]
+  progression       UserProgression?
+  progressionPeers  ProgressionPeer[] @relation("ProgressionPeerOwner")
+  progressionOf     ProgressionPeer[] @relation("ProgressionPeerTarget")
 
   @@map("users")
+}
+
+enum ProgressionAction {
+  CAPTURE
+  ASK
+  RECALL
+  FREEZE
+}
+
+/// One row per user. Primary metric is xp → level (world strength).
+model UserProgression {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  xp                  Int      @default(0)
+  level               Int      @default(1)
+  keeps               Int      @default(0)
+  currentStreak       Int      @default(0)
+  longestStreak       Int      @default(0)
+  lastActiveDate      String?
+  freezeTokens        Int      @default(0)
+  equippedTitle       String?
+  equippedAura        String?
+  leaderboardVisible  Boolean  @default(true)
+  displayName         String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  events              ProgressionEvent[]
+  unlocks             ProgressionUnlock[]
+
+  @@index([leaderboardVisible, xp(sort: Desc)])
+  @@map("user_progression")
+}
+
+/// Idempotent award log. Unique per progression + action key so retries cannot double-credit.
+model ProgressionEvent {
+  id              String            @id @default(cuid())
+  progressionId   String
+  progression     UserProgression   @relation(fields: [progressionId], references: [id], onDelete: Cascade)
+  idempotencyKey  String
+  action          ProgressionAction
+  xpAwarded       Int
+  keepsAwarded    Int
+  multiplier      Int               @default(1)
+  bonus           Boolean           @default(false)
+  freezeUsed      Int               @default(0)
+  streakAfter     Int
+  createdAt       DateTime          @default(now())
+
+  @@unique([progressionId, idempotencyKey])
+  @@index([progressionId, createdAt])
+  @@map("progression_events")
+}
+
+model ProgressionUnlock {
+  id             String          @id @default(cuid())
+  progressionId  String
+  progression    UserProgression @relation(fields: [progressionId], references: [id], onDelete: Cascade)
+  key            String
+  kind           String
+  streakGated    Boolean         @default(true)
+  streakAtUnlock Int
+  unlockedAt     DateTime        @default(now())
+
+  @@unique([progressionId, key])
+  @@map("progression_unlocks")
+}
+
+model ProgressionPeer {
+  id         String   @id @default(cuid())
+  ownerId    String
+  owner      User     @relation("ProgressionPeerOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  peerId     String
+  peer       User     @relation("ProgressionPeerTarget", fields: [peerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([ownerId, peerId])
+  @@index([ownerId])
+  @@map("progression_peers")
 }
 
 enum DevicePlatform {
