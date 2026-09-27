@@ -65,6 +65,32 @@ describe('GeminiProvider', () => {
     expect(result.model).toBe('gemini-3.8-flash');
   });
 
+  it('falls back to the next Flash model on 503 high demand', async () => {
+    const provider = buildProvider();
+    const models: string[] = [];
+    global.fetch = jest.fn(async (url) => {
+      const match = String(url).match(/models\/([^:]+):generateContent/);
+      models.push(match?.[1] ?? '');
+      if (models.length === 1) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              message:
+                'This model is currently experiencing high demand. Please try again later.',
+            },
+          }),
+          { status: 503, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return geminiJsonResponse(VALID_ANALYSIS);
+    });
+
+    const result = await provider.analyzeDocument(['capacity spike']);
+    expect(models[0]).toBe('gemini-3.8-flash');
+    expect(models[1]).toBe('gemini-3.6-flash');
+    expect(result.model).toBe('gemini-3.6-flash');
+  });
+
   it('rotates to the next Gemini key on 429', async () => {
     process.env.AI_API_KEY = 'key-a';
     process.env.AI_API_KEY_1 = 'key-b';
@@ -126,6 +152,16 @@ describe('GeminiProvider', () => {
       'gemini-3.8-flash',
     );
     expect(resolveGeminiChatModel('gemini-3.8-flash')).toBe('gemini-3.8-flash');
+  });
+
+  it('builds a capacity fallback chain', () => {
+    const { geminiChatModelChain } = require('./gemini-models') as {
+      geminiChatModelChain: (preferred?: string) => string[];
+    };
+    expect(geminiChatModelChain('gemini-3.8-flash')[0]).toBe('gemini-3.8-flash');
+    expect(geminiChatModelChain('gemini-3.8-flash')).toContain(
+      'gemini-3.6-flash',
+    );
   });
 
   it('keeps the OpenAI-compatible provider when explicitly requested', () => {

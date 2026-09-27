@@ -1017,13 +1017,13 @@ const styles = StyleSheet.create({
     marginTop: 28,
   },
   whisper: {
-    fontFamily: 'Roboto_500Medium',
+    fontFamily: 'Inter_500Medium',
     fontSize: 11,
     letterSpacing: 1.6,
     textTransform: 'uppercase',
   },
   ideaLine: {
-    fontFamily: 'Roboto_400Regular',
+    fontFamily: 'Inter_400Regular',
     fontSize: 14,
     letterSpacing: -0.1,
     marginTop: 8,
@@ -1046,7 +1046,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   tinyMeta: {
-    fontFamily: 'Roboto_400Regular',
+    fontFamily: 'Inter_400Regular',
     fontSize: 12,
     letterSpacing: 0.2,
   },

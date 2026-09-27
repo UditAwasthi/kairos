@@ -87,5 +87,5 @@ export default function NewProjectScreen() {
 const styles = StyleSheet.create({
   form: { gap: 12 },
   noteInput: { minHeight: 72, textAlignVertical: 'top' },
-  error: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
+  error: { fontFamily: 'Inter_400Regular', fontSize: 13 },
 });

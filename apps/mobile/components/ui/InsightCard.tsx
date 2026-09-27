@@ -102,16 +102,16 @@ export function InsightCard({
 
 const styles = StyleSheet.create({
   kicker: {
-    fontFamily: 'Roboto_500Medium',
+    fontFamily: 'Inter_500Medium',
     fontSize: 13,
     marginBottom: 8,
   },
-  body: { fontFamily: 'Roboto_400Regular', fontSize: 17, lineHeight: 25 },
-  why: { fontFamily: 'Roboto_400Regular', fontSize: 13, marginTop: 10 },
-  maturity: { fontFamily: 'Roboto_400Regular', fontSize: 12, marginTop: 4 },
-  explore: { fontFamily: 'Roboto_500Medium', fontSize: 13, marginTop: 12 },
+  body: { fontFamily: 'Inter_400Regular', fontSize: 17, lineHeight: 25 },
+  why: { fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: 10 },
+  maturity: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 },
+  explore: { fontFamily: 'Inter_500Medium', fontSize: 13, marginTop: 12 },
   evidenceRow: { marginTop: 12, gap: 3 },
-  evidenceWhen: { fontFamily: 'Roboto_400Regular', fontSize: 12 },
-  evidenceTitle: { fontFamily: 'Roboto_500Medium', fontSize: 14 },
-  evidenceSnippet: { fontFamily: 'Roboto_400Regular', fontSize: 13, lineHeight: 18 },
+  evidenceWhen: { fontFamily: 'Inter_400Regular', fontSize: 12 },
+  evidenceTitle: { fontFamily: 'Inter_500Medium', fontSize: 14 },
+  evidenceSnippet: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18 },
 });

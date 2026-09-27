@@ -9,7 +9,6 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { ThemedText } from '../ThemedText';
-import { useReducedMotionPref } from '../../hooks/useReducedMotionPref';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import { ThemedButton } from './ThemedButton';
 
@@ -101,20 +100,15 @@ type LoadingSkeletonProps = {
 
 export function LoadingSkeleton({ rows = 4 }: LoadingSkeletonProps) {
   const { colors, spacing, radius } = useAppTheme();
-  const reduced = useReducedMotionPref();
   const pulse = useSharedValue(0.62);
 
   useEffect(() => {
-    if (reduced) {
-      pulse.value = 0.7;
-      return;
-    }
     pulse.value = withRepeat(
       withTiming(0.88, { duration: 1400, easing: Easing.inOut(Easing.quad) }),
       -1,
       true,
     );
-  }, [pulse, reduced]);
+  }, [pulse]);
 
   const pulseStyle = useAnimatedStyle(() => ({
     opacity: pulse.value,
@@ -176,13 +170,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyTitle: {
-    fontFamily: 'Roboto_500Medium',
-    fontSize: 18,
-    letterSpacing: -0.2,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 15,
+    letterSpacing: -0.1,
     textAlign: 'center',
   },
   emptyMessage: {
-    fontFamily: 'Roboto_400Regular',
+    fontFamily: 'Inter_400Regular',
     fontSize: 13,
     lineHeight: 18,
     textAlign: 'center',

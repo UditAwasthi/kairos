@@ -10,7 +10,14 @@ export default function TabsLayout() {
     <Tabs
       tabBar={(props) => <FloatingTabBar {...props} />}
       screenOptions={{
-        headerShown: false,
+        headerShown: true,
+        headerStyle: { backgroundColor: colors.background },
+        headerTintColor: colors.text,
+        headerTitleStyle: {
+          fontFamily: 'PlayfairDisplay_400Regular',
+          fontSize: 18,
+        },
+        headerShadowVisible: false,
         tabBarStyle: {
           position: 'absolute',
           backgroundColor: 'transparent',
@@ -37,6 +44,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Home',
+          headerShown: false,
           tabBarAccessibilityLabel: 'Home',
         }}
       />
@@ -44,14 +52,8 @@ export default function TabsLayout() {
         name="recall"
         options={{
           title: 'Recall',
+          headerShown: false,
           tabBarAccessibilityLabel: 'Recall',
-        }}
-      />
-      <Tabs.Screen
-        name="capture"
-        options={{
-          title: 'Capture',
-          tabBarAccessibilityLabel: 'Capture',
         }}
       />
       <Tabs.Screen
@@ -62,9 +64,18 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="capture"
+        options={{
+          title: 'Capture',
+          headerShown: false,
+          tabBarAccessibilityLabel: 'Capture',
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
+          headerShown: false,
           tabBarAccessibilityLabel: 'Profile',
         }}
       />

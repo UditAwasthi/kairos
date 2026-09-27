@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   icon: {
-    fontFamily: 'Roboto_400Regular',
+    fontFamily: 'Inter_400Regular',
     fontSize: 16,
     lineHeight: 18,
   },

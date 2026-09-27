@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   subtitle: {
-    fontFamily: 'Roboto_400Regular',
+    fontFamily: 'Inter_400Regular',
     fontSize: 15,
     textAlign: 'center',
     lineHeight: 22,

@@ -30,8 +30,17 @@ export function redirectSystemPath({ path }: NativeIntentArgs): string {
   if (withoutQuery === 'voice') {
     return `/voice-capture${suffix}`;
   }
-  if (withoutQuery === 'insight' || withoutQuery === 'dashboard' || withoutQuery === 'predictions' || withoutQuery === 'brief' || withoutQuery === 'discover') {
-    return `/discover${suffix}`;
+  if (withoutQuery === 'insight') {
+    return `/insight${suffix}`;
+  }
+  if (withoutQuery === 'dashboard') {
+    return `/dashboard${suffix}`;
+  }
+  if (withoutQuery === 'predictions') {
+    return `/predictions${suffix}`;
+  }
+  if (withoutQuery === 'brief') {
+    return `/brief${suffix}`;
   }
   if (withoutQuery === 'ask') {
     return `/ask${suffix}`;

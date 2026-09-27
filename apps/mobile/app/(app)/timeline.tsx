@@ -410,13 +410,13 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingBottom: 24 },
   footer: { paddingVertical: 16, alignItems: 'center' },
   end: {
-    fontFamily: 'Roboto_400Regular',
+    fontFamily: 'Inter_400Regular',
     fontSize: 12,
     textAlign: 'center',
     paddingVertical: 16,
   },
   day: {
-    fontFamily: 'Roboto_500Medium',
+    fontFamily: 'Inter_500Medium',
     fontSize: 12,
     letterSpacing: 0.8,
     textTransform: 'uppercase',

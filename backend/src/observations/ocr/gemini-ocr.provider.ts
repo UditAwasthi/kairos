@@ -55,6 +55,7 @@ export class GeminiOcrProvider implements OcrProvider {
       'gemini-3.8-flash',
       'gemini-3.6-flash',
       'gemini-3.5-flash',
+      'gemini-3.5-flash-lite',
     ]);
 
     let lastError: Error | undefined;
@@ -64,9 +65,10 @@ export class GeminiOcrProvider implements OcrProvider {
         return { text, provider: this.name, model };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        const retryable404 =
-          /status 404/i.test(lastError.message) && model !== modelsToTry.at(-1);
-        if (retryable404) {
+        const retryableUnavailable =
+          /status 404|status 503/i.test(lastError.message) &&
+          model !== modelsToTry.at(-1);
+        if (retryableUnavailable) {
           this.logger.warn(
             `OCR model ${model} unavailable, trying next: ${lastError.message}`,
           );

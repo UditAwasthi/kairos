@@ -21,7 +21,7 @@ import type {
   GroundedAnswerResult,
   GroundedContextItem,
 } from './ai.types';
-import { resolveGeminiChatModel } from './gemini-models';
+import { geminiChatModelChain } from './gemini-models';
 import { RAG_SYSTEM_PROMPT } from './rag.prompt';
 
 type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
@@ -38,7 +38,8 @@ export class GeminiProvider implements AIProvider {
   private readonly logger = new Logger(GeminiProvider.name);
   private keyPool: AiApiKeyPool;
   private readonly baseUrl: string;
-  private readonly model: string;
+  private readonly models: string[];
+  private modelIndex = 0;
   private readonly maxRetries: number;
   private gate: AiRequestGate;
 
@@ -48,15 +49,26 @@ export class GeminiProvider implements AIProvider {
     this.baseUrl = normalizeGeminiChatBaseUrl(
       process.env.AI_BASE_URL?.trim() || DEFAULT_GEMINI_BASE,
     );
-    this.model = resolveGeminiChatModel(process.env.AI_MODEL);
+    this.models = geminiChatModelChain(process.env.AI_MODEL);
     this.maxRetries = readAiChatMaxRetries();
     const concurrency = readAiChatConcurrency(process.env, keys.length);
     this.gate = new AiRequestGate(concurrency);
     if (keys.length > 0) {
       this.logger.log(
-        `AI chat ready: ${keys.length} Gemini key(s), concurrency=${concurrency}, model=${this.model}`,
+        `AI chat ready: ${keys.length} Gemini key(s), concurrency=${concurrency}, model=${this.model} fallbacks=${this.models.slice(1).join(',') || 'none'}`,
       );
     }
+  }
+
+  get model(): string {
+    return this.models[this.modelIndex] ?? this.models[0] ?? 'gemini-3.8-flash';
+  }
+
+  private advanceModel(): boolean {
+    if (this.modelIndex + 1 >= this.models.length) return false;
+    this.modelIndex += 1;
+    this.logger.warn(`Gemini falling back to ${this.model} after capacity/unavailable error`);
+    return true;
   }
 
   replaceGateForTests(gate: AiRequestGate): void {
@@ -165,7 +177,7 @@ export class GeminiProvider implements AIProvider {
       throw new Error('Audio recording is empty.');
     }
 
-    const model = resolveGeminiChatModel(
+    const models = geminiChatModelChain(
       process.env.TRANSCRIPTION_MODEL || this.model,
     );
     const selected = this.keyPool.acquire();
@@ -176,54 +188,70 @@ export class GeminiProvider implements AIProvider {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 90_000);
     try {
-      const response = await fetch(this.generateUrl(model), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': selected.key,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  inline_data: {
-                    mime_type: mimeType || 'audio/mp4',
-                    data: buffer.toString('base64'),
-                  },
-                },
-                {
-                  text: 'Transcribe this audio. Return only the spoken words as plain text. Do not add commentary.',
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 4096,
+      let lastError: Error | undefined;
+      for (const model of models) {
+        const response = await fetch(this.generateUrl(model), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': selected.key,
           },
-        }),
-        signal: controller.signal,
-      });
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    inline_data: {
+                      mime_type: mimeType || 'audio/mp4',
+                      data: buffer.toString('base64'),
+                    },
+                  },
+                  {
+                    text: 'Transcribe this audio. Return only the spoken words as plain text. Do not add commentary.',
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 4096,
+            },
+          }),
+          signal: controller.signal,
+        });
 
-      if (response.status === 429) {
-        this.keyPool.markRateLimited(
-          selected.slot,
-          parseRetryAfterMs(response.headers.get('retry-after')) ?? 1_000,
-        );
-        throw new Error('Transcription rate-limited. Try again in a moment.');
-      }
-      if (!response.ok) {
-        throw new Error(
-          `Transcription failed with status ${response.status}${await readErrorDetail(response)}`,
-        );
-      }
+        if (response.status === 429) {
+          this.keyPool.markRateLimited(
+            selected.slot,
+            parseRetryAfterMs(response.headers.get('retry-after')) ?? 1_000,
+          );
+          throw new Error('Transcription rate-limited. Try again in a moment.');
+        }
+        if (response.status === 503 || response.status === 404) {
+          lastError = new Error(
+            `Transcription failed with status ${response.status} (model=${model})${await readErrorDetail(response)}`,
+          );
+          if (model !== models.at(-1)) {
+            this.logger.warn(
+              `Transcription model ${model} unavailable, trying next: ${lastError.message}`,
+            );
+            continue;
+          }
+          throw lastError;
+        }
+        if (!response.ok) {
+          throw new Error(
+            `Transcription failed with status ${response.status}${await readErrorDetail(response)}`,
+          );
+        }
 
-      const text = extractGeminiText(await response.json()).trim();
-      if (!text) {
-        throw new Error('Transcription returned no speech.');
+        const text = extractGeminiText(await response.json()).trim();
+        if (!text) {
+          throw new Error('Transcription returned no speech.');
+        }
+        return { text, provider: this.name, model };
       }
-      return { text, provider: this.name, model };
+      throw lastError ?? new Error('Transcription returned no speech.');
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error('Transcription timed out.');
@@ -327,6 +355,11 @@ export class GeminiProvider implements AIProvider {
         const retryAfterMs =
           error instanceof RateLimitError ? error.retryAfterMs : undefined;
 
+        if (error instanceof ModelUnavailableError && this.advanceModel()) {
+          attempt += 1;
+          continue;
+        }
+
         if (!isRetryableAiError(lastError) || attempt === this.maxRetries) {
           throw lastError;
         }
@@ -381,6 +414,12 @@ export class GeminiProvider implements AIProvider {
         signal: controller.signal,
       });
 
+      if (response.status === 503 || response.status === 404) {
+        throw new ModelUnavailableError(
+          `AI request failed with status ${response.status} (model=${this.model})${await readErrorDetail(response)}`,
+          response.status,
+        );
+      }
       if (response.status === 429) {
         this.logger.warn(
           `AI_REQUEST_FAILED ${JSON.stringify({
@@ -493,6 +532,16 @@ Rules:
 - Entities must use only the allowed types.
 - Prefer precision over recall.`;
 
+class ModelUnavailableError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ModelUnavailableError';
+  }
+}
+
 class RateLimitError extends Error {
   constructor(
     message: string,
@@ -505,6 +554,7 @@ class RateLimitError extends Error {
 
 function isRetryableAiError(error: Error): boolean {
   if (error instanceof RateLimitError) return true;
+  if (error instanceof ModelUnavailableError) return true;
   return /timeout|rate limit|429|502|503|504|network|ECONNRESET|fetch failed|cooling down/i.test(
     error.message,
   );

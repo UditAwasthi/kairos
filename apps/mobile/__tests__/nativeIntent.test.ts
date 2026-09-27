@@ -12,16 +12,16 @@ describe('deep link mapping', () => {
       '/voice-capture',
     );
     expect(redirectSystemPath({ path: 'kairos://insight', initial: true })).toBe(
-      '/discover',
+      '/insight',
     );
     expect(redirectSystemPath({ path: 'kairos://dashboard', initial: true })).toBe(
-      '/discover',
+      '/dashboard',
     );
     expect(redirectSystemPath({ path: 'kairos://predictions', initial: true })).toBe(
-      '/discover',
+      '/predictions',
     );
     expect(redirectSystemPath({ path: 'kairos://brief', initial: true })).toBe(
-      '/discover',
+      '/brief',
     );
     expect(redirectSystemPath({ path: 'kairos://ask', initial: true })).toBe('/ask');
     expect(redirectSystemPath({ path: 'kairos://project/abc', initial: true })).toBe(

@@ -277,7 +277,7 @@ export default function VoiceCaptureScreen() {
 }
 
 const styles = StyleSheet.create({
-  lead: { fontFamily: 'Roboto_400Regular', fontSize: 15 },
+  lead: { fontFamily: 'Inter_400Regular', fontSize: 15 },
   orbWrap: { alignItems: 'center', gap: 16, paddingVertical: 28 },
   orb: {
     width: 88,
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  status: { fontFamily: 'Roboto_500Medium', fontSize: 15, textAlign: 'center' },
-  error: { fontFamily: 'Roboto_400Regular', fontSize: 13, textAlign: 'center' },
+  status: { fontFamily: 'Inter_500Medium', fontSize: 15, textAlign: 'center' },
+  error: { fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center' },
   actions: { gap: 10 },
 });

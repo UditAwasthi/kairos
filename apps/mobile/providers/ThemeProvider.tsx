@@ -3,15 +3,14 @@ import {
   useFonts,
 } from '@expo-google-fonts/dotgothic16';
 import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+} from '@expo-google-fonts/inter';
+import {
   PlayfairDisplay_400Regular,
   PlayfairDisplay_500Medium,
 } from '@expo-google-fonts/playfair-display';
-import {
-  Roboto_400Regular,
-  Roboto_500Medium,
-  Roboto_600SemiBold,
-  Roboto_700Bold,
-} from '@expo-google-fonts/roboto';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import React, {
@@ -71,14 +70,13 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const colorScheme = useColorScheme();
-  const [fontsLoaded, fontError] = useFonts({
+  const [fontsLoaded] = useFonts({
     DotGothic16_400Regular,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
     PlayfairDisplay_400Regular,
     PlayfairDisplay_500Medium,
-    Roboto_400Regular,
-    Roboto_500Medium,
-    Roboto_600SemiBold,
-    Roboto_700Bold,
   });
 
   const { themeProgress, toggleTheme } = useThemeTransition();
@@ -114,14 +112,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [themeProgress, updateThemeUi]);
 
   useEffect(() => {
-    if (!fontsLoaded && !fontError) {
+    if (!fontsLoaded) {
       return;
     }
 
     void SplashScreen.hideAsync();
     screenOpacity.value = withTiming(1, { duration: 280 });
     // No infinite logoFloat/dotPhase loops — they burned CPU on auth/onboarding.
-  }, [fontError, fontsLoaded, screenOpacity]);
+  }, [fontsLoaded, screenOpacity]);
 
   const screenStyle = useAnimatedStyle(() => ({
     opacity: screenOpacity.value,
@@ -151,7 +149,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     [colors, gradients, dotPhase, fontsLoaded, isLight, logoFloat, themeProgress, toggleTheme],
   );
 
-  if (!fontsLoaded && !fontError) {
+  if (!fontsLoaded) {
     return null;
   }
 

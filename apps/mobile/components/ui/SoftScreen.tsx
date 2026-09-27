@@ -11,7 +11,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../ThemedText';
-import { homeFont } from '../../lib/homeTheme';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import { FLOATING_TAB_BAR_CONTENT } from '../FloatingTabBar';
 import { GlassPanel, ScreenGradient } from './Glass';
@@ -46,7 +45,7 @@ export function SoftPage({
   const pad = [
     styles.content,
     {
-      paddingTop: safeTop ? insets.top + 16 : 8,
+      paddingTop: safeTop ? insets.top + 12 : 8,
       paddingBottom: bottom,
     },
     contentStyle,
@@ -260,8 +259,8 @@ export function SoftIconBtn({ icon, label, onPress, disabled }: SoftIconBtnProps
 
 const styles = StyleSheet.create({
   content: {
-    paddingHorizontal: 20,
-    gap: 16,
+    paddingHorizontal: 22,
+    gap: 18,
   },
   titleRow: {
     flexDirection: 'row',
@@ -271,10 +270,9 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   title: {
-    fontFamily: homeFont.serif,
-    fontSize: 24,
-    lineHeight: 30,
-    letterSpacing: -0.4,
+    fontFamily: 'PlayfairDisplay_400Regular',
+    fontSize: 30,
+    letterSpacing: -0.5,
     flex: 1,
   },
   rowPanel: {
@@ -287,20 +285,20 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rowIcon: {
-    width: 32,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   rowLabel: {
     flex: 1,
-    fontFamily: homeFont.sansMedium,
+    fontFamily: 'Inter_500Medium',
     fontSize: 15,
     letterSpacing: -0.1,
   },
   rowMeta: {
-    fontFamily: homeFont.sans,
+    fontFamily: 'Inter_400Regular',
     fontSize: 13,
   },
   linkList: {
@@ -321,16 +319,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   tileIcon: {
-    width: 32,
+    width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tileLabel: {
-    fontFamily: homeFont.serif,
-    fontSize: 16,
-    letterSpacing: -0.2,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+    letterSpacing: -0.1,
   },
   iconBtn: {
     width: 48,

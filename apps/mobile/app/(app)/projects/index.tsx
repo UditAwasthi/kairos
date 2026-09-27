@@ -51,8 +51,6 @@ export default function ProjectsScreen() {
             <Pressable
               key={project.id}
               onPress={() => router.push(`/(app)/projects/${project.id}`)}
-              accessibilityRole="button"
-              accessibilityLabel={`${project.name}, ${project.observationCount} memories`}
               style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
             >
               <GlassPanel padded={false} contentStyle={styles.row}>
@@ -83,6 +81,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   copy: { flex: 1 },
-  title: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
-  meta: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
+  title: { fontFamily: 'Inter_500Medium', fontSize: 15 },
+  meta: { fontFamily: 'Inter_400Regular', fontSize: 13 },
 });

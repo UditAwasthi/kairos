@@ -30,14 +30,7 @@ export function ThemedText({
 }: ThemedTextProps) {
   const { colors } = useAppTheme();
 
-  return (
-    <Text
-      maxFontSizeMultiplier={1.3}
-      allowFontScaling
-      style={[{ color: colors[colorKey] }, style]}
-      {...props}
-    />
-  );
+  return <Text style={[{ color: colors[colorKey] }, style]} {...props} />;
 }
 
 /** Smooth color crossfade — only for onboarding (few nodes). */

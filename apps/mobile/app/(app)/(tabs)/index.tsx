@@ -1,65 +1,99 @@
 import { useAuth, useUser } from '@clerk/expo';
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import {
+  Dimensions,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
-import { HomeWorld } from '../../../components/home/HomeWorld';
+import { SoftAurora } from '../../../components/SoftAurora';
+import { ThemedText } from '../../../components/ThemedText';
 import {
-  KairosCard,
-  KairosEnter,
-  KairosInput,
-  KairosMemoryCard,
-  KairosPill,
-  KairosSectionHeader,
-  KairosState,
-  KairosText,
-} from '../../../components/ui/Kairos';
-import { readQueryCache, writeQueryCache } from '../../../hooks/useAsync';
+  EmptyState,
+  ErrorState,
+  FadeInContent,
+  LoadingSkeleton,
+} from '../../../components/ui/EmptyState';
+import { AccentGradient, GlassPanel, ScreenGradient } from '../../../components/ui/Glass';
+import { SoftTile } from '../../../components/ui/SoftScreen';
+import { toneForIndex } from '../../../components/ui/MemoryCards';
 import {
-  fetchDailyBrief,
-  fetchDashboard,
   fetchObservations,
-  fetchPredictions,
-  fetchProjects,
   fetchTopics,
+  isProcessingObservationStatus,
+  observationStageLabel,
   type ApiObservation,
-  type ApiProjectSummary,
   type ApiTopicSummary,
-  type DailyBrief,
-  type DashboardSummary,
-  type PredictionsSummary,
 } from '../../../lib/api';
-import { askPrompts, noticedDiscovery } from '../../../lib/discovery';
-import { homeStage, homeStageCopy } from '../../../lib/homeStage';
-import { greetingParts, memoryTitle, resurfacedMemory, weekDays, worldGraph } from '../../../lib/homeSummary';
-import { getCaptureSync, subscribeCaptureSync } from '../../../lib/syncStatus';
+import { getCaptureSync, subscribeCaptureSync, syncBannerText } from '../../../lib/syncStatus';
+import { readQueryCache, writeQueryCache } from '../../../hooks/useAsync';
 import { useAppTheme } from '../../../providers/ThemeProvider';
+import { auroraToneColors } from '../../../theme';
 
 type HomeCache = {
-  dashboard: DashboardSummary | null;
   observations: ApiObservation[];
   topics: ApiTopicSummary[];
-  predictions: PredictionsSummary | null;
-  brief: DailyBrief | null;
-  projects: ApiProjectSummary[];
 };
-
 const HOME_CACHE = 'home-feed';
 
-function readHomeCache(): HomeCache | null {
-  const raw = readQueryCache<Partial<HomeCache>>(HOME_CACHE);
-  if (!raw?.observations && !raw?.dashboard) return null;
-  return {
-    dashboard: raw.dashboard ?? null,
-    observations: raw.observations ?? [],
-    topics: raw.topics ?? [],
-    predictions: raw.predictions ?? null,
-    brief: raw.brief ?? null,
-    projects: raw.projects ?? [],
-  };
+const SCREEN_W = Dimensions.get('window').width;
+const H_PAD = 22;
+const GAP = 12;
+const COL = (SCREEN_W - H_PAD * 2 - GAP) / 2;
+
+type IconName = React.ComponentProps<typeof Feather>['name'];
+
+function observationIcon(type: ApiObservation['type']): IconName {
+  switch (type) {
+    case 'IMAGE':
+      return 'camera';
+    case 'PDF':
+    case 'DOCUMENT':
+      return 'file-text';
+    case 'TEXT':
+    default:
+      return 'edit-3';
+  }
+}
+
+function ObservationTile({
+  observation,
+  onPress,
+}: {
+  observation: ApiObservation;
+  onPress: () => void;
+}) {
+  const { colors } = useAppTheme();
+  const ready = observation.status === 'COMPLETED';
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={observation.filename}
+      style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
+    >
+      <GlassPanel style={styles.memoryTile} contentStyle={styles.memoryInner} padded={false}>
+        <View style={[styles.memoryIcon, { backgroundColor: colors.accentGlow }]}>
+          <Feather name={observationIcon(observation.type)} size={18} color={colors.accent} />
+        </View>
+        <ThemedText colorKey="text" style={styles.memoryTitle} numberOfLines={2}>
+          {observation.filename}
+        </ThemedText>
+        <ThemedText colorKey="textMuted" style={styles.memoryMeta} numberOfLines={1}>
+          {ready
+            ? new Date(observation.processedAt || observation.updatedAt).toLocaleDateString()
+            : observationStageLabel(observation)}
+        </ThemedText>
+      </GlassPanel>
+    </Pressable>
+  );
 }
 
 export default function HomeScreen() {
@@ -67,76 +101,49 @@ export default function HomeScreen() {
   const { getToken } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const { colors } = useAppTheme();
+  const { colors, radius } = useAppTheme();
 
-  const cached = readHomeCache();
-  const [dashboard, setDashboard] = useState<DashboardSummary | null>(cached?.dashboard ?? null);
-  const [observations, setObservations] = useState<ApiObservation[]>(cached?.observations ?? []);
-  const [topics, setTopics] = useState<ApiTopicSummary[]>(cached?.topics ?? []);
-  const [predictions, setPredictions] = useState<PredictionsSummary | null>(
-    cached?.predictions ?? null,
+  const cachedHome = readQueryCache<HomeCache>(HOME_CACHE);
+  const [observations, setObservations] = useState<ApiObservation[]>(
+    cachedHome?.observations ?? [],
   );
-  const [brief, setBrief] = useState<DailyBrief | null>(cached?.brief ?? null);
-  const [projects, setProjects] = useState<ApiProjectSummary[]>(cached?.projects ?? []);
-  const [loading, setLoading] = useState(!cached);
+  const [topics, setTopics] = useState<ApiTopicSummary[]>(cachedHome?.topics ?? []);
+  const [loading, setLoading] = useState(!cachedHome);
   const [error, setError] = useState<string | null>(null);
-  const hasDataRef = useRef(Boolean(cached));
+  const [syncText, setSyncText] = useState<string | null>(syncBannerText());
+  const hasDataRef = useRef(Boolean(cachedHome));
 
   const load = useCallback(async () => {
     try {
       setError(null);
       const token = await getToken();
       if (!token) throw new Error('Sign in to view your home.');
-      const [nextObservations, topicData, nextDashboard, nextPredictions, nextBrief, projectData] =
-        await Promise.all([
-          fetchObservations(token, { limit: 12 }).catch(() => [] as ApiObservation[]),
-          fetchTopics({ token, limit: 20 }).catch(() => ({ items: [] as ApiTopicSummary[] })),
-          fetchDashboard(token).catch(() => null),
-          fetchPredictions(token).catch(() => null),
-          fetchDailyBrief(token).catch(() => null),
-          fetchProjects({ token, limit: 8 }).catch(() => ({ items: [] as ApiProjectSummary[] })),
-        ]);
-      setObservations(nextObservations);
+      const [obs, topicData] = await Promise.all([
+        fetchObservations(token),
+        fetchTopics({ token, limit: 8 }),
+      ]);
+      setObservations(obs);
       setTopics(topicData.items);
-      setPredictions(nextPredictions);
-      setBrief(nextBrief);
-      setProjects(projectData.items);
-      setDashboard((prev) => {
-        const next = nextDashboard ?? prev;
-        writeQueryCache(HOME_CACHE, {
-          dashboard: next,
-          observations: nextObservations,
-          topics: topicData.items,
-          predictions: nextPredictions,
-          brief: nextBrief,
-          projects: projectData.items,
-        });
-        return next;
-      });
-      const hasAnything =
-        nextObservations.length > 0 ||
-        Boolean(nextDashboard) ||
-        topicData.items.length > 0 ||
-        projectData.items.length > 0;
-      hasDataRef.current = hasAnything || hasDataRef.current;
-      if (!hasAnything && !nextDashboard) {
-        setError('Unable to load.');
-      }
+      hasDataRef.current = true;
+      writeQueryCache(HOME_CACHE, { observations: obs, topics: topicData.items });
     } catch {
       setError('Unable to load.');
-    } finally {
-      setLoading(false);
     }
   }, [getToken]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!hasDataRef.current) setLoading(true);
-      void load();
-      const unsub = subscribeCaptureSync(() => undefined);
+      let cancelled = false;
+      void (async () => {
+        if (!hasDataRef.current) setLoading(true);
+        await load();
+        if (!cancelled) setLoading(false);
+      })();
+      const unsub = subscribeCaptureSync(() => setSyncText(syncBannerText()));
+      setSyncText(syncBannerText());
       void getCaptureSync();
       return () => {
+        cancelled = true;
         unsub();
       };
     }, [load]),
@@ -147,293 +154,379 @@ export default function HomeScreen() {
     user?.fullName ||
     user?.primaryEmailAddress?.emailAddress?.split('@')[0] ||
     'there';
-  const greeting = greetingParts(dashboard?.greeting ?? 'Hello', name);
-  const resurfaced = resurfacedMemory(observations);
-  let graph: ReturnType<typeof worldGraph> = { nodes: [], edges: [] };
-  try {
-    graph = worldGraph(
-      topics.length > 0 ? topics : dashboard?.topics ?? [],
-      projects,
-      observations,
-      5,
-    );
-  } catch {
-    graph = { nodes: [], edges: [] };
-  }
-  let noticed: ReturnType<typeof noticedDiscovery> = null;
-  let prompts: string[] = [];
-  let week: ReturnType<typeof weekDays> = [];
-  try {
-    noticed = noticedDiscovery({
-      dashboard,
-      brief,
-      predictions: predictions?.items ?? [],
-    });
-    prompts = askPrompts({
-      topics: topics.length > 0 ? topics : dashboard?.topics ?? [],
-      projects,
-      weekCount: dashboard?.weekCount ?? 0,
-    });
-    week = weekDays(
-      dashboard?.habit?.week ?? [],
-      dashboard?.activity ?? [],
-      dashboard?.weekCount ?? 0,
-    );
-  } catch {
-    noticed = null;
-    prompts = [];
-    week = [];
-  }
-  const stage = homeStage({
-    totalCount: dashboard?.totalCount ?? observations.length,
-    topicCount: topics.length,
-    weekCount: dashboard?.weekCount ?? 0,
-    hasPattern: Boolean(noticed),
-  });
-  const stageCopy = homeStageCopy(stage);
 
-  if (loading && observations.length === 0 && !dashboard && !error) {
+  if (loading && observations.length === 0 && !error) {
     return (
-      <View style={[styles.root, { backgroundColor: colors.background }]}>
-        <KairosState kind="loading" title="Loading your world" />
-      </View>
+      <ScreenGradient>
+        <LoadingSkeleton rows={5} />
+      </ScreenGradient>
+    );
+  }
+  if (error && observations.length === 0) {
+    return (
+      <ScreenGradient>
+        <ErrorState title="Unable to load" onRetry={() => void load()} />
+      </ScreenGradient>
     );
   }
 
-  if (error && observations.length === 0 && !dashboard) {
-    return (
-      <View style={[styles.root, { backgroundColor: colors.background }]}>
-        <KairosState kind="error" title="Unable to load" actionLabel="Retry" onAction={() => void load()} />
-      </View>
-    );
-  }
+  const processing = observations.filter((o) => isProcessingObservationStatus(o.status));
+  const completed = observations.filter((o) => o.status === 'COMPLETED');
+  const recent = completed.slice(0, 6);
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const createdToday = observations.filter((o) => o.createdAt.startsWith(todayKey)).length;
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.page,
-          {
-            paddingTop: insets.top + 16,
-            paddingBottom: insets.bottom + FLOATING_TAB_BAR_CONTENT + 24,
-          },
-        ]}
-      >
-        <KairosEnter>
-          <View style={styles.header}>
-            <View style={styles.hello}>
-              <KairosText variant="display" accessibilityRole="header">
-                {greeting.period}, {greeting.name}.
-              </KairosText>
-              <KairosText variant="caption" color="textSecondary" style={{ marginTop: 8 }}>
-                {stageCopy.body}
-              </KairosText>
-            </View>
+    <ScreenGradient>
+      <FadeInContent>
+        <ScrollView
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 108 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.headerRow}>
+            <ThemedText colorKey="text" style={styles.greeting} numberOfLines={1}>
+              {name}
+            </ThemedText>
             <Pressable
               onPress={() => router.push('/(app)/(tabs)/profile')}
-              accessibilityRole="button"
               accessibilityLabel="Profile"
-              hitSlop={12}
+              hitSlop={8}
             >
               {user?.imageUrl ? (
                 <Image source={{ uri: user.imageUrl }} style={styles.avatar} />
               ) : (
-                <View style={[styles.avatarFallback, { backgroundColor: colors.surface }]}>
-                  <KairosText variant="title">{name.slice(0, 1).toUpperCase()}</KairosText>
+                <View
+                  style={[
+                    styles.avatarFallback,
+                    { backgroundColor: colors.accentGlow, borderColor: colors.glassBorder },
+                  ]}
+                >
+                  <ThemedText colorKey="accent" style={styles.avatarLetter}>
+                    {name.slice(0, 1).toUpperCase()}
+                  </ThemedText>
                 </View>
               )}
             </Pressable>
           </View>
-        </KairosEnter>
 
-        <KairosEnter delay={40}>
           <Pressable
-            onPress={() => router.push('/(app)/(tabs)/capture')}
+            onPress={() => router.push('/(app)/dashboard')}
             accessibilityRole="button"
-            accessibilityLabel="Capture a memory"
+            accessibilityLabel="Dashboard"
           >
-            <View pointerEvents="none">
-              <KairosInput
-                editable={false}
-                placeholder={stage === 'first-day' ? stageCopy.title : 'Capture a thought…'}
-              />
+          <GlassPanel style={styles.signalCard} contentStyle={styles.signalInner} padded={false}>
+            <SoftAurora compact />
+            <View style={styles.signalLeft}>
+              <ThemedText colorKey="text" style={styles.signalValue}>
+                {createdToday}
+              </ThemedText>
+              <ThemedText colorKey="textMuted" style={styles.signalHint}>
+                today
+              </ThemedText>
             </View>
+            {processing.length > 0 ? (
+              <Pressable
+                onPress={() => router.push('/(app)/activity')}
+                style={[styles.signalBadge, { backgroundColor: colors.accentGlow }]}
+                accessibilityLabel="Processing"
+              >
+                <Feather name="loader" size={14} color={colors.accent} />
+                <ThemedText colorKey="accent" style={styles.signalBadgeText}>
+                  {processing.length}
+                </ThemedText>
+              </Pressable>
+            ) : null}
+          </GlassPanel>
           </Pressable>
-          <View style={styles.sourceRow}>
-            {[
-              { icon: 'type' as const, label: 'Text', href: '/(app)/(tabs)/capture' },
-              { icon: 'mic' as const, label: 'Voice', href: '/(app)/voice-capture' },
-              { icon: 'image' as const, label: 'Photo', href: '/(app)/(tabs)/capture' },
-              { icon: 'link' as const, label: 'Link', href: '/(app)/(tabs)/capture' },
-            ].map((item) => (
+
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push('/(app)/(tabs)/ask');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Ask"
+          >
+            <AccentGradient style={[styles.askCard, { borderRadius: radius.xl }]}>
+              <Feather name="message-circle" size={20} color={colors.inverseText} />
+              <ThemedText colorKey="inverseText" style={styles.askTitle}>
+                Ask
+              </ThemedText>
+              <Feather name="arrow-up-right" size={16} color={colors.inverseText} />
+            </AccentGradient>
+          </Pressable>
+
+          <View style={styles.row}>
+            <SoftTile
+              label="Capture"
+              icon="plus"
+              width={COL}
+              onPress={() => router.push('/(app)/quick-capture')}
+            />
+            <SoftTile
+              label="Search"
+              icon="search"
+              width={COL}
+              onPress={() => router.push('/(app)/search')}
+            />
+          </View>
+
+          <View style={styles.row}>
+            <SoftTile
+              label="Dashboard"
+              icon="bar-chart-2"
+              width={COL}
+              onPress={() => router.push('/(app)/dashboard')}
+            />
+            <SoftTile
+              label="Predictions"
+              icon="zap"
+              width={COL}
+              onPress={() => router.push('/(app)/predictions')}
+            />
+          </View>
+
+          {syncText ? (
+            <GlassPanel>
+              <ThemedText colorKey="textMuted" style={styles.syncText}>
+                {syncText}
+              </ThemedText>
+            </GlassPanel>
+          ) : null}
+
+          <View style={styles.navRow}>
+            {(
+              [
+                { icon: 'clock' as const, label: 'Timeline', href: '/(app)/timeline' },
+                { icon: 'book-open' as const, label: 'Brief', href: '/(app)/brief' },
+                { icon: 'hash' as const, label: 'Topics', href: '/(app)/topics' },
+                { icon: 'folder' as const, label: 'Projects', href: '/(app)/projects' },
+              ] as const
+            ).map((item) => (
               <Pressable
                 key={item.label}
-                onPress={() => router.push(item.href as never)}
+                onPress={() => router.push(item.href)}
                 accessibilityRole="button"
                 accessibilityLabel={item.label}
-                style={styles.sourceBtn}
+                style={styles.navItem}
               >
-                <Feather name={item.icon} size={16} color={colors.textSecondary} />
-                <KairosText variant="meta" color="textSecondary">
-                  {item.label}
-                </KairosText>
+                <View style={[styles.navIcon, { backgroundColor: colors.accentGlow }]}>
+                  <Feather name={item.icon} size={18} color={colors.accent} />
+                </View>
               </Pressable>
             ))}
           </View>
-        </KairosEnter>
 
-        <KairosEnter delay={80}>
-          <KairosSectionHeader label="Your world" action="Topics" onAction={() => router.push('/(app)/topics')} />
-          <HomeWorld
-            nodes={graph.nodes}
-            edges={graph.edges}
-            width={width}
-            emptyCopy={stageCopy.title}
-            onPressNode={(href) => router.push(href as never)}
-          />
-        </KairosEnter>
-
-        {noticed ? (
-          <KairosEnter delay={100}>
-            <KairosSectionHeader
-              label="Kairos noticed"
-              action="Discover"
-              onAction={() => router.push('/(app)/discover')}
+          {recent.length === 0 ? (
+            <EmptyState
+              title="Nothing yet"
+              actionLabel="Capture something"
+              onAction={() => router.push('/(app)/quick-capture')}
             />
-            <KairosCard
-              onPress={() => router.push(noticed.href as never)}
-              accessibilityLabel={noticed.title}
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.hScroll}
+              decelerationRate="fast"
             >
-              <KairosText variant="title">{noticed.title}</KairosText>
-              <KairosText variant="body" color="textSecondary" style={{ marginTop: 8 }}>
-                {noticed.body}
-              </KairosText>
-              {noticed.why ? (
-                <KairosText variant="caption" color="textMuted" style={{ marginTop: 8 }}>
-                  {noticed.why}
-                  {noticed.evidenceCount > 0 ? ` · ${noticed.evidenceCount} memories` : ''}
-                </KairosText>
-              ) : null}
-            </KairosCard>
-          </KairosEnter>
-        ) : null}
-
-        <KairosEnter delay={120}>
-          <KairosSectionHeader label="Ask Kairos" action="Open" onAction={() => router.push('/(app)/(tabs)/ask')} />
-          <Pressable
-            onPress={() => router.push('/(app)/(tabs)/ask')}
-            accessibilityRole="button"
-            accessibilityLabel="Ask Kairos"
-          >
-            <View pointerEvents="none">
-              <KairosInput editable={false} placeholder="What do you want to know?" />
-            </View>
-          </Pressable>
-          {prompts.length > 0 ? (
-            <View style={styles.promptRow}>
-              {prompts.map((prompt) => (
-                <KairosPill
-                  key={prompt}
-                  label={prompt}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(app)/(tabs)/ask',
-                      params: { q: prompt },
-                    })
-                  }
+              {recent.map((observation) => (
+                <ObservationTile
+                  key={observation.id}
+                  observation={observation}
+                  onPress={() => router.push(`/(app)/observation/${observation.id}`)}
                 />
               ))}
-            </View>
+            </ScrollView>
+          )}
+
+          {topics.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.hScroll}
+            >
+              {topics.map((topic, index) => {
+                const palette = auroraToneColors(colors, toneForIndex(index % 3));
+                return (
+                  <Pressable
+                    key={topic.id}
+                    onPress={() => router.push(`/(app)/topics/${topic.id}`)}
+                    accessibilityRole="button"
+                    accessibilityLabel={topic.name}
+                  >
+                    <GlassPanel
+                      padded={false}
+                      style={{ borderRadius: radius.full }}
+                      contentStyle={styles.topicChip}
+                    >
+                      <View style={[styles.topicDot, { backgroundColor: palette.accent }]} />
+                      <ThemedText colorKey="text" style={styles.topicLabel} numberOfLines={1}>
+                        {topic.name}
+                      </ThemedText>
+                    </GlassPanel>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           ) : null}
-        </KairosEnter>
-
-        {resurfaced ? (
-          <KairosEnter delay={140}>
-            <KairosSectionHeader label="Last remembered" />
-            <KairosMemoryCard
-              title={memoryTitle(resurfaced.observation.filename, resurfaced.observation.summary)}
-              date={resurfaced.label}
-              snippet={resurfaced.observation.summary ?? undefined}
-              pills={(resurfaced.observation.topics ?? []).map((topic) => topic.name)}
-              onPress={() => router.push(`/(app)/observation/${resurfaced.observation.id}`)}
-            />
-          </KairosEnter>
-        ) : null}
-
-        {week.length > 0 ? (
-          <KairosEnter delay={160}>
-            <KairosSectionHeader label="Your week" />
-            <View style={styles.week}>
-              {week.map((day) => (
-                <View key={day.date} style={styles.weekDay}>
-                  <View
-                    style={[
-                      styles.weekDot,
-                      {
-                        backgroundColor: day.count > 0 ? colors.accent : colors.surface,
-                        opacity: day.count > 0 ? 1 : 0.5,
-                      },
-                    ]}
-                  />
-                  <KairosText variant="meta" color="textMuted">
-                    {day.label.slice(0, 2)}
-                  </KairosText>
-                </View>
-              ))}
-            </View>
-          </KairosEnter>
-        ) : null}
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </FadeInContent>
+    </ScreenGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  page: {
-    width: '100%',
-    paddingHorizontal: 20,
-    gap: 20,
+  content: {
+    paddingHorizontal: H_PAD,
+    gap: 18,
   },
-  header: {
+  headerRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 16,
   },
-  hello: { flex: 1, paddingRight: 12 },
+  greeting: {
+    fontFamily: 'PlayfairDisplay_400Regular',
+    fontSize: 32,
+    letterSpacing: -0.6,
+    flex: 1,
+    paddingRight: 12,
+  },
   avatar: { width: 40, height: 40, borderRadius: 20 },
   avatarFallback: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sourceRow: {
+  avatarLetter: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+
+  signalCard: {
+    overflow: 'hidden',
+    minHeight: 72,
+  },
+  signalInner: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
   },
-  sourceBtn: {
-    minHeight: 44,
-    minWidth: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  promptRow: {
+  signalLeft: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'baseline',
     gap: 8,
-    marginTop: 12,
+    zIndex: 1,
   },
-  week: {
+  signalValue: {
+    fontFamily: 'PlayfairDisplay_400Regular',
+    fontSize: 32,
+    letterSpacing: -0.4,
+  },
+  signalHint: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+  },
+  signalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    zIndex: 1,
+  },
+  signalBadgeText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+  },
+
+  askCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+  },
+  askTitle: {
+    flex: 1,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 17,
+    letterSpacing: -0.2,
+  },
+
+  row: {
+    flexDirection: 'row',
+    gap: GAP,
+  },
+  navRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    paddingHorizontal: 8,
   },
-  weekDay: { alignItems: 'center', gap: 8, minWidth: 32 },
-  weekDot: { width: 10, height: 10, borderRadius: 5 },
+  navItem: {
+    alignItems: 'center',
+  },
+  navIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hScroll: {
+    gap: 10,
+    paddingVertical: 2,
+  },
+  memoryTile: {
+    width: 132,
+    height: 118,
+  },
+  memoryInner: {
+    height: 118,
+    padding: 14,
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  memoryIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  memoryTitle: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  memoryMeta: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+  },
+  topicChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    minHeight: 40,
+  },
+  topicDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  topicLabel: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    maxWidth: 110,
+  },
+  syncText: { fontFamily: 'Inter_400Regular', fontSize: 13 },
 });

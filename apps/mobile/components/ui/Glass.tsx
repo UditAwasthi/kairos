@@ -1,4 +1,7 @@
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
+  Platform,
   StyleProp,
   StyleSheet,
   View,
@@ -12,11 +15,20 @@ type ScreenGradientProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Opaque page backdrop — gradients are no longer used as fills. */
+/** Full-bleed atmospheric gradient behind glass widgets */
 export function ScreenGradient({ children, style }: ScreenGradientProps) {
-  const { colors } = useAppTheme();
+  const { colors, gradients } = useAppTheme();
+
   return (
     <View style={[{ flex: 1, backgroundColor: colors.background }, style]}>
+      <LinearGradient
+        colors={[...gradients.background]}
+        locations={[0, 0.48, 1]}
+        start={{ x: 0.05, y: 0 }}
+        end={{ x: 0.95, y: 1 }}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
       {children}
     </View>
   );
@@ -28,22 +40,20 @@ type AccentGradientProps = {
   soft?: boolean;
 };
 
-/** Flat accent wash — kept for existing call sites. */
+/** Brand CTA / hero fill — always a gradient, never a flat solid */
 export function AccentGradient({ children, style, soft = false }: AccentGradientProps) {
-  const { colors, radius } = useAppTheme();
+  const { gradients, radius } = useAppTheme();
+  const colors = soft ? gradients.accentSoft : gradients.accent;
+
   return (
-    <View
-      style={[
-        {
-          borderRadius: radius.xl,
-          overflow: 'hidden',
-          backgroundColor: soft ? colors.accentGlow : colors.surface,
-        },
-        style,
-      ]}
+    <LinearGradient
+      colors={[...colors]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[{ borderRadius: radius.xl, overflow: 'hidden' }, style]}
     >
       {children}
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -57,16 +67,20 @@ type GlassPanelProps = {
 };
 
 /**
- * Deprecated alias for KairosSurface. Opaque — no blur.
+ * Glassmorphism widget shell: blur + translucent gradient wash + edge highlight.
+ * Use for cards, chips, composer bars, and Ask surfaces.
  */
 export function GlassPanel({
   children,
   style,
   contentStyle,
+  intensity,
   elevated = false,
   padded = true,
 }: GlassPanelProps) {
-  const { colors, radius, spacing } = useAppTheme();
+  const { colors, gradients, radius, spacing, isLight } = useAppTheme();
+  const blur = intensity ?? colors.glassIntensity;
+  const shadow = elevated ? colors.shadowElevated : colors.shadow;
 
   return (
     <View
@@ -74,16 +88,33 @@ export function GlassPanel({
         {
           borderRadius: radius.lg,
           overflow: 'hidden',
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: colors.border,
-          backgroundColor: elevated ? colors.surfaceElevated : colors.surface,
+          borderWidth: StyleSheet.hairlineWidth * 2,
+          borderColor: colors.glassBorder,
+          ...shadow,
         },
         style,
       ]}
     >
+      <BlurView
+        intensity={blur}
+        tint={isLight ? 'systemUltraThinMaterialLight' : 'systemUltraThinMaterialDark'}
+        experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+        style={StyleSheet.absoluteFill}
+      />
+      <LinearGradient
+        colors={[...(elevated ? gradients.surface : gradients.glass)]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+      <View
+        pointerEvents="none"
+        style={[styles.highlight, { backgroundColor: colors.glassHighlight }]}
+      />
       <View
         style={[
-          padded && { padding: spacing['5'], gap: spacing['2'] },
+          padded && { padding: spacing['4'], gap: spacing['2'] },
           contentStyle,
         ]}
       >
@@ -92,3 +123,14 @@ export function GlassPanel({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  highlight: {
+    position: 'absolute',
+    top: 0,
+    left: 14,
+    right: 14,
+    height: StyleSheet.hairlineWidth,
+    opacity: 0.9,
+  },
+});

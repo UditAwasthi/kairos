@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   label: {
-    fontFamily: 'Roboto_400Regular',
+    fontFamily: 'Inter_400Regular',
     fontSize: 15,
   },
 });
