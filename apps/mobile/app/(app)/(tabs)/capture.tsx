@@ -7,13 +7,14 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Pressable,
   StyleSheet,
   View,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { SoftPage, SoftTitle } from '../../../components/ui/SoftScreen';
 import { GlassPanel } from '../../../components/ui/Glass';
+import { itemEntering, PressScale } from '../../../components/ui/Motion';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { ThemedInput } from '../../../components/ui/ThemedInput';
 import { ThemedText } from '../../../components/ThemedText';
@@ -228,35 +229,35 @@ export default function CaptureScreen() {
       <SoftTitle>Capture</SoftTitle>
 
       <View style={styles.grid}>
-        {CAPTURE_TYPES.map((item) => {
+        {CAPTURE_TYPES.map((item, index) => {
           const active = selected === item.type;
           return (
-            <Pressable
+            <Animated.View
               key={item.type}
-              disabled={busy}
-              onPress={() => onSelect(item.type)}
-              accessibilityRole="button"
-              accessibilityLabel={item.label}
-              style={({ pressed }) => [
-                styles.tileWrap,
-                { opacity: busy ? 0.5 : pressed ? 0.9 : 1 },
-              ]}
+              entering={itemEntering(index)}
+              style={[styles.tileWrap, { opacity: busy ? 0.5 : 1 }]}
             >
-              <GlassPanel
-                padded={false}
-                contentStyle={[
-                  styles.tile,
-                  active && { borderColor: colors.accent, borderWidth: 1 },
-                ]}
+              <PressScale
+                disabled={busy}
+                onPress={() => onSelect(item.type)}
+                accessibilityLabel={item.label}
               >
-                <View style={[styles.tileIcon, { backgroundColor: colors.accentGlow }]}>
-                  <Feather name={item.icon} size={20} color={colors.accent} />
-                </View>
-                <ThemedText colorKey="text" style={styles.tileLabel}>
-                  {item.label}
-                </ThemedText>
-              </GlassPanel>
-            </Pressable>
+                <GlassPanel
+                  padded={false}
+                  contentStyle={[
+                    styles.tile,
+                    active && { borderColor: colors.accent, borderWidth: 1.5 },
+                  ]}
+                >
+                  <View style={[styles.tileIcon, { backgroundColor: colors.accentGlow }]}>
+                    <Feather name={item.icon} size={20} color={colors.accent} />
+                  </View>
+                  <ThemedText colorKey="text" style={styles.tileLabel}>
+                    {item.label}
+                  </ThemedText>
+                </GlassPanel>
+              </PressScale>
+            </Animated.View>
           );
         })}
       </View>

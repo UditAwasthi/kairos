@@ -8,12 +8,14 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../ThemedText';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import { FLOATING_TAB_BAR_CONTENT } from '../FloatingTabBar';
 import { GlassPanel, ScreenGradient } from './Glass';
+import { itemEntering, pageEntering, PressScale } from './Motion';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
 
@@ -53,17 +55,19 @@ export function SoftPage({
 
   return (
     <ScreenGradient style={style}>
-      {scroll ? (
-        <ScrollView
-          contentContainerStyle={pad}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {children}
-        </ScrollView>
-      ) : (
-        <View style={[{ flex: 1 }, pad]}>{children}</View>
-      )}
+      <Animated.View entering={pageEntering()} style={{ flex: 1 }}>
+        {scroll ? (
+          <ScrollView
+            contentContainerStyle={pad}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          <View style={[{ flex: 1 }, pad]}>{children}</View>
+        )}
+      </Animated.View>
     </ScreenGradient>
   );
 }
@@ -133,19 +137,17 @@ export function SoftRow({ label, icon, meta, onPress, destructive }: SoftRowProp
   }
 
   return (
-    <Pressable
+    <PressScale
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
       }}
-      accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
     >
       <GlassPanel padded={false} contentStyle={styles.rowPanel}>
         {content}
       </GlassPanel>
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -165,31 +167,30 @@ export function SoftLinkList({ items }: SoftLinkListProps) {
   return (
     <GlassPanel padded={false} contentStyle={styles.linkList}>
       {items.map((item, index) => (
-        <Pressable
-          key={item.label}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            item.onPress();
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={item.label}
-          style={({ pressed }) => [
-            styles.linkRow,
-            index < items.length - 1 && {
-              borderBottomWidth: StyleSheet.hairlineWidth,
-              borderBottomColor: colors.divider,
-            },
-            { opacity: pressed ? 0.85 : 1 },
-          ]}
-        >
-          <View style={[styles.rowIcon, { backgroundColor: colors.accentGlow }]}>
-            <Feather name={item.icon} size={16} color={colors.accent} />
-          </View>
-          <ThemedText colorKey="text" style={styles.rowLabel} numberOfLines={1}>
-            {item.label}
-          </ThemedText>
-          <Feather name="chevron-right" size={16} color={colors.textMuted} />
-        </Pressable>
+        <Animated.View key={item.label} entering={itemEntering(index)}>
+          <PressScale
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              item.onPress();
+            }}
+            accessibilityLabel={item.label}
+            style={[
+              styles.linkRow,
+              index < items.length - 1 && {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: colors.divider,
+              },
+            ]}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: colors.accentGlow }]}>
+              <Feather name={item.icon} size={16} color={colors.accent} />
+            </View>
+            <ThemedText colorKey="text" style={styles.rowLabel} numberOfLines={1}>
+              {item.label}
+            </ThemedText>
+            <Feather name="chevron-right" size={16} color={colors.textMuted} />
+          </PressScale>
+        </Animated.View>
       ))}
     </GlassPanel>
   );
@@ -205,14 +206,13 @@ type SoftTileProps = {
 export function SoftTile({ icon, label, onPress, width = '48%' }: SoftTileProps) {
   const { colors } = useAppTheme();
   return (
-    <Pressable
+    <PressScale
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
       }}
-      accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [{ width, opacity: pressed ? 0.9 : 1 }]}
+      style={{ width }}
     >
       <GlassPanel padded={false} contentStyle={styles.tileInner}>
         <View style={[styles.tileIcon, { backgroundColor: colors.accentGlow }]}>
@@ -222,7 +222,7 @@ export function SoftTile({ icon, label, onPress, width = '48%' }: SoftTileProps)
           {label}
         </ThemedText>
       </GlassPanel>
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -259,7 +259,7 @@ export function SoftIconBtn({ icon, label, onPress, disabled }: SoftIconBtnProps
 
 const styles = StyleSheet.create({
   content: {
-    paddingHorizontal: 22,
+    paddingHorizontal: 16,
     gap: 18,
   },
   titleRow: {
@@ -270,9 +270,9 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   title: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 30,
-    letterSpacing: -0.5,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 22,
+    letterSpacing: 0,
     flex: 1,
   },
   rowPanel: {
@@ -305,6 +305,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   linkRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,

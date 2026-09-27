@@ -14,7 +14,7 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.text,
         headerTitleStyle: {
-          fontFamily: 'PlayfairDisplay_400Regular',
+          fontFamily: 'Inter_500Medium',
           fontSize: 18,
         },
         headerShadowVisible: false,
@@ -25,7 +25,7 @@ export default function TabsLayout() {
           elevation: 0,
         },
         tabBarHideOnKeyboard: true,
-        animation: 'shift',
+        animation: 'fade',
         transitionSpec: {
           animation: 'spring',
           config: {

@@ -43,9 +43,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   brand: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 28,
-    letterSpacing: -0.3,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 22,
+    letterSpacing: 0,
   },
   meta: {
     fontFamily: 'Inter_400Regular',

@@ -7,10 +7,6 @@ import {
   Inter_500Medium,
   Inter_600SemiBold,
 } from '@expo-google-fonts/inter';
-import {
-  PlayfairDisplay_400Regular,
-  PlayfairDisplay_500Medium,
-} from '@expo-google-fonts/playfair-display';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import React, {
@@ -75,8 +71,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
-    PlayfairDisplay_400Regular,
-    PlayfairDisplay_500Medium,
   });
 
   const { themeProgress, toggleTheme } = useThemeTransition();

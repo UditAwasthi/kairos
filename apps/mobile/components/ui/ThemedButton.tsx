@@ -29,7 +29,7 @@ export function ThemedButton({
   variant = 'primary',
   style,
 }: ThemedButtonProps) {
-  const { colors, radius, typography } = useAppTheme();
+  const { colors, typography } = useAppTheme();
   const press = useSharedValue(0);
 
   if (variant === 'text') {
@@ -82,7 +82,7 @@ export function ThemedButton({
       style={[
         styles.button,
         {
-          borderRadius: radius.full,
+          borderRadius: 20,
           borderWidth: isPrimary ? 0 : 1,
           opacity: disabled ? 0.5 : 1,
           ...(!isPrimary && !disabled ? colors.shadow : null),
@@ -110,13 +110,13 @@ export function ThemedButton({
 
 const styles = StyleSheet.create({
   button: {
-    height: 52,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
     paddingHorizontal: 18,
   },
   label: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_500Medium',
   },
 });

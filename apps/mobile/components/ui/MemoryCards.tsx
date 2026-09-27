@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated from 'react-native-reanimated';
 
 import { ThemedText } from '../ThemedText';
 import { useAppTheme } from '../../providers/ThemeProvider';
@@ -16,6 +17,7 @@ import { SOURCE_TYPE_LABELS } from '../../services';
 import { AURORA_TONES, AuroraTone, auroraToneColors } from '../../theme';
 import { GlassPanel } from './Glass';
 import { Badge } from './MetricCard';
+import { messageEntering, PressScale } from './Motion';
 import { SurfaceCard } from './SectionHeader';
 
 export function TopicChip({
@@ -83,11 +85,9 @@ export function MemoryCard({ memory, onPress, topicNames }: MemoryCardProps) {
   });
 
   return (
-    <Pressable
+    <PressScale
       onPress={onPress}
-      accessibilityRole="button"
       accessibilityLabel={`Memory: ${memory.title}`}
-      style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
     >
       <SurfaceCard>
         <View style={[styles.rowBetween, { gap: spacing['2'] }]}>
@@ -112,7 +112,7 @@ export function MemoryCard({ memory, onPress, topicNames }: MemoryCardProps) {
         </View>
         <View style={[styles.rail, { backgroundColor: colors.accent }]} />
       </SurfaceCard>
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -136,11 +136,9 @@ export function TimelineMemoryItem({
   });
 
   return (
-    <Pressable
+    <PressScale
       onPress={onPress}
-      accessibilityRole="button"
       accessibilityLabel={`${timeOnly}, ${memory.title}`}
-      style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
     >
       <View style={[styles.timelineRow, { gap: spacing['3'] }]}>
         <View style={styles.spineCol}>
@@ -183,7 +181,7 @@ export function TimelineMemoryItem({
           <SourceTypeLabel type={memory.sourceType} />
         </View>
       </View>
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -195,7 +193,7 @@ export function SearchResultCard({
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button">
+    <PressScale onPress={onPress} accessibilityLabel={result.memory.title}>
       <SurfaceCard>
         <SourceTypeLabel type={result.memory.sourceType} />
         <ThemedText colorKey="text" style={styles.cardTitle}>
@@ -210,7 +208,7 @@ export function SearchResultCard({
           </ThemedText>
         ) : null}
       </SurfaceCard>
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -222,19 +220,21 @@ export function EvidenceCard({
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`Source ${source.title}`}>
-      <SurfaceCard>
-        <ThemedText colorKey="textMuted" style={styles.kicker}>
-          Supporting memory
-        </ThemedText>
-        <ThemedText colorKey="text" style={styles.cardTitle}>
-          {source.title}
-        </ThemedText>
-        <ThemedText colorKey="textSecondary" style={styles.body} numberOfLines={2}>
-          {source.snippet}
-        </ThemedText>
-      </SurfaceCard>
-    </Pressable>
+    <Animated.View entering={messageEntering()}>
+      <PressScale onPress={onPress} accessibilityLabel={`Source ${source.title}`}>
+        <SurfaceCard>
+          <ThemedText colorKey="textMuted" style={styles.kicker}>
+            Supporting memory
+          </ThemedText>
+          <ThemedText colorKey="text" style={styles.cardTitle}>
+            {source.title}
+          </ThemedText>
+          <ThemedText colorKey="textSecondary" style={styles.body} numberOfLines={2}>
+            {source.snippet}
+          </ThemedText>
+        </SurfaceCard>
+      </PressScale>
+    </Animated.View>
   );
 }
 
@@ -244,13 +244,12 @@ export function AskBubble({ message }: { message: AskMessage }) {
 
   if (isUser) {
     return (
+      <Animated.View entering={messageEntering()} style={{ alignSelf: 'flex-end', maxWidth: '82%' }}>
       <LinearGradient
         colors={[...gradients.accent]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{
-          alignSelf: 'flex-end',
-          maxWidth: '82%',
           borderRadius: radius.xl,
           borderBottomRightRadius: radius.sm,
           paddingHorizontal: spacing['4'],
@@ -261,11 +260,12 @@ export function AskBubble({ message }: { message: AskMessage }) {
           {message.content}
         </ThemedText>
       </LinearGradient>
+      </Animated.View>
     );
   }
 
   return (
-    <View style={{ alignSelf: 'stretch', gap: spacing['2'], paddingRight: spacing['2'] }}>
+    <Animated.View entering={messageEntering()} style={{ alignSelf: 'stretch', gap: spacing['2'], paddingRight: spacing['2'] }}>
       <ThemedText colorKey="text" style={[styles.body, { fontSize: 16, lineHeight: 24 }]}>
         {message.content}
       </ThemedText>
@@ -274,7 +274,7 @@ export function AskBubble({ message }: { message: AskMessage }) {
           Insufficient supporting memories
         </ThemedText>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 

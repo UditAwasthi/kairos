@@ -79,9 +79,9 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   glyphLabel: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 15,
-    letterSpacing: 0.5,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+    letterSpacing: 0.2,
   },
   content: {
     flexGrow: 1,
@@ -91,9 +91,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   title: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 30,
-    letterSpacing: -0.5,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 28,
+    letterSpacing: 0,
   },
   subtitle: {
     fontFamily: 'Inter_400Regular',

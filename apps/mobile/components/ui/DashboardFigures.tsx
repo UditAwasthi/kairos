@@ -290,14 +290,14 @@ const styles = StyleSheet.create({
     opacity: 0.86,
   },
   streakValue: {
-    fontFamily: 'PlayfairDisplay_400Regular',
+    fontFamily: 'Inter_400Regular',
     fontSize: 52,
     letterSpacing: -1.4,
     marginTop: 8,
     lineHeight: 58,
   },
   streakHeadline: {
-    fontFamily: 'PlayfairDisplay_500Medium',
+    fontFamily: 'Inter_500Medium',
     fontSize: 20,
     letterSpacing: -0.3,
   },
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   },
   streakActionText: { fontFamily: 'Inter_500Medium', fontSize: 13 },
   habitTitle: {
-    fontFamily: 'PlayfairDisplay_500Medium',
+    fontFamily: 'Inter_500Medium',
     fontSize: 20,
     letterSpacing: -0.2,
   },
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
   },
   weekLabel: { fontFamily: 'Inter_500Medium', fontSize: 11 },
   chartTitle: {
-    fontFamily: 'PlayfairDisplay_500Medium',
+    fontFamily: 'Inter_500Medium',
     fontSize: 20,
     letterSpacing: -0.2,
     marginBottom: 16,
@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
   statCard: { flexGrow: 1, flexBasis: '30%', minWidth: 96 },
   statInner: { paddingVertical: 14, paddingHorizontal: 14, gap: 4 },
   statValue: {
-    fontFamily: 'PlayfairDisplay_400Regular',
+    fontFamily: 'Inter_400Regular',
     fontSize: 26,
     letterSpacing: -0.4,
   },

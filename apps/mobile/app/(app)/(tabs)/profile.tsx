@@ -143,9 +143,9 @@ const styles = StyleSheet.create({
   avatarLetter: { fontFamily: 'Inter_600SemiBold', fontSize: 20 },
   headerText: { flex: 1, gap: 2 },
   name: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 24,
-    letterSpacing: -0.3,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 22,
+    letterSpacing: 0,
   },
   email: { fontFamily: 'Inter_400Regular', fontSize: 13 },
   syncKicker: {

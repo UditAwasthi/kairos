@@ -745,7 +745,7 @@ function FloatingHorizon({
       >
         <Text
           style={{
-            fontFamily: selected ? 'PlayfairDisplay_500Medium' : 'PlayfairDisplay_400Regular',
+            fontFamily: selected ? 'Inter_500Medium' : 'Inter_400Regular',
             fontSize: Math.round((selected ? word.size + 4 : word.size) * scale),
             letterSpacing: -0.6,
             color: selected ? surface.lavenderInk : surface.muted,
@@ -1003,16 +1003,16 @@ const styles = StyleSheet.create({
   mark: { width: 26, height: 26 },
   introCopy: { paddingBottom: 8, gap: 14 },
   displayHuge: {
-    fontFamily: 'PlayfairDisplay_400Regular',
+    fontFamily: 'Inter_400Regular',
     letterSpacing: -1.1,
   },
   displayCrop: {
-    fontFamily: 'PlayfairDisplay_400Regular',
+    fontFamily: 'Inter_400Regular',
     letterSpacing: -1.1,
     marginTop: 28,
   },
   displayMid: {
-    fontFamily: 'PlayfairDisplay_400Regular',
+    fontFamily: 'Inter_400Regular',
     letterSpacing: -0.8,
     marginTop: 28,
   },
@@ -1035,7 +1035,7 @@ const styles = StyleSheet.create({
   captureInput: {
     marginTop: 22,
     width: '100%',
-    fontFamily: 'PlayfairDisplay_400Regular',
+    fontFamily: 'Inter_400Regular',
     letterSpacing: -0.4,
     textAlignVertical: 'top',
   },
@@ -1051,11 +1051,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   memoryEcho: {
-    fontFamily: 'PlayfairDisplay_400Regular',
+    fontFamily: 'Inter_400Regular',
     letterSpacing: -0.2,
   },
   focusWord: {
-    fontFamily: 'PlayfairDisplay_400Regular',
+    fontFamily: 'Inter_400Regular',
     letterSpacing: -0.6,
   },
   connectTree: {
@@ -1077,7 +1077,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   relatedWord: {
-    fontFamily: 'PlayfairDisplay_400Regular',
+    fontFamily: 'Inter_400Regular',
     fontSize: 18,
     letterSpacing: -0.3,
   },
@@ -1089,7 +1089,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   keptBody: {
-    fontFamily: 'PlayfairDisplay_400Regular',
+    fontFamily: 'Inter_400Regular',
     letterSpacing: -0.3,
   },
   enterFragment: {

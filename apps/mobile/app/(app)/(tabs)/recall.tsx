@@ -23,10 +23,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { SoftAurora } from '../../../components/SoftAurora';
 import { ThemedText } from '../../../components/ThemedText';
 import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
+import { FadeInContent } from '../../../components/ui/EmptyState';
 import { GlassPanel, ScreenGradient } from '../../../components/ui/Glass';
+import { itemEntering, PressScale } from '../../../components/ui/Motion';
 import {
   ApiError,
   deleteRecallData,
@@ -60,6 +61,26 @@ function statusWord(status: RecallStatus | null, entitlement: RecallEntitlement 
   if (status.state === 'needs_consent' || status.userEnabled) return 'Resume';
   if (status.state === 'paused') return 'Paused';
   return 'Off';
+}
+
+function StatusDot({ color, pulse }: { color: string; pulse: boolean }) {
+  const opacity = useSharedValue(1);
+
+  useEffect(() => {
+    if (pulse) {
+      opacity.value = withRepeat(
+        withTiming(0.35, { duration: 700, easing: Easing.inOut(Easing.quad) }),
+        -1,
+        true,
+      );
+    } else {
+      opacity.value = withTiming(1, { duration: 200 });
+    }
+  }, [pulse, opacity]);
+
+  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return <Animated.View style={[styles.dot, { backgroundColor: color }, style]} />;
 }
 
 function PulseOrb({
@@ -279,6 +300,7 @@ export default function RecallScreen() {
 
   return (
     <ScreenGradient>
+      <FadeInContent>
       <View
         style={[
           styles.screen,
@@ -293,19 +315,17 @@ export default function RecallScreen() {
             Recall
           </ThemedText>
           <View style={[styles.pill, { backgroundColor: colors.accentGlow }]}>
-            <View
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: syncing
-                    ? colors.accent
-                    : isOn
-                      ? colors.success
-                      : word === 'Locked'
-                        ? colors.warning
-                        : colors.textMuted,
-                },
-              ]}
+            <StatusDot
+              color={
+                syncing
+                  ? colors.accent
+                  : isOn
+                    ? colors.success
+                    : word === 'Locked'
+                      ? colors.warning
+                      : colors.textMuted
+              }
+              pulse={syncing || isOn}
             />
             <ThemedText colorKey="textMuted" style={styles.pillText}>
               {word}
@@ -314,7 +334,6 @@ export default function RecallScreen() {
         </View>
 
         <View style={styles.hero}>
-          <SoftAurora />
           <PulseOrb
             active={isOn}
             busy={busy}
@@ -338,6 +357,7 @@ export default function RecallScreen() {
         ) : null}
 
         <View style={styles.metrics}>
+          <Animated.View entering={itemEntering(0)} style={styles.metric}>
           <GlassPanel style={styles.metric} contentStyle={styles.metricInner} padded={false}>
             <Feather name="layers" size={16} color={colors.accent} />
             <ThemedText colorKey="text" style={styles.metricValue}>
@@ -347,6 +367,8 @@ export default function RecallScreen() {
               Queue
             </ThemedText>
           </GlassPanel>
+          </Animated.View>
+          <Animated.View entering={itemEntering(1)} style={styles.metric}>
           <GlassPanel style={styles.metric} contentStyle={styles.metricInner} padded={false}>
             <Feather
               name={uploading ? 'refresh-cw' : 'upload-cloud'}
@@ -360,6 +382,8 @@ export default function RecallScreen() {
               {uploading ? 'Syncing' : 'Synced'}
             </ThemedText>
           </GlassPanel>
+          </Animated.View>
+          <Animated.View entering={itemEntering(2)} style={styles.metric}>
           <GlassPanel style={styles.metric} contentStyle={styles.metricInner} padded={false}>
             <Feather
               name={entitlement?.allowed ? 'shield' : 'shield-off'}
@@ -373,38 +397,33 @@ export default function RecallScreen() {
               Access
             </ThemedText>
           </GlassPanel>
+          </Animated.View>
         </View>
 
         <View style={styles.actions}>
-          <Pressable
+          <PressScale
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push('/(app)/(tabs)/ask');
             }}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              { backgroundColor: colors.surfaceElevated, opacity: pressed ? 0.85 : 1 },
-            ]}
+            style={[styles.actionBtn, { backgroundColor: colors.surfaceElevated }]}
             accessibilityLabel="Ask"
           >
             <Feather name="message-circle" size={18} color={colors.accent} />
-          </Pressable>
-          <Pressable
+          </PressScale>
+          <PressScale
             disabled={busy || !Recall.isAvailable()}
             onPress={() =>
               void run(async () => {
                 await Recall.clearLocalData();
               })
             }
-            style={({ pressed }) => [
-              styles.actionBtn,
-              { backgroundColor: colors.surfaceElevated, opacity: pressed ? 0.85 : 1 },
-            ]}
+            style={[styles.actionBtn, { backgroundColor: colors.surfaceElevated }]}
             accessibilityLabel="Clear queue"
           >
             <Feather name="trash" size={18} color={colors.textSecondary} />
-          </Pressable>
-          <Pressable
+          </PressScale>
+          <PressScale
             disabled={busy}
             onPress={() => {
               Alert.alert('Delete?', undefined, [
@@ -423,25 +442,19 @@ export default function RecallScreen() {
                 },
               ]);
             }}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              { backgroundColor: colors.surfaceElevated, opacity: pressed ? 0.85 : 1 },
-            ]}
+            style={[styles.actionBtn, { backgroundColor: colors.surfaceElevated }]}
             accessibilityLabel="Delete server data"
           >
             <Feather name="cloud-off" size={18} color={colors.textSecondary} />
-          </Pressable>
-          <Pressable
+          </PressScale>
+          <PressScale
             disabled={busy}
             onPress={() => void run(async () => { await refresh(true); })}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              { backgroundColor: colors.surfaceElevated, opacity: pressed ? 0.85 : 1 },
-            ]}
+            style={[styles.actionBtn, { backgroundColor: colors.surfaceElevated }]}
             accessibilityLabel="Refresh"
           >
             <Feather name="refresh-cw" size={18} color={colors.textSecondary} />
-          </Pressable>
+          </PressScale>
         </View>
 
         {status?.lastError ? (
@@ -450,6 +463,7 @@ export default function RecallScreen() {
           </ThemedText>
         ) : null}
       </View>
+      </FadeInContent>
     </ScreenGradient>
   );
 }
@@ -466,9 +480,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 32,
-    letterSpacing: -0.6,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 22,
+    letterSpacing: 0,
   },
   pill: {
     flexDirection: 'row',

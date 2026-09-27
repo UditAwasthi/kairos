@@ -21,8 +21,9 @@ import {
 
 import { ThemedText } from '../../../components/ThemedText';
 import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
-import { LoadingSkeleton, SoftRefreshBar } from '../../../components/ui/EmptyState';
+import { FadeInContent, LoadingSkeleton, SoftRefreshBar } from '../../../components/ui/EmptyState';
 import { AccentGradient, GlassPanel, ScreenGradient } from '../../../components/ui/Glass';
+import { itemEntering, PressScale } from '../../../components/ui/Motion';
 import { AskBubble, EvidenceCard } from '../../../components/ui/MemoryCards';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import {
@@ -320,6 +321,7 @@ export default function AskScreen() {
   if (view === 'list') {
     return (
       <ScreenGradient>
+        <FadeInContent>
         <View style={[styles.flex, { paddingBottom: FLOATING_TAB_BAR_CONTENT + insets.bottom }]}>
           <View style={styles.listHeader}>
             <ThemedText colorKey="text" style={styles.emptyTitle}>
@@ -346,33 +348,35 @@ export default function AskScreen() {
                     Nothing yet
                   </ThemedText>
                 ) : null}
-                {conversations.map((item) => (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => void openConversation(item.id)}
-                    onLongPress={async () => {
-                      try {
-                        const token = await getToken();
-                        if (!token) return;
-                        await deleteConversation({ token, id: item.id });
-                        await refreshList();
-                      } catch {
-                        setError('Could not delete.');
-                      }
-                    }}
-                  >
-                    <GlassPanel contentStyle={styles.conversationRow} padded={false}>
-                      <View style={styles.flex}>
-                        <ThemedText colorKey="text" style={styles.conversationTitle} numberOfLines={1}>
-                          {item.title}
-                        </ThemedText>
-                        <ThemedText colorKey="textMuted" style={styles.meta}>
-                          {new Date(item.updatedAt).toLocaleDateString()}
-                        </ThemedText>
-                      </View>
-                      <Feather name="chevron-right" size={16} color={colors.textMuted} />
-                    </GlassPanel>
-                  </Pressable>
+                {conversations.map((item, index) => (
+                  <Animated.View key={item.id} entering={itemEntering(index)}>
+                    <PressScale
+                      onPress={() => void openConversation(item.id)}
+                      onLongPress={async () => {
+                        try {
+                          const token = await getToken();
+                          if (!token) return;
+                          await deleteConversation({ token, id: item.id });
+                          await refreshList();
+                        } catch {
+                          setError('Could not delete.');
+                        }
+                      }}
+                      accessibilityLabel={item.title}
+                    >
+                      <GlassPanel contentStyle={styles.conversationRow} padded={false}>
+                        <View style={styles.flex}>
+                          <ThemedText colorKey="text" style={styles.conversationTitle} numberOfLines={1}>
+                            {item.title}
+                          </ThemedText>
+                          <ThemedText colorKey="textMuted" style={styles.meta}>
+                            {new Date(item.updatedAt).toLocaleDateString()}
+                          </ThemedText>
+                        </View>
+                        <Feather name="chevron-right" size={16} color={colors.textMuted} />
+                      </GlassPanel>
+                    </PressScale>
+                  </Animated.View>
                 ))}
                 {error ? (
                   <ThemedText colorKey="error" style={styles.body}>
@@ -383,12 +387,14 @@ export default function AskScreen() {
             </>
           )}
         </View>
+        </FadeInContent>
       </ScreenGradient>
     );
   }
 
   return (
     <ScreenGradient>
+      <FadeInContent>
       <View style={styles.flex}>
         <View style={styles.threadHeader}>
           <Pressable
@@ -454,15 +460,17 @@ export default function AskScreen() {
           {emptyThread && !loadingThread ? (
             <Pressable style={styles.empty} onPress={() => inputRef.current?.focus()}>
               <View style={styles.starters}>
-                {STARTERS.map((q) => (
-                  <Pressable key={q} onPress={() => void send(q)} accessibilityRole="button">
-                    <GlassPanel contentStyle={styles.starterInner} padded={false}>
-                      <Feather name="arrow-up-right" size={14} color={colors.accent} />
-                      <ThemedText colorKey="text" style={styles.starter} numberOfLines={2}>
-                        {q}
-                      </ThemedText>
-                    </GlassPanel>
-                  </Pressable>
+                {STARTERS.map((q, index) => (
+                  <Animated.View key={q} entering={itemEntering(index)}>
+                    <PressScale onPress={() => void send(q)} accessibilityLabel={q}>
+                      <GlassPanel contentStyle={styles.starterInner} padded={false}>
+                        <Feather name="arrow-up-right" size={14} color={colors.accent} />
+                        <ThemedText colorKey="text" style={styles.starter} numberOfLines={2}>
+                          {q}
+                        </ThemedText>
+                      </GlassPanel>
+                    </PressScale>
+                  </Animated.View>
                 ))}
               </View>
             </Pressable>
@@ -598,6 +606,7 @@ export default function AskScreen() {
           <View style={{ height: FLOATING_TAB_BAR_CONTENT + Math.max(insets.bottom, 10) }} />
         )}
       </View>
+      </FadeInContent>
     </ScreenGradient>
   );
 }
@@ -656,9 +665,9 @@ const styles = StyleSheet.create({
   },
   empty: { gap: 10, paddingBottom: 24 },
   emptyTitle: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 30,
-    letterSpacing: -0.5,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 22,
+    letterSpacing: 0,
   },
   emptyHint: {
     fontFamily: 'Inter_400Regular',

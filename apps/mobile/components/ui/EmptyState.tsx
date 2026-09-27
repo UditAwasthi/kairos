@@ -10,6 +10,7 @@ import Animated, {
 
 import { ThemedText } from '../ThemedText';
 import { useAppTheme } from '../../providers/ThemeProvider';
+import { fadeEntering, pageEntering } from './Motion';
 import { ThemedButton } from './ThemedButton';
 
 type EmptyStateProps = {
@@ -21,19 +22,13 @@ type EmptyStateProps = {
 };
 
 export function EmptyState({ title, message, actionLabel, onAction, style }: EmptyStateProps) {
-  const { colors, spacing, radius } = useAppTheme();
+  const { spacing } = useAppTheme();
 
   return (
-    <View style={[styles.container, { padding: spacing['8'], gap: spacing['3'] }, style]}>
-      <View
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: radius.full,
-          backgroundColor: colors.accent,
-          opacity: 0.55,
-        }}
-      />
+    <Animated.View
+      entering={fadeEntering(40)}
+      style={[styles.container, { padding: spacing['8'], gap: spacing['3'] }, style]}
+    >
       <ThemedText colorKey="textMuted" style={styles.emptyTitle}>
         {title}
       </ThemedText>
@@ -49,7 +44,7 @@ export function EmptyState({ title, message, actionLabel, onAction, style }: Emp
           style={{ marginTop: spacing['2'], minWidth: 140 }}
         />
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -68,19 +63,13 @@ export function ErrorState({
   message,
   onRetry,
 }: ErrorStateProps) {
-  const { colors, spacing, radius } = useAppTheme();
+  const { spacing } = useAppTheme();
 
   return (
-    <View style={[styles.container, { padding: spacing['8'], gap: spacing['4'] }]}>
-      <View
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: radius.full,
-          backgroundColor: colors.error,
-          opacity: 0.7,
-        }}
-      />
+    <Animated.View
+      entering={fadeEntering()}
+      style={[styles.container, { padding: spacing['8'], gap: spacing['4'] }]}
+    >
       <ThemedText colorKey="text" style={styles.emptyTitle}>
         {title}
       </ThemedText>
@@ -90,7 +79,7 @@ export function ErrorState({
         </ThemedText>
       ) : null}
       {onRetry ? <ThemedButton label="Retry" onPress={onRetry} style={{ minWidth: 140 }} /> : null}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -100,11 +89,11 @@ type LoadingSkeletonProps = {
 
 export function LoadingSkeleton({ rows = 4 }: LoadingSkeletonProps) {
   const { colors, spacing, radius } = useAppTheme();
-  const pulse = useSharedValue(0.62);
+  const pulse = useSharedValue(0.45);
 
   useEffect(() => {
     pulse.value = withRepeat(
-      withTiming(0.88, { duration: 1400, easing: Easing.inOut(Easing.quad) }),
+      withTiming(1, { duration: 900, easing: Easing.inOut(Easing.quad) }),
       -1,
       true,
     );
@@ -146,7 +135,11 @@ type FadeInContentProps = {
 };
 
 export function FadeInContent({ children, style }: FadeInContentProps) {
-  return <View style={[{ flex: 1 }, style]}>{children}</View>;
+  return (
+    <Animated.View entering={pageEntering()} style={[{ flex: 1 }, style]}>
+      {children}
+    </Animated.View>
+  );
 }
 
 type SoftRefreshProps = {
