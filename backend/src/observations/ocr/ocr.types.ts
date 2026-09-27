@@ -1,4 +1,5 @@
 import { readEmbeddingApiKeys } from '../../ai/ai-api-key-pool';
+import { resolveGeminiChatModel } from '../../ai/gemini-models';
 
 export type OcrConfig = {
   provider: string;
@@ -22,12 +23,9 @@ export interface OcrProvider {
 
 export function readOcrConfig(): OcrConfig {
   const provider = (process.env.OCR_PROVIDER ?? 'gemini').toLowerCase();
-  // gemini-2.0-flash was shut down 2026-06-01; prefer a current Flash multimodal model.
-  const defaultModel = 'gemini-2.5-flash';
-
   return {
     provider,
-    model: process.env.OCR_MODEL?.trim() || defaultModel,
+    model: resolveGeminiChatModel(process.env.OCR_MODEL),
     apiKey:
       process.env.OCR_API_KEY?.trim() || readEmbeddingApiKeys()[0] || undefined,
     baseUrl: (

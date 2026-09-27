@@ -24,7 +24,7 @@ describe('ImageExtractor', () => {
   it('extracts text via OCR when configured', async () => {
     process.env.OCR_PROVIDER = 'gemini';
     process.env.OCR_API_KEY = 'test-key';
-    process.env.OCR_MODEL = 'gemini-2.5-flash';
+    process.env.OCR_MODEL = 'gemini-3.8-flash';
 
     jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,

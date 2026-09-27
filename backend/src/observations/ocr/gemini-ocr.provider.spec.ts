@@ -21,7 +21,7 @@ describe('OCR helpers', () => {
     const config = readOcrConfig();
     expect(config.provider).toBe('gemini');
     expect(config.apiKey).toBe('test-key');
-    expect(config.model).toBe('gemini-2.5-flash');
+    expect(config.model).toBe('gemini-3.8-flash');
   });
 
   it('falls back to the chat Gemini key pool when no OCR or embedding key is set', () => {

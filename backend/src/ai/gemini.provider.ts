@@ -21,6 +21,7 @@ import type {
   GroundedAnswerResult,
   GroundedContextItem,
 } from './ai.types';
+import { resolveGeminiChatModel } from './gemini-models';
 import { RAG_SYSTEM_PROMPT } from './rag.prompt';
 
 type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
@@ -29,7 +30,6 @@ const SINGLE_PASS_MAX_CHARS = 24_000;
 const MAP_REDUCE_MAX_CHUNKS = 6;
 const MAP_REDUCE_CHUNK_CHARS = 4_000;
 const INTER_REQUEST_DELAY_MS = 350;
-const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
 const DEFAULT_GEMINI_BASE = 'https://generativelanguage.googleapis.com';
 
 @Injectable()
@@ -48,9 +48,7 @@ export class GeminiProvider implements AIProvider {
     this.baseUrl = normalizeGeminiChatBaseUrl(
       process.env.AI_BASE_URL?.trim() || DEFAULT_GEMINI_BASE,
     );
-    this.model =
-      process.env.AI_MODEL?.trim().replace(/^models\//, '') ||
-      DEFAULT_GEMINI_MODEL;
+    this.model = resolveGeminiChatModel(process.env.AI_MODEL);
     this.maxRetries = readAiChatMaxRetries();
     const concurrency = readAiChatConcurrency(process.env, keys.length);
     this.gate = new AiRequestGate(concurrency);
@@ -167,9 +165,9 @@ export class GeminiProvider implements AIProvider {
       throw new Error('Audio recording is empty.');
     }
 
-    const model =
-      process.env.TRANSCRIPTION_MODEL?.trim().replace(/^models\//, '') ||
-      this.model;
+    const model = resolveGeminiChatModel(
+      process.env.TRANSCRIPTION_MODEL || this.model,
+    );
     const selected = this.keyPool.acquire();
     if (!selected) {
       throw new Error('No AI API key available for transcription.');

@@ -1,4 +1,5 @@
 import { AiRequestGate } from './ai-request-gate';
+import { resolveGeminiChatModel } from './gemini-models';
 import { GeminiProvider } from './gemini.provider';
 import { createChatProvider } from './ai.module';
 import { OpenAICompatibleProvider } from './openai-compatible.provider';
@@ -28,7 +29,7 @@ describe('GeminiProvider', () => {
 
   function buildProvider() {
     process.env.AI_API_KEY = 'gemini-key';
-    process.env.AI_MODEL = 'gemini-2.5-flash';
+    process.env.AI_MODEL = 'gemini-3.8-flash';
     process.env.AI_CHAT_MAX_RETRIES = '3';
     const provider = new GeminiProvider();
     provider.replaceGateForTests(new AiRequestGate(1));
@@ -38,7 +39,7 @@ describe('GeminiProvider', () => {
   it('calls Gemini generateContent with the rotating API key', async () => {
     const provider = buildProvider();
     global.fetch = jest.fn(async (url, init) => {
-      expect(String(url)).toMatch(/generativelanguage\.googleapis\.com\/v1beta\/models\/gemini-2\.5-flash:generateContent/);
+      expect(String(url)).toMatch(/generativelanguage\.googleapis\.com\/v1beta\/models\/gemini-3\.8-flash:generateContent/);
       const headers = init?.headers as Record<string, string>;
       expect(headers['x-goog-api-key']).toBe('gemini-key');
       return geminiJsonResponse(VALID_ANALYSIS);
@@ -46,8 +47,22 @@ describe('GeminiProvider', () => {
 
     const result = await provider.analyzeDocument(['a personal note']);
     expect(result.provider).toBe('gemini');
-    expect(result.model).toBe('gemini-2.5-flash');
+    expect(result.model).toBe('gemini-3.8-flash');
     expect(result.summary).toMatch(/valid document summary/i);
+  });
+
+  it('remaps retired gemini-2.5-flash to gemini-3.8-flash', async () => {
+    process.env.AI_API_KEY = 'gemini-key';
+    process.env.AI_MODEL = 'gemini-2.5-flash';
+    const provider = new GeminiProvider();
+    provider.replaceGateForTests(new AiRequestGate(1));
+    global.fetch = jest.fn(async (url) => {
+      expect(String(url)).toMatch(/models\/gemini-3\.8-flash:generateContent/);
+      return geminiJsonResponse(VALID_ANALYSIS);
+    });
+
+    const result = await provider.analyzeDocument(['retired model']);
+    expect(result.model).toBe('gemini-3.8-flash');
   });
 
   it('rotates to the next Gemini key on 429', async () => {
@@ -78,7 +93,7 @@ describe('GeminiProvider', () => {
 
   it('transcribes audio through generateContent, not whisper', async () => {
     process.env.AI_API_KEY = 'gemini-key';
-    process.env.TRANSCRIPTION_MODEL = 'gemini-2.5-flash';
+    process.env.TRANSCRIPTION_MODEL = 'gemini-3.8-flash';
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -92,7 +107,7 @@ describe('GeminiProvider', () => {
     const result = await provider.transcribeAudio(Buffer.from('fake-audio'), 'audio/mp4');
     expect(result.text).toMatch(/random forests/);
     expect(result.provider).toBe('gemini');
-    expect(result.model).toBe('gemini-2.5-flash');
+    expect(result.model).toBe('gemini-3.8-flash');
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringMatching(/:generateContent$/),
       expect.objectContaining({ method: 'POST' }),
@@ -102,6 +117,15 @@ describe('GeminiProvider', () => {
   it('defaults the chat factory to Gemini', () => {
     process.env.AI_API_KEY = 'k';
     expect(createChatProvider()).toBeInstanceOf(GeminiProvider);
+  });
+
+  it('resolves retired Flash model ids', () => {
+    expect(resolveGeminiChatModel()).toBe('gemini-3.8-flash');
+    expect(resolveGeminiChatModel('gemini-2.5-flash')).toBe('gemini-3.8-flash');
+    expect(resolveGeminiChatModel('models/gemini-2.0-flash')).toBe(
+      'gemini-3.8-flash',
+    );
+    expect(resolveGeminiChatModel('gemini-3.8-flash')).toBe('gemini-3.8-flash');
   });
 
   it('keeps the OpenAI-compatible provider when explicitly requested', () => {

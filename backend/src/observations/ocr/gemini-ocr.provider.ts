@@ -52,9 +52,9 @@ export class GeminiOcrProvider implements OcrProvider {
 
     const modelsToTry = uniqueModels([
       this.model,
-      'gemini-2.5-flash',
-      'gemini-3.5-flash',
+      'gemini-3.8-flash',
       'gemini-3.6-flash',
+      'gemini-3.5-flash',
     ]);
 
     let lastError: Error | undefined;

@@ -6,6 +6,7 @@ import {
   ProcessingStatus,
 } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
+import { resolveGeminiChatModel } from '../ai/gemini-models';
 import { AI_PROVIDER, type AIProvider } from '../ai/ai.types';
 import { ChunkEmbeddingService } from '../embeddings/chunk-embedding.service';
 import {
@@ -246,7 +247,7 @@ export class ObservationProcessor {
       ...(analysisNote ? { analysisNote } : {}),
       analysisProvider: this.ai.isConfigured() ? this.ai.name : 'none',
       ...(this.ai.isConfigured()
-        ? { analysisModel: process.env.AI_MODEL?.trim() || 'gemini-2.5-flash' }
+        ? { analysisModel: resolveGeminiChatModel(process.env.AI_MODEL) }
         : {}),
     } as Prisma.InputJsonValue;
 
