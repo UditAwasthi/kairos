@@ -452,9 +452,9 @@ describe('progression API client', () => {
 
 describe('project bulk API', () => {
   it('posts selected observations to the project bulk endpoint', async () => {
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: { added: 2, skipped: 1 } }) });
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: { projectId: 'p/1', added: ['o1', 'o2'], alreadyPresent: [] } }) });
     global.fetch = fetchMock as unknown as typeof fetch;
-    await expect(addObservationsToProjectBulk({ token: 'tok', projectId: 'p/1', observationIds: ['o1', 'o2'] })).resolves.toEqual({ added: 2, skipped: 1 });
+    await expect(addObservationsToProjectBulk({ token: 'tok', projectId: 'p/1', observationIds: ['o1', 'o2'] })).resolves.toEqual({ projectId: 'p/1', added: ['o1', 'o2'], alreadyPresent: [] });
     expect(fetchMock.mock.calls[0][0]).toContain('/projects/p%2F1/observations/bulk');
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ observationIds: ['o1', 'o2'] });
   });

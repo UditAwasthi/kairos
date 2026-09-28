@@ -18,6 +18,7 @@ import { ensureRecallReady } from '../../lib/recallSync';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import Recall from 'kairos-recall';
 import { ProgressionProvider } from '../../providers/ProgressionProvider';
+import * as SecureStore from 'expo-secure-store';
 
 export default function AppLayout() {
   const { isLoaded, isSignedIn, getToken, userId } = useAuth();
@@ -70,7 +71,9 @@ export default function AppLayout() {
       }
     };
 
-    void registerPushForSignedInUser(getToken);
+    void SecureStore.getItemAsync('kairos.device.pushEnabled').then((enabled) => {
+      if (enabled !== 'false') void registerPushForSignedInUser(getToken);
+    });
     syncNative();
     void consumePendingOsCapture(getToken);
     void flush();
@@ -174,6 +177,14 @@ export default function AppLayout() {
           gestureDirection: 'vertical',
         }}
       />
+      <Stack.Screen
+        name="capture-file"
+        options={{
+          title: 'Photo or file',
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
       <Stack.Screen name="insight" options={{ title: 'Today' }} />
       <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />
       <Stack.Screen name="predictions" options={{ title: 'Predictions' }} />
@@ -197,6 +208,7 @@ export default function AppLayout() {
       <Stack.Screen name="devices" options={{ title: 'Devices' }} />
       <Stack.Screen name="screen-memory" options={{ title: 'Screen memory' }} />
       <Stack.Screen name="progress" options={{ title: 'Progress' }} />
+      <Stack.Screen name="insights" options={{ title: 'Insights' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="privacy" options={{ title: 'Privacy' }} />
       <Stack.Screen name="data" options={{ title: 'Data' }} />

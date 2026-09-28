@@ -1,4 +1,5 @@
 import type { ApiSemanticSearchFilters, CaptureSource } from './api';
+import { CAPTURE_SOURCE_LABELS } from '../constants/source-labels';
 
 export type LibraryFilters = {
   observationType?: ApiSemanticSearchFilters['observationType'];
@@ -19,6 +20,9 @@ export function buildSemanticFilters(filters: LibraryFilters): ApiSemanticSearch
 export function removeLibraryFilter(filters: LibraryFilters, key: keyof LibraryFilters): LibraryFilters {
   const next = { ...filters };
   delete next[key];
+  if (key === 'topicId' || key === 'topic') { delete next.topicId; delete next.topic; }
+  if (key === 'entityId' || key === 'entity') { delete next.entityId; delete next.entity; }
+  if (key === 'projectId') delete next.projectId;
   if (key === 'from' || key === 'to') {
     delete next.from;
     delete next.to;
@@ -26,18 +30,27 @@ export function removeLibraryFilter(filters: LibraryFilters, key: keyof LibraryF
   return next;
 }
 
+export function toggleLibraryScopeFilter(
+  filters: LibraryFilters,
+  scope: { type: 'topic' | 'entity' | 'project'; id: string; name: string },
+): LibraryFilters {
+  const idKey = scope.type === 'topic' ? 'topicId' : scope.type === 'entity' ? 'entityId' : 'projectId';
+  const nameKey = scope.type === 'topic' ? 'topic' : scope.type === 'entity' ? 'entity' : undefined;
+  if (filters[idKey] === scope.id) return removeLibraryFilter(filters, idKey);
+  return {
+    ...filters,
+    [idKey]: scope.id,
+    ...(nameKey ? { [nameKey]: scope.name } : {}),
+  };
+}
+
 export const SEARCH_SOURCE_OPTIONS: Array<{
   value: CaptureSource;
   label: string;
-}> = [
-  { value: 'MANUAL', label: 'Manual' },
-  { value: 'KEYBOARD', label: 'Keyboard' },
-  { value: 'SHARE', label: 'Share' },
-  { value: 'QUICK_CAPTURE', label: 'Quick Capture' },
-  { value: 'VOICE', label: 'Voice' },
-  { value: 'WIDGET', label: 'Widget' },
-  { value: 'RECALL', label: 'Recall' },
-];
+}> = (Object.keys(CAPTURE_SOURCE_LABELS) as CaptureSource[]).map((value) => ({
+  value,
+  label: CAPTURE_SOURCE_LABELS[value],
+}));
 
 export type SearchDatePreset =
   | 'today'

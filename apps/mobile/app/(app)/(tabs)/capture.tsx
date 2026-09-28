@@ -6,17 +6,19 @@ import { ThemedText } from '../../../components/ThemedText';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import { useSubscription } from '../../../providers/SubscriptionProvider';
 import Recall from 'kairos-recall';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const OPTIONS = [
   { label: 'Note', icon: 'edit-note' as const, href: '/(app)/quick-capture?mode=note' },
   { label: 'Voice', icon: 'mic-none' as const, href: '/(app)/voice-capture' },
-  { label: 'Photo or file', icon: 'attach-file' as const, href: '/(app)/quick-capture?mode=file' },
+  { label: 'Photo or file', icon: 'attach-file' as const, href: '/(app)/capture-file' },
   { label: 'Link', icon: 'link' as const, href: '/(app)/quick-capture?mode=link' },
 ];
 
 export default function CaptureTab() {
   const router = useRouter();
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const subscription = useSubscription();
 
   const close = () => router.replace('/(app)/(tabs)/index');
@@ -24,7 +26,7 @@ export default function CaptureTab() {
   return (
     <Modal transparent animationType="slide" visible onRequestClose={close}>
       <Pressable style={[styles.backdrop, { backgroundColor: colors.scrim }]} onPress={close} accessibilityRole="button" accessibilityLabel="Close capture options">
-        <Pressable style={[styles.sheet, { backgroundColor: colors.surfaceElevated }]} onPress={(event) => event.stopPropagation()}>
+        <Pressable style={[styles.sheet, { backgroundColor: colors.surfaceElevated, paddingBottom: insets.bottom + 24 }]} onPress={(event) => event.stopPropagation()}>
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
           <ThemedText colorKey="text" style={styles.title}>Capture something</ThemedText>
           {OPTIONS.map((option) => (

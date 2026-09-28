@@ -3,13 +3,14 @@ import { MaterialIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ComponentProps } from 'react';
 
 import { SoftPage } from '../../components/ui/SoftScreen';
 import { itemEntering, PressScale } from '../../components/ui/Motion';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import Animated from 'react-native-reanimated';
+import Recall from 'kairos-recall';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -108,11 +109,16 @@ export default function SettingsScreen() {
   };
 
   const memory: SettingsItem[] = [
-    {
-      label: 'Recall',
-      icon: 'visibility',
+    ...(Platform.OS === 'android' && Recall.isAvailable() ? [{
+      label: 'Screen memory',
+      icon: 'visibility' as const,
       meta: 'On-device',
-      onPress: () => router.push('/(app)/(tabs)/recall'),
+      onPress: () => router.push('/(app)/screen-memory'),
+    }] : []),
+    {
+      label: 'Progress & leaderboard privacy',
+      icon: 'emoji-events',
+      onPress: () => router.push('/(app)/progress'),
     },
     {
       label: 'Notifications',

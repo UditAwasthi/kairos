@@ -24,6 +24,7 @@ export function ProgressionProvider({ children }: { children: React.ReactNode })
   const [progression, setProgression] = useState<ProgressionView | null>(null);
   const [lastReward, setLastReward] = useState<RewardNotice>(null);
   const previous = useRef<ProgressionView | null>(null);
+  const rewardTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(async () => {
     if (!isSignedIn) return;
@@ -37,6 +38,8 @@ export function ProgressionProvider({ children }: { children: React.ReactNode })
         const keeps = Math.max(0, next.keeps - before.keeps);
         if (xp || keeps || next.level > before.level) {
           setLastReward({ xp, keeps, bonus: Boolean(next.lastEvent?.bonus) });
+          if (rewardTimeout.current) clearTimeout(rewardTimeout.current);
+          rewardTimeout.current = setTimeout(() => setLastReward(null), 2600);
         }
       }
       previous.current = next;
@@ -59,7 +62,10 @@ export function ProgressionProvider({ children }: { children: React.ReactNode })
       if (state.match(/inactive|background/) && next === 'active') void refresh();
       state = next;
     });
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      if (rewardTimeout.current) clearTimeout(rewardTimeout.current);
+    };
   }, [refresh]);
 
   const value = useMemo(() => ({

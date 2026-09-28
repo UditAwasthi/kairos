@@ -1,7 +1,7 @@
 import { useAuth, useUser } from '@clerk/expo';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { Image, Platform, StyleSheet, View } from 'react-native';
 
 import { ThemeToggleButton } from '../../../components/ThemeToggleButton';
 import { GlassPanel } from '../../../components/ui/Glass';
@@ -89,8 +89,8 @@ export default function ProfileScreen() {
         <SoftRow
           label="Kairos Pro"
           icon="clock"
-          meta={subscription.isLoading ? 'Loading' : subscription.isPro ? 'Active' : 'Unlock Recall'}
-          onPress={subscription.isPro ? undefined : () => router.push('/(app)/(tabs)/recall')}
+          meta={subscription.isLoading ? 'Loading' : Platform.OS !== 'android' || !Recall.isAvailable() ? 'Screen memory is Android only' : subscription.isPro ? 'Active' : 'Unlock Screen memory'}
+          onPress={Platform.OS === 'android' && Recall.isAvailable() && !subscription.isPro ? () => router.push('/(app)/screen-memory') : undefined}
         />
         {subscription.isPro ? (
           <SoftRow label="Manage Subscription" icon="external-link" onPress={() => void subscription.manageSubscriptions()} />
@@ -111,23 +111,14 @@ export default function ProfileScreen() {
 
       <SoftLinkList
         items={[
-          { label: 'Settings', icon: 'settings', onPress: () => router.push('/(app)/settings') },
-          { label: 'Dashboard', icon: 'bar-chart-2', onPress: () => router.push('/(app)/dashboard') },
-          { label: 'Predictions', icon: 'zap', onPress: () => router.push('/(app)/predictions') },
-          { label: 'Today', icon: 'sun', onPress: () => router.push('/(app)/insight') },
-          { label: 'Daily brief', icon: 'book-open', onPress: () => router.push('/(app)/brief') },
-          { label: 'Timeline', icon: 'clock', onPress: () => router.push('/(app)/timeline') },
-          {
-            label: 'Notifications',
-            icon: 'bell',
-            onPress: () => router.push('/(app)/notifications'),
-          },
+          { label: 'Progress', icon: 'award', onPress: () => router.push('/(app)/progress') },
+          { label: 'Insights', icon: 'bar-chart-2', onPress: () => router.push('/(app)/insights') },
+          ...(Platform.OS === 'android' && Recall.isAvailable() ? [
+            { label: 'Screen memory', icon: 'eye' as const, onPress: () => router.push('/(app)/screen-memory') },
+          ] : []),
           { label: 'Devices', icon: 'smartphone', onPress: () => router.push('/(app)/devices') },
-          { label: 'Privacy', icon: 'shield', onPress: () => router.push('/(app)/privacy') },
-          { label: 'Data', icon: 'database', onPress: () => router.push('/(app)/data') },
-          { label: 'Topics', icon: 'hash', onPress: () => router.push('/(app)/topics') },
-          { label: 'Projects', icon: 'folder', onPress: () => router.push('/(app)/projects') },
-          { label: 'Activity', icon: 'layers', onPress: () => router.push('/(app)/activity') },
+          { label: 'Privacy & Data', icon: 'shield', onPress: () => router.push('/(app)/privacy') },
+          { label: 'Settings', icon: 'settings', onPress: () => router.push('/(app)/settings') },
           {
             label: 'How it works',
             icon: 'book-open',

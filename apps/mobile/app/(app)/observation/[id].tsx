@@ -2,6 +2,7 @@ import { useAuth } from '@clerk/expo';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../../components/ThemedText';
 import { ErrorState, FadeInContent, LoadingSkeleton } from '../../../components/ui/EmptyState';
@@ -142,6 +143,7 @@ export default function ObservationDetailScreen() {
     chunkId?: string;
   }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const { getToken } = useAuth();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -401,7 +403,7 @@ export default function ObservationDetailScreen() {
 
   return (
     <FadeInContent>
-      <SoftPage>
+      <SoftPage tabBar>
         <View style={styles.titleBlock}>
           <Badge label={headline} tone={statusTone(data.status)} />
           {editing ? (
@@ -640,6 +642,16 @@ export default function ObservationDetailScreen() {
           />
         )}
       </SoftPage>
+      <View style={[styles.stickyActions, { backgroundColor: colors.surfaceElevated, paddingBottom: Math.max(insets.bottom, 8) }]}>
+        <Pressable onPress={() => router.push({ pathname: '/(app)/(tabs)/ask', params: { scopeType: 'observation', scopeId: String(id), scopeName: data.title } })} accessibilityRole="button" accessibilityLabel="Ask about this memory" style={styles.stickyButton}><ThemedText colorKey="text">Ask this</ThemedText></Pressable>
+        <Pressable onPress={() => router.push({ pathname: '/(app)/observation/projects', params: { id: String(id) } })} accessibilityRole="button" accessibilityLabel="Add this memory to a project" style={styles.stickyButton}><ThemedText colorKey="text">Project</ThemedText></Pressable>
+        <Pressable onPress={editing ? cancelEdit : beginEdit} accessibilityRole="button" accessibilityLabel={editing ? 'Cancel editing memory' : 'Edit memory'} style={styles.stickyButton}><ThemedText colorKey="text">{editing ? 'Cancel' : 'Edit'}</ThemedText></Pressable>
+        <Pressable onPress={() => Alert.alert('More actions', undefined, [
+          { text: 'Reprocess', onPress: () => void onRetry() },
+          { text: 'Delete', style: 'destructive', onPress: () => void onDelete() },
+          { text: 'Cancel', style: 'cancel' },
+        ])} accessibilityRole="button" accessibilityLabel="More memory actions" style={styles.stickyButton}><ThemedText colorKey="text">More</ThemedText></Pressable>
+      </View>
     </FadeInContent>
   );
 }
@@ -655,6 +667,8 @@ const styles = StyleSheet.create({
   },
   body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21 },
   highlight: { fontFamily: 'Inter_600SemiBold', textDecorationLine: 'underline', backgroundColor: 'rgba(255, 204, 0, 0.25)' },
+  stickyActions: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingTop: 10, paddingHorizontal: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#888' },
+  stickyButton: { minWidth: 64, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, paddingHorizontal: 8 },
   placeholder: { fontFamily: 'Inter_400Regular', fontSize: 13 },
   sourceTitle: { fontFamily: 'Inter_500Medium', fontSize: 15 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

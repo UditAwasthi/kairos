@@ -24,6 +24,7 @@ import {
 } from '../../lib/api';
 import { submitCapture } from '../../lib/capture';
 import { useAppTheme } from '../../providers/ThemeProvider';
+import { useProgression } from '../../providers/ProgressionProvider';
 
 type VoiceState =
   | 'idle'
@@ -41,6 +42,7 @@ export default function VoiceCaptureScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const { getToken } = useAuth();
+  const { refresh: refreshProgression } = useProgression();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder);
   const [state, setState] = useState<VoiceState>('idle');
@@ -117,6 +119,7 @@ export default function VoiceCaptureScreen() {
         fileName: `voice-${Date.now()}.m4a`,
         mimeType: 'audio/mp4',
       });
+      if (!result.queued) void refreshProgression();
       if (result.queued) {
         setState('queued');
         return;

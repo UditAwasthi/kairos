@@ -53,7 +53,7 @@ model UserProgression {
   freezeTokens        Int      @default(0)
   equippedTitle       String?
   equippedAura        String?
-  leaderboardVisible  Boolean  @default(true)
+  leaderboardVisible  Boolean  @default(false)
   displayName         String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt

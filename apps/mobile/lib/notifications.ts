@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
+import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 import {
@@ -154,6 +155,8 @@ export async function registerPushForSignedInUser(
       expoPushToken: expoToken.data,
       platform,
     });
+    await SecureStore.setItemAsync('kairos.device.expoPushToken', expoToken.data);
+    await SecureStore.setItemAsync('kairos.device.pushEnabled', 'true');
     return expoToken.data;
   } catch {
     // Expo Go / missing FCM still allows local notifications.

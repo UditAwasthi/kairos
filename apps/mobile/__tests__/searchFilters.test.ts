@@ -2,6 +2,7 @@ import {
   buildSemanticFilters,
   dateRangeForPreset,
   removeLibraryFilter,
+  toggleLibraryScopeFilter,
   searchDateLabel,
   searchSourceLabel,
 } from '../lib/searchFilters';
@@ -33,5 +34,7 @@ describe('search filter chips', () => {
       source: 'VOICE', topicId: 'topic-1', from: 'a', to: 'b',
     });
     expect(removeLibraryFilter({ from: 'a', to: 'b', entity: 'Mira' }, 'from')).toEqual({ entity: 'Mira' });
+    expect(toggleLibraryScopeFilter({}, { type: 'project', id: 'p1', name: 'Work' })).toEqual({ projectId: 'p1' });
+    expect(toggleLibraryScopeFilter({ topicId: 't1', topic: 'Ideas' }, { type: 'topic', id: 't1', name: 'Ideas' })).toEqual({});
   });
 });

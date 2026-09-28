@@ -12,6 +12,7 @@ import { ThemedInput } from '../../components/ui/ThemedInput';
 import { ApiError } from '../../lib/api';
 import { submitCapture } from '../../lib/capture';
 import { useAppTheme } from '../../providers/ThemeProvider';
+import { useProgression } from '../../providers/ProgressionProvider';
 
 type Mode = 'text' | 'voice';
 
@@ -19,6 +20,7 @@ export default function QuickCaptureScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const { getToken } = useAuth();
+  const { refresh: refreshProgression } = useProgression();
   const params = useLocalSearchParams<{
     mode?: string;
     text?: string;
@@ -67,6 +69,7 @@ export default function QuickCaptureScreen() {
         url: link || undefined,
         title: params.title ? String(params.title) : undefined,
       });
+      if (!result.queued) void refreshProgression();
       if (result.queued) {
         setMessage('Saved on this device. Will sync when you are online.');
       } else {

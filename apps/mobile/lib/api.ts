@@ -1339,7 +1339,7 @@ export async function addObservationsToProjectBulk(params: {
   token: string;
   projectId: string;
   observationIds: string[];
-}): Promise<{ added: number; skipped: number }> {
+}): Promise<{ projectId: string; added: string[]; alreadyPresent: string[] }> {
   const response = await apiFetch(
     `${normalizeBaseUrl(apiBaseUrl)}/projects/${encodeURIComponent(params.projectId)}/observations/bulk`,
     {
@@ -1353,7 +1353,7 @@ export async function addObservationsToProjectBulk(params: {
     },
   );
   if (!response.ok) throw await parseError(response);
-  const body = (await response.json()) as { data: { added: number; skipped: number } };
+  const body = (await response.json()) as { data: { projectId: string; added: string[]; alreadyPresent: string[] } };
   return body.data;
 }
 

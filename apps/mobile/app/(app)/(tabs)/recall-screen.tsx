@@ -42,9 +42,10 @@ import { useAppTheme } from '../../../providers/ThemeProvider';
 import Recall, { type RecallStatus } from 'kairos-recall';
 import { RecallPaywall } from '../../../components/RecallPaywall';
 import { useSubscription } from '../../../providers/SubscriptionProvider';
+import { useProgression } from '../../../providers/ProgressionProvider';
 
 function relativeTime(ts: number | null | undefined): string {
-  if (!ts) return '—';
+  if (!ts) return 'â€”';
   const diff = Math.max(0, Date.now() - ts);
   const sec = Math.floor(diff / 1000);
   if (sec < 60) return `${sec}s`;
@@ -58,7 +59,7 @@ function relativeTime(ts: number | null | undefined): string {
 function statusWord(status: RecallStatus | null, entitlement: RecallEntitlement | null): string {
   if (!Recall.isAvailable() || Platform.OS !== 'android') return 'Android';
   if (entitlement && !entitlement.allowed) return 'Locked';
-  if (!status) return '…';
+  if (!status) return 'â€¦';
   if (status.uploading || (status.queuedCount ?? 0) > 0) return 'Syncing';
   if (status.capturing || status.on) return 'On';
   if (status.state === 'needs_consent' || status.userEnabled) return 'Resume';
@@ -193,6 +194,7 @@ export default function RecallScreen() {
   const { colors } = useAppTheme();
   const { getToken, userId } = useAuth();
   const subscription = useSubscription();
+  const { refresh: refreshProgression } = useProgression();
   const [entitlement, setEntitlement] = useState<RecallEntitlement | null>(
     () => getCachedRecallEntitlement(userId ?? undefined),
   );
@@ -270,6 +272,7 @@ export default function RecallScreen() {
       setBusy(true);
       await action();
       await refresh();
+      void refreshProgression();
     } catch (err) {
       Alert.alert(
         'Recall',
@@ -286,11 +289,11 @@ export default function RecallScreen() {
   const queued = status?.queuedCount ?? 0;
   const uploading = Boolean(status?.uploading);
   const syncing = uploading || queued > 0;
-  const lastSync = uploading ? '…' : relativeTime(status?.lastUploadAt);
+  const lastSync = uploading ? 'â€¦' : relativeTime(status?.lastUploadAt);
   const syncHint = uploading
     ? queued > 0
-      ? `Uploading · ${queued} left`
-      : 'Uploading…'
+      ? `Uploading Â· ${queued} left`
+      : 'Uploadingâ€¦'
     : queued > 0
       ? `${queued} waiting to sync`
       : null;
@@ -414,7 +417,7 @@ export default function RecallScreen() {
               color={colors.accent}
             />
             <ThemedText colorKey="text" style={styles.metricValue}>
-              {entitlement?.allowed ? 'OK' : '—'}
+              {entitlement?.allowed ? 'OK' : 'â€”'}
             </ThemedText>
             <ThemedText colorKey="textMuted" style={styles.metricLabel}>
               Access

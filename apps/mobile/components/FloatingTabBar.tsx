@@ -36,6 +36,7 @@ function TabItem({
   label,
   focused,
   accessibilityLabel,
+  prominent = false,
   onPress,
   onLongPress,
 }: {
@@ -44,6 +45,7 @@ function TabItem({
   label: string;
   focused: boolean;
   accessibilityLabel: string;
+  prominent?: boolean;
   onPress: () => void;
   onLongPress: () => void;
 }) {
@@ -69,10 +71,10 @@ function TabItem({
       style={styles.item}
     >
       <Animated.View style={[styles.itemInner, pressStyle]}>
-        <View style={styles.indicator}>
+        <View style={[styles.indicator, prominent && { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryContainer }]}>
           <MaterialIcons
             name={focused ? iconActive : icon}
-            size={25}
+            size={prominent ? 28 : 25}
             color={focused ? colors.text : colors.secondary}
           />
         </View>
@@ -151,6 +153,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
                 label={meta.label}
                 focused={focused}
                 accessibilityLabel={accessibilityLabel}
+                prominent={route.name === 'capture'}
                 onPress={() => goToIndex(index)}
                 onLongPress={() => {
                   navigation.emit({
