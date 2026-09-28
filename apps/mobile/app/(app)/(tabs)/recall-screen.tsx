@@ -18,7 +18,6 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +28,7 @@ import { TabScreenSwipe } from '../../../components/TabScreenSwipe';
 import { FadeInContent } from '../../../components/ui/EmptyState';
 import { GlassPanel, ScreenGradient } from '../../../components/ui/Glass';
 import { itemEntering, PressScale } from '../../../components/ui/Motion';
+import { InsightCard as SuggestionCard } from '../../../components/ui/system/InsightCard';
 import {
   ApiError,
   deleteRecallData,
@@ -42,6 +42,7 @@ import { useAppTheme } from '../../../providers/ThemeProvider';
 import Recall, { type RecallStatus } from 'kairos-recall';
 import { RecallPaywall } from '../../../components/RecallPaywall';
 import { useSubscription } from '../../../providers/SubscriptionProvider';
+import { tabHref } from '../../../lib/lastRoute';
 import { useProgression } from '../../../providers/ProgressionProvider';
 
 function relativeTime(ts: number | null | undefined): string {
@@ -137,10 +138,10 @@ function PulseOrb({
       disabled={disabled || busy}
       onPress={onPress}
       onPressIn={() => {
-        press.value = withSpring(1, { damping: 16, stiffness: 280 });
+        press.value = withTiming(0.97, { duration: 140, easing: Easing.out(Easing.cubic) });
       }}
       onPressOut={() => {
-        press.value = withSpring(0, { damping: 14, stiffness: 240 });
+        press.value = withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) });
       }}
       accessibilityRole="button"
       accessibilityLabel={active ? 'Turn Recall off' : 'Turn Recall on'}
@@ -304,7 +305,7 @@ export default function RecallScreen() {
   if (!subscription.hasRecallAccess) {
     return (
       <RecallPaywall
-        onClose={() => router.replace('/(app)/(tabs)/index')}
+        onClose={() => router.navigate(tabHref() as '/(app)/(tabs)')}
         onUnlocked={() => { void refresh(true); }}
       />
     );
@@ -358,6 +359,15 @@ export default function RecallScreen() {
             </ThemedText>
           </View>
         </View>
+
+        <SuggestionCard
+          message={
+            syncHint ??
+            (isOn
+              ? 'Recall is watching for moments worth keeping.'
+              : 'Turn Recall on when you want Kairos to notice.')
+          }
+        />
 
         <View style={styles.hero}>
           <PulseOrb

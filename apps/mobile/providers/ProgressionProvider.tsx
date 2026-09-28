@@ -3,6 +3,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState, type AppStateStatus } from 'react-native';
 
 import { fetchProgression, type ProgressionView } from '../lib/api';
+import { onReconnect } from '../lib/network';
+import { readCache, writeCache } from '../lib/persistentCache';
+
+const CACHE_KEY = 'progression';
 
 type RewardNotice = { xp: number; keeps: number; bonus: boolean } | null;
 type ProgressionContextValue = {
@@ -21,9 +25,9 @@ const ProgressionContext = createContext<ProgressionContextValue>({
 
 export function ProgressionProvider({ children }: { children: React.ReactNode }) {
   const { isSignedIn, getToken } = useAuth();
-  const [progression, setProgression] = useState<ProgressionView | null>(null);
+  const [progression, setProgression] = useState(() => readCache<ProgressionView>(CACHE_KEY)?.value ?? null);
   const [lastReward, setLastReward] = useState<RewardNotice>(null);
-  const previous = useRef<ProgressionView | null>(null);
+  const previous = useRef<ProgressionView | null>(progression);
   const rewardTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(async () => {
@@ -44,17 +48,21 @@ export function ProgressionProvider({ children }: { children: React.ReactNode })
       }
       previous.current = next;
       setProgression(next);
+      writeCache(CACHE_KEY, next);
     } catch {
       // Progression is supplementary and must never interrupt a core flow.
     }
   }, [getToken, isSignedIn]);
 
   useEffect(() => {
-    previous.current = null;
-    setProgression(null);
+    const saved = isSignedIn ? readCache<ProgressionView>(CACHE_KEY)?.value ?? null : null;
+    previous.current = saved;
+    setProgression(saved);
     setLastReward(null);
     if (isSignedIn) void refresh();
   }, [isSignedIn, refresh]);
+
+  useEffect(() => onReconnect(() => void refresh()), [refresh]);
 
   useEffect(() => {
     let state: AppStateStatus = AppState.currentState;

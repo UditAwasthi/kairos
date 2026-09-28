@@ -9,6 +9,7 @@ describe('ObservationsService', () => {
   let prisma: {
     observation: {
       create: jest.Mock;
+      findUnique: jest.Mock;
       findMany: jest.Mock;
       findFirst: jest.Mock;
       update: jest.Mock;
@@ -62,6 +63,7 @@ describe('ObservationsService', () => {
     prisma = {
       observation: {
         create: jest.fn(),
+        findUnique: jest.fn(),
         findMany: jest.fn(),
         findFirst: jest.fn(),
         update: jest.fn(),
@@ -123,6 +125,32 @@ describe('ObservationsService', () => {
     expect(storage.upload).toHaveBeenCalled();
     await new Promise((r) => setImmediate(r));
     expect(processor.process).toHaveBeenCalledWith('obs_1');
+  });
+
+  it('returns an existing capture for the same client id without storing it again', async () => {
+    prisma.observation.findUnique.mockResolvedValue(
+      baseObservation({ clientCaptureId: 'capture_123' }),
+    );
+
+    const result = await service.capture({
+      clerkUserId,
+      clientCaptureId: 'capture_123',
+      content: 'retry',
+      source: 'MANUAL',
+    });
+
+    expect(result.id).toBe('obs_1');
+    expect(prisma.observation.findUnique).toHaveBeenCalledWith({
+      where: {
+        userId_clientCaptureId: {
+          userId: 'user_a',
+          clientCaptureId: 'capture_123',
+        },
+      },
+      include: expect.any(Object),
+    });
+    expect(storage.upload).not.toHaveBeenCalled();
+    expect(prisma.observation.create).not.toHaveBeenCalled();
   });
 
   it('rejects unsupported files', async () => {

@@ -33,14 +33,34 @@ export const KairosOs = {
 
   async takePendingCapture(): Promise<PendingOsCapture | null> {
     if (!NativeKairosOs.isAvailable()) return null;
-    const pending = (await NativeKairosOs.getPendingCapture()) as PendingOsCapture | null;
-    if (pending) await NativeKairosOs.clearPendingCapture();
-    return pending;
+    return (await NativeKairosOs.getPendingCapture()) as PendingOsCapture | null;
+  },
+
+  async clearPendingCapture(): Promise<void> {
+    if (!NativeKairosOs.isAvailable()) return;
+    await NativeKairosOs.clearPendingCapture();
   },
 };
 
-export async function consumePendingOsCapture(
+const consumeInflight = new Map<string, Promise<void>>();
+
+export function consumePendingOsCapture(
   getToken: () => Promise<string | null>,
+  userId: string,
+): Promise<void> {
+  let inflight = consumeInflight.get(userId);
+  if (!inflight) {
+    inflight = consumePendingOsCaptureOnce(getToken, userId).finally(() => {
+      consumeInflight.delete(userId);
+    });
+    consumeInflight.set(userId, inflight);
+  }
+  return inflight;
+}
+
+async function consumePendingOsCaptureOnce(
+  getToken: () => Promise<string | null>,
+  userId: string,
 ): Promise<void> {
   const pending = await KairosOs.takePendingCapture();
   if (!pending) return;
@@ -50,6 +70,7 @@ export async function consumePendingOsCapture(
   const fileUri = normalizeFileUri(pending.fileUri);
   const source = pending.source || 'SHARE';
   const result = await submitCapture({
+    userId,
     token,
     source,
     content: pending.content,
@@ -59,6 +80,7 @@ export async function consumePendingOsCapture(
     fileName: pending.fileName,
     mimeType: pending.mimeType,
   });
+  await KairosOs.clearPendingCapture();
   void presentLocalNotification(
     uploadCopy({
       queued: result.queued,

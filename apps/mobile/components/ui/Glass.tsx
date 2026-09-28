@@ -1,6 +1,7 @@
 import { StyleProp, View, ViewStyle } from 'react-native';
 
 import { useAppTheme } from '../../providers/ThemeProvider';
+import { AmbientBackground } from './system/AmbientBackground';
 
 type ScreenGradientProps = {
   children: React.ReactNode;
@@ -8,11 +9,7 @@ type ScreenGradientProps = {
 };
 
 export function ScreenGradient({ children, style }: ScreenGradientProps) {
-  const { colors } = useAppTheme();
-
-  return (
-    <View style={[{ flex: 1, backgroundColor: colors.background }, style]}>{children}</View>
-  );
+  return <AmbientBackground style={style}>{children}</AmbientBackground>;
 }
 
 type AccentGradientProps = {
@@ -63,9 +60,11 @@ export function GlassPanel({
     <View
       style={[
         {
-          borderRadius: radius.sm,
+          borderRadius: radius.xl,
           overflow: 'hidden',
           backgroundColor: colors.surfaceElevated,
+          borderWidth: 1,
+          borderColor: colors.borderSubtle,
           ...(shadow ?? {}),
         },
         style,

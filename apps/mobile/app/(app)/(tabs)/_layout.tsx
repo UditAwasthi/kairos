@@ -1,7 +1,9 @@
+import { Easing } from 'react-native';
 import { Tabs } from 'expo-router';
 
 import { FloatingTabBar } from '../../../components/FloatingTabBar';
 import { useAppTheme } from '../../../providers/ThemeProvider';
+import { motion } from '../../../theme';
 
 export default function TabsLayout() {
   const { colors } = useAppTheme();
@@ -20,6 +22,9 @@ export default function TabsLayout() {
         headerShadowVisible: false,
         tabBarStyle: {
           position: 'absolute',
+          height: 0,
+          overflow: 'hidden',
+          opacity: 0,
           backgroundColor: 'transparent',
           borderTopWidth: 0,
           elevation: 0,
@@ -27,14 +32,10 @@ export default function TabsLayout() {
         tabBarHideOnKeyboard: true,
         animation: 'shift',
         transitionSpec: {
-          animation: 'spring',
+          animation: 'timing',
           config: {
-            stiffness: 420,
-            damping: 42,
-            mass: 0.9,
-            overshootClamping: false,
-            restDisplacementThreshold: 0.01,
-            restSpeedThreshold: 0.01,
+            duration: motion.page,
+            easing: Easing.out(Easing.cubic),
           },
         },
         sceneStyle: { backgroundColor: colors.background },
@@ -57,14 +58,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="capture"
-        options={{
-          title: 'Capture',
-          headerShown: false,
-          tabBarAccessibilityLabel: 'Capture options',
-        }}
-      />
-      <Tabs.Screen
         name="ask"
         options={{
           title: 'Ask',
@@ -78,6 +71,14 @@ export default function TabsLayout() {
           title: 'You',
           headerShown: false,
           tabBarAccessibilityLabel: 'You',
+        }}
+      />
+      <Tabs.Screen
+        name="capture"
+        options={{
+          title: 'Capture',
+          headerShown: false,
+          tabBarAccessibilityLabel: 'Capture',
         }}
       />
       <Tabs.Screen name="recall" options={{ href: null }} />

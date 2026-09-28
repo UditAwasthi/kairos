@@ -30,7 +30,10 @@ export function useTabPagerGesture() {
     const state = tabNav.getState?.();
     const routes = state?.routes ?? [];
     const index = state?.index ?? 0;
-    const route = routes[index + dir];
+    const tabNames = ['index', 'library', 'ask', 'profile'];
+    const tabs = tabNames.flatMap((name) => routes.filter((route) => route.name === name));
+    const current = tabs.findIndex((route) => route.name === routes[index]?.name);
+    const route = tabs[current + dir];
     if (!route) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     tabNav.navigate(route.name, route.params);

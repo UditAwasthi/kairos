@@ -284,7 +284,7 @@ export const HOW_IT_WORKS_FEATURES: HowItWorksFeature[] = [
       'Use Quick Capture for ordinary thoughts.',
     ],
     tryLabel: 'Open Recall',
-    tryHref: '/(app)/(tabs)/recall',
+    tryHref: '/(app)/screen-memory',
   },
 ];
 

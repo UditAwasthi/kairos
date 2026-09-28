@@ -20,6 +20,8 @@ import {
 import { AccentGradient, GlassPanel } from '../../components/ui/Glass';
 import { InsightCard } from '../../components/ui/InsightCard';
 import { SoftPage, SoftTitle } from '../../components/ui/SoftScreen';
+import { HeroStatusWidget } from '../../components/ui/system/HeroStatusWidget';
+import { InsightCard as SuggestionCard } from '../../components/ui/system/InsightCard';
 import { useAsync } from '../../hooks/useAsync';
 import { fetchDashboard } from '../../lib/api';
 import { useAppTheme } from '../../providers/ThemeProvider';
@@ -55,8 +57,23 @@ export default function DashboardScreen() {
       <SoftRefreshBar active={refreshing} />
       <SoftPage>
         <SoftTitle>{data.greeting}</SoftTitle>
+        <HeroStatusWidget
+          value={String(data.todayCount)}
+          label="Captured today"
+          subtitle={data.daySummary}
+          progress={data.habit.todayProgress / Math.max(1, data.habit.dailyGoal)}
+          secondaryValue={String(data.streak.current)}
+          secondaryLabel="day streak"
+          mascot={data.habit.todayProgress >= data.habit.dailyGoal ? 'celebrating' : 'idle'}
+        />
+        {data.insight?.body ? (
+          <SuggestionCard
+            message={data.insight.body}
+            onPress={() => router.push('/(app)/brief')}
+          />
+        ) : null}
         <ThemedText colorKey="textMuted" style={styles.day}>
-          {data.daySummary}
+          {data.weekCount} this week · {data.totalCount} remembered
         </ThemedText>
 
         <StreakCard

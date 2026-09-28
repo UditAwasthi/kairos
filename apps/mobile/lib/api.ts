@@ -1,4 +1,11 @@
 import { apiBaseUrl } from './config';
+import { noteMutation } from './freshness';
+import {
+  getNetworkState,
+  reportNetworkFailure,
+  reportNetworkSlow,
+  reportNetworkSuccess,
+} from './network';
 
 export type AuthMeResponse = {
   id: string;
@@ -99,7 +106,26 @@ function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, '');
 }
 
-/** Authenticated API GETs must not be HTTP-cached (OkHttp 304 revalidation). */
+const READ_TIMEOUT_MS = 15_000;
+const READ_TIMEOUT_OFFLINE_MS = 6_000;
+/** Ask and search wait on model calls server-side. */
+const WRITE_TIMEOUT_MS = 90_000;
+const UPLOAD_TIMEOUT_MS = 180_000;
+
+function requestTimeoutMs(init?: RequestInit): number {
+  if (typeof FormData !== 'undefined' && init?.body instanceof FormData) {
+    return UPLOAD_TIMEOUT_MS;
+  }
+  const method = (init?.method ?? 'GET').toUpperCase();
+  if (method !== 'GET') return WRITE_TIMEOUT_MS;
+  return getNetworkState().online ? READ_TIMEOUT_MS : READ_TIMEOUT_OFFLINE_MS;
+}
+
+/**
+ * Authenticated API GETs must not be HTTP-cached (OkHttp 304 revalidation);
+ * screens cache on-device through `useAsync` instead.
+ * Transport failures surface as `ApiError` status 0 so callers can queue/retry.
+ */
 async function apiFetch(
   input: string,
   init?: RequestInit,
@@ -110,11 +136,29 @@ async function apiFetch(
   }
   headers.set('Cache-Control', 'no-cache');
   headers.set('Pragma', 'no-cache');
-  return fetch(input, {
-    ...init,
-    headers,
-    cache: 'no-store',
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), requestTimeoutMs(init));
+  try {
+    const response = await fetch(input, {
+      ...init,
+      headers,
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    reportNetworkSuccess();
+    const method = (init?.method ?? 'GET').toUpperCase();
+    if (response.ok && method !== 'GET' && !/\/search$/.test(input)) noteMutation();
+    return response;
+  } catch {
+    if (controller.signal.aborted) {
+      reportNetworkSlow();
+      throw new ApiError('Kairos is taking too long to respond.', 0, 'TIMEOUT');
+    }
+    reportNetworkFailure();
+    throw new ApiError('No connection to Kairos.', 0, 'NETWORK');
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function parseError(response: Response): Promise<ApiError> {
@@ -218,6 +262,7 @@ export async function uploadTextObservation(params: {
 }
 
 export type CapturePayload = {
+  clientCaptureId?: string;
   content?: string;
   source: CaptureSource;
   capturedAt?: string;
@@ -239,6 +284,7 @@ export async function createCapture(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
+      clientCaptureId: payload.clientCaptureId,
       content: payload.content,
       source: payload.source,
       capturedAt: payload.capturedAt,
@@ -255,6 +301,7 @@ export async function createCapture(
 
 export async function uploadCapture(params: {
   token: string;
+  clientCaptureId?: string;
   uri: string;
   name: string;
   mimeType: string;
@@ -271,6 +318,7 @@ export async function uploadCapture(params: {
     type: params.mimeType,
   } as unknown as Blob);
   form.append('source', params.source);
+  if (params.clientCaptureId) form.append('clientCaptureId', params.clientCaptureId);
   if (params.title) form.append('title', params.title);
   if (params.url) form.append('url', params.url);
   if (params.capturedAt) form.append('capturedAt', params.capturedAt);

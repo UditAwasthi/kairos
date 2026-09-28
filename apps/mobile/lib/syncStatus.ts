@@ -32,6 +32,17 @@ export function recordCaptureSync(flushed: number, remaining: number): void {
   emit();
 }
 
+/** A capture was saved to the on-device queue instead of uploading. */
+export function noteCaptureQueued(): void {
+  snapshot = {
+    flushed: 0,
+    remaining: (snapshot?.remaining ?? 0) + 1,
+    at: Date.now(),
+    inflight: snapshot?.inflight ?? false,
+  };
+  emit();
+}
+
 export function getCaptureSync(): SyncSnapshot | null {
   return snapshot;
 }

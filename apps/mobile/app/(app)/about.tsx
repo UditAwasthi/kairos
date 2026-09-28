@@ -1,34 +1,39 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '../../components/ThemedText';
-import { GlassPanel } from '../../components/ui/Glass';
+import { SurfaceCard } from '../../components/ui/SectionHeader';
 import { SoftPage } from '../../components/ui/SoftScreen';
 import { ThemedButton } from '../../components/ui/ThemedButton';
+import { useAppTheme } from '../../providers/ThemeProvider';
 
 export default function AboutScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
 
   return (
     <SoftPage>
-      <GlassPanel contentStyle={styles.card} padded={false}>
-        <ThemedText colorKey="text" style={styles.brand}>
-          Kairos
-        </ThemedText>
-        <ThemedText colorKey="textMuted" style={styles.meta}>
-          Personal memory
-        </ThemedText>
+      <SurfaceCard style={styles.heroCard}>
+        {/* Brand orb */}
+        <View style={[styles.orb, { backgroundColor: colors.primaryContainer }]}>
+          <ThemedText colorKey="primary" style={styles.orbGlyph}>K</ThemedText>
+        </View>
+        <ThemedText colorKey="text" style={styles.brand}>Kairos</ThemedText>
+        <ThemedText colorKey="textMuted" style={styles.meta}>Personal memory intelligence</ThemedText>
         <ThemedText colorKey="textSecondary" style={styles.body}>
           Capture a thought. Kairos keeps it, finds it later, and answers from
-          what you actually saved.
+          what you actually saved — building a living record of everything you've
+          learned and done.
         </ThemedText>
-        <ThemedText colorKey="textMuted" style={styles.version}>
-          1.0.0
-        </ThemedText>
-      </GlassPanel>
+        <View style={[styles.versionBadge, { backgroundColor: colors.primaryContainer }]}>
+          <ThemedText colorKey="primary" style={styles.versionText}>v1.0.0</ThemedText>
+        </View>
+      </SurfaceCard>
 
       <ThemedButton
         label="How it works"
+        variant="primary"
+        size="lg"
         onPress={() => router.push('/(app)/how-it-works')}
       />
     </SoftPage>
@@ -36,29 +41,47 @@ export default function AboutScreen() {
 }
 
 const styles = StyleSheet.create({
-  card: {
+  heroCard: {
+    padding: 28,
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 36,
-    paddingHorizontal: 24,
+  },
+  orb: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  orbGlyph: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 32,
   },
   brand: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 22,
-    letterSpacing: 0,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 26,
+    letterSpacing: -0.3,
   },
   meta: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Inter_500Medium',
     fontSize: 14,
   },
   body: {
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
-    lineHeight: 21,
+    lineHeight: 22,
     textAlign: 'center',
+    marginTop: 4,
   },
-  version: {
-    fontFamily: 'Inter_400Regular',
+  versionBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginTop: 4,
+  },
+  versionText: {
+    fontFamily: 'Inter_600SemiBold',
     fontSize: 12,
   },
 });

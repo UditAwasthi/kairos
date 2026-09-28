@@ -5,12 +5,13 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ComponentProps } from 'react';
+import Animated from 'react-native-reanimated';
+import Recall from 'kairos-recall';
 
 import { SoftPage } from '../../components/ui/SoftScreen';
 import { itemEntering, PressScale } from '../../components/ui/Motion';
 import { useAppTheme } from '../../providers/ThemeProvider';
-import Animated from 'react-native-reanimated';
-import Recall from 'kairos-recall';
+import { ThemedText } from '../../components/ThemedText';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -30,14 +31,25 @@ function SettingsGroup({
   title?: string;
   children: React.ReactNode;
 }) {
-  const { colors } = useAppTheme();
+  const { colors, radius } = useAppTheme();
 
   return (
     <View style={styles.group}>
       {title ? (
-        <Text style={[styles.groupTitle, { color: colors.textMuted }]}>{title}</Text>
+        <ThemedText colorKey="text" style={styles.groupTitle}>
+          {title}
+        </ThemedText>
       ) : null}
-      <View style={[styles.groupCard, { backgroundColor: colors.surfaceElevated }]}>
+      <View
+        style={[
+          styles.groupCard,
+          {
+            backgroundColor: colors.surfaceElevated,
+            borderColor: colors.border,
+            borderRadius: radius.xl,
+          },
+        ]}
+      >
         {children}
       </View>
     </View>
@@ -53,7 +65,7 @@ function SettingsRow({
   last: boolean;
   index: number;
 }) {
-  const { colors } = useAppTheme();
+  const { colors, radius } = useAppTheme();
 
   return (
     <Animated.View entering={itemEntering(index)}>
@@ -62,11 +74,19 @@ function SettingsRow({
         accessibilityLabel={item.label}
         style={[
           styles.row,
-          !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider },
+          !last && {
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: colors.border,
+          },
         ]}
       >
-        <View style={[styles.rowIcon, { backgroundColor: colors.primaryContainer }]}>
-          <MaterialIcons name={item.icon} size={18} color={colors.text} />
+        <View
+          style={[
+            styles.rowIcon,
+            { backgroundColor: colors.primaryContainer, borderRadius: radius.full },
+          ]}
+        >
+          <MaterialIcons name={item.icon} size={20} color={colors.primary} />
         </View>
         <Text style={[styles.rowLabel, { color: colors.text }]} numberOfLines={1}>
           {item.label}
@@ -85,7 +105,7 @@ function SettingsRow({
 export default function SettingsScreen() {
   const router = useRouter();
   const { user } = useUser();
-  const { colors, isLight, toggleTheme } = useAppTheme();
+  const { colors, isLight, toggleTheme, radius } = useAppTheme();
 
   const name =
     user?.fullName ||
@@ -109,12 +129,16 @@ export default function SettingsScreen() {
   };
 
   const memory: SettingsItem[] = [
-    ...(Platform.OS === 'android' && Recall.isAvailable() ? [{
-      label: 'Screen memory',
-      icon: 'visibility' as const,
-      meta: 'On-device',
-      onPress: () => router.push('/(app)/screen-memory'),
-    }] : []),
+    ...(Platform.OS === 'android' && Recall.isAvailable()
+      ? [
+          {
+            label: 'Screen memory',
+            icon: 'visibility' as const,
+            meta: 'On-device',
+            onPress: () => router.push('/(app)/screen-memory'),
+          },
+        ]
+      : []),
     {
       label: 'Progress & leaderboard privacy',
       icon: 'emoji-events',
@@ -162,16 +186,31 @@ export default function SettingsScreen() {
 
   return (
     <SoftPage>
+      {/* Account Card */}
       <PressScale
         onPress={() => router.push('/(app)/(tabs)/profile')}
-        accessibilityLabel="Account"
+        accessibilityLabel="Account details"
       >
-        <View style={[styles.account, { backgroundColor: colors.surfaceElevated }]}>
+        <View
+          style={[
+            styles.account,
+            {
+              backgroundColor: colors.surfaceElevated,
+              borderColor: colors.border,
+              borderRadius: radius.xl,
+            },
+          ]}
+        >
           {user?.imageUrl ? (
             <Image source={{ uri: user.imageUrl }} style={styles.avatar} />
           ) : (
-            <View style={[styles.avatarFallback, { backgroundColor: colors.primaryContainer }]}>
-              <Text style={[styles.avatarLetter, { color: colors.text }]}>
+            <View
+              style={[
+                styles.avatarFallback,
+                { backgroundColor: colors.primaryContainer, borderRadius: radius.full },
+              ]}
+            >
+              <Text style={[styles.avatarLetter, { color: colors.primary }]}>
                 {name.slice(0, 1).toUpperCase()}
               </Text>
             </View>
@@ -190,14 +229,20 @@ export default function SettingsScreen() {
               </Text>
             )}
           </View>
-          <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
+          <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
         </View>
       </PressScale>
 
+      {/* Appearance Group */}
       <SettingsGroup title="Appearance">
         <View style={styles.appearance}>
           <Text style={[styles.appearanceLabel, { color: colors.text }]}>Theme</Text>
-          <View style={[styles.segment, { backgroundColor: colors.primaryContainer }]}>
+          <View
+            style={[
+              styles.segment,
+              { backgroundColor: colors.surfaceContainer, borderRadius: radius.full },
+            ]}
+          >
             <Pressable
               onPress={setLight}
               accessibilityRole="button"
@@ -205,11 +250,30 @@ export default function SettingsScreen() {
               accessibilityLabel="Light theme"
               style={[
                 styles.segmentItem,
-                isLight && { backgroundColor: colors.surfaceElevated },
+                { borderRadius: radius.full },
+                isLight && {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                },
               ]}
             >
-              <MaterialIcons name="light-mode" size={16} color={colors.text} />
-              <Text style={[styles.segmentText, { color: colors.text }]}>Light</Text>
+              <MaterialIcons
+                name="light-mode"
+                size={16}
+                color={isLight ? colors.primary : colors.textMuted}
+              />
+              <Text
+                style={[
+                  styles.segmentText,
+                  {
+                    color: isLight ? colors.primary : colors.textMuted,
+                    fontWeight: isLight ? '700' : '500',
+                  },
+                ]}
+              >
+                Light
+              </Text>
             </Pressable>
             <Pressable
               onPress={setDark}
@@ -218,17 +282,37 @@ export default function SettingsScreen() {
               accessibilityLabel="Dark theme"
               style={[
                 styles.segmentItem,
-                !isLight && { backgroundColor: colors.surfaceElevated },
+                { borderRadius: radius.full },
+                !isLight && {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                },
               ]}
             >
-              <MaterialIcons name="dark-mode" size={16} color={colors.text} />
-              <Text style={[styles.segmentText, { color: colors.text }]}>Dark</Text>
+              <MaterialIcons
+                name="dark-mode"
+                size={16}
+                color={!isLight ? colors.primary : colors.textMuted}
+              />
+              <Text
+                style={[
+                  styles.segmentText,
+                  {
+                    color: !isLight ? colors.primary : colors.textMuted,
+                    fontWeight: !isLight ? '700' : '500',
+                  },
+                ]}
+              >
+                Dark
+              </Text>
             </Pressable>
           </View>
         </View>
       </SettingsGroup>
 
-      <SettingsGroup title="Memory">
+      {/* Memory Group */}
+      <SettingsGroup title="Memory & Rhythm">
         {memory.map((item, index) => (
           <SettingsRow
             key={item.label}
@@ -239,7 +323,8 @@ export default function SettingsScreen() {
         ))}
       </SettingsGroup>
 
-      <SettingsGroup title="Privacy & data">
+      {/* Privacy Group */}
+      <SettingsGroup title="Privacy & Data">
         {privacy.map((item, index) => (
           <SettingsRow
             key={item.label}
@@ -250,6 +335,7 @@ export default function SettingsScreen() {
         ))}
       </SettingsGroup>
 
+      {/* About Group */}
       <SettingsGroup title="Kairos">
         {about.map((item, index) => (
           <SettingsRow
@@ -262,7 +348,7 @@ export default function SettingsScreen() {
       </SettingsGroup>
 
       <Text style={[styles.footer, { color: colors.textMuted }]}>
-        Kairos {APP_VERSION}
+        Kairos {APP_VERSION} · Personal Intelligence
       </Text>
     </SoftPage>
   );
@@ -273,81 +359,75 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   groupTitle: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    letterSpacing: -0.08,
-    textTransform: 'uppercase',
-    paddingHorizontal: 16,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 16,
+    letterSpacing: -0.2,
+    paddingHorizontal: 4,
   },
   groupCard: {
-    borderRadius: 10,
+    borderWidth: 1,
     overflow: 'hidden',
   },
   account: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
   },
   avatarFallback: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 56,
+    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarLetter: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 24,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 22,
   },
   accountCopy: {
     flex: 1,
-    gap: 2,
+    gap: 3,
   },
   accountName: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 20,
-    letterSpacing: 0.38,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 19,
+    letterSpacing: -0.2,
   },
   accountEmail: {
     fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    letterSpacing: -0.24,
+    fontSize: 14,
   },
   appearance: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    minHeight: 56,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 58,
   },
   appearanceLabel: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 17,
-    letterSpacing: -0.41,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 16,
   },
   segment: {
     flexDirection: 'row',
-    borderRadius: 9,
-    padding: 2,
-    gap: 2,
+    padding: 3,
+    gap: 3,
   },
   segmentItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    borderRadius: 7,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   segmentText: {
     fontFamily: 'Inter_500Medium',
@@ -356,35 +436,32 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    minHeight: 52,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    gap: 14,
+    minHeight: 58,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   rowIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 7,
+    width: 38,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
   },
   rowLabel: {
     flex: 1,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 17,
-    letterSpacing: -0.41,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 16,
   },
   rowMeta: {
     fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    letterSpacing: -0.24,
-    maxWidth: 120,
+    fontSize: 14,
+    maxWidth: 140,
   },
   footer: {
     fontFamily: 'Inter_400Regular',
     fontSize: 13,
     textAlign: 'center',
-    paddingTop: 8,
-    paddingBottom: 12,
+    paddingTop: 12,
+    paddingBottom: 24,
   },
 });

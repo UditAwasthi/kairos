@@ -41,7 +41,7 @@ type VoiceState =
 export default function VoiceCaptureScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
-  const { getToken } = useAuth();
+  const { getToken, userId } = useAuth();
   const { refresh: refreshProgression } = useProgression();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder);
@@ -111,8 +111,9 @@ export default function VoiceCaptureScreen() {
         return;
       }
       const token = await getToken();
-      if (!token) throw new ApiError('Sign in required.', 401);
+      if (!token || !userId) throw new ApiError('Sign in required.', 401);
       const result = await submitCapture({
+        userId,
         token,
         source: 'VOICE',
         fileUri: uri,

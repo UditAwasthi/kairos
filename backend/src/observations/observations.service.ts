@@ -79,6 +79,7 @@ export class ObservationsService {
 
   async capture(params: {
     clerkUserId: string;
+    clientCaptureId?: string;
     content?: string;
     source?: string;
     capturedAt?: string;
@@ -88,6 +89,22 @@ export class ObservationsService {
     projectId?: string;
     file?: Express.Multer.File;
   }): Promise<ObservationResponse> {
+    const clientCaptureId = params.clientCaptureId?.trim() || undefined;
+    if (clientCaptureId && clientCaptureId.length > 128) {
+      throw new BadRequestException({
+        error: {
+          code: 'INVALID_CLIENT_CAPTURE_ID',
+          message: 'clientCaptureId must be 128 characters or fewer.',
+        },
+      });
+    }
+    if (clientCaptureId) {
+      const existing = await this.findByClientCaptureId(
+        params.clerkUserId,
+        clientCaptureId,
+      );
+      if (existing) return existing;
+    }
     const source = parseCaptureSource(params.source);
     const capturedAt = parseOptionalCapturedAt(params.capturedAt);
     const title = params.title?.trim() || undefined;
@@ -108,6 +125,7 @@ export class ObservationsService {
           ...(params.url ? { url: params.url } : {}),
         },
         projectId: params.projectId,
+        clientCaptureId,
       });
     }
 
@@ -125,6 +143,7 @@ export class ObservationsService {
           ...(title ? { title } : {}),
         },
         projectId: params.projectId,
+        clientCaptureId,
       });
     }
 
@@ -141,6 +160,7 @@ export class ObservationsService {
           ...(url ? { url } : {}),
         },
         projectId: params.projectId,
+        clientCaptureId,
       });
     }
 
@@ -160,6 +180,7 @@ export class ObservationsService {
     title?: string;
     extraMeta?: Record<string, unknown>;
     projectId?: string;
+    clientCaptureId?: string;
   }): Promise<ObservationResponse> {
     if (!params.file) {
       throw new BadRequestException({
@@ -201,6 +222,7 @@ export class ObservationsService {
       observation = await this.prisma.observation.create({
         data: {
           userId: user.id,
+          clientCaptureId: params.clientCaptureId,
           type: validated.observationType,
           source,
           originalFilename: validated.safeFilename,
@@ -253,6 +275,7 @@ export class ObservationsService {
     capturedAt?: Date;
     extraMeta?: Record<string, unknown>;
     projectId?: string;
+    clientCaptureId?: string;
   }): Promise<ObservationResponse> {
     const text = params.text?.trim() ?? '';
     if (!text) {
@@ -292,6 +315,7 @@ export class ObservationsService {
       },
       capturedAt: params.capturedAt,
       projectId: params.projectId,
+      clientCaptureId: params.clientCaptureId,
     });
   }
 
@@ -372,6 +396,7 @@ export class ObservationsService {
     capturedAt?: Date;
     extraMeta?: Record<string, unknown>;
     projectId?: string;
+    clientCaptureId?: string;
   }): Promise<ObservationResponse> {
     const fetched = await fetchUrlContent(params.url);
     const body = `${fetched.title}\nSource: ${fetched.url}\n\n${fetched.text}`;
@@ -396,6 +421,7 @@ export class ObservationsService {
       },
       capturedAt: params.capturedAt,
       projectId: params.projectId,
+      clientCaptureId: params.clientCaptureId,
     });
   }
 
@@ -423,6 +449,7 @@ export class ObservationsService {
     sourceMetadata: Prisma.InputJsonValue;
     capturedAt?: Date;
     projectId?: string;
+    clientCaptureId?: string;
   }): Promise<ObservationResponse> {
     const user = await this.users.findOrCreateByClerkId(params.clerkUserId);
     await this.assertOwnedProject(user.id, params.projectId);
@@ -445,6 +472,7 @@ export class ObservationsService {
       observation = await this.prisma.observation.create({
         data: {
           userId: user.id,
+          clientCaptureId: params.clientCaptureId,
           type: params.observationType,
           source,
           originalFilename: params.safeFilename,
@@ -481,6 +509,20 @@ export class ObservationsService {
       return this.getForClerkUser(params.clerkUserId, observation.id);
     }
     return toObservationResponse(observation);
+  }
+
+  async findByClientCaptureId(
+    clerkUserId: string,
+    clientCaptureId: string,
+  ): Promise<ObservationResponse | null> {
+    const user = await this.users.findOrCreateByClerkId(clerkUserId);
+    const observation = await this.prisma.observation.findUnique({
+      where: {
+        userId_clientCaptureId: { userId: user.id, clientCaptureId },
+      },
+      include: observationInclude,
+    });
+    return observation ? toObservationResponse(observation) : null;
   }
 
   private noteCapture(userId: string, observationId: string): void {

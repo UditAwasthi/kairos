@@ -148,12 +148,15 @@ export default function SignUpScreen() {
         />
 
         {errorMessage ? (
-          <Text style={[styles.errorText, { color: errorTextColor }]}>
-            {errorMessage}
-          </Text>
+          <View style={[styles.errorContainer, { backgroundColor: colors.errorSurface, borderColor: colors.error }]}>
+            <Text style={[styles.errorText, { color: errorTextColor }]}>
+              {errorMessage}
+            </Text>
+          </View>
         ) : null}
 
         <ThemedButton
+          size="lg"
           disabled={isSubmitting}
           label={isSubmitting ? '…' : 'Continue'}
           onPress={() => void handleVerify()}
@@ -191,12 +194,15 @@ export default function SignUpScreen() {
       />
 
       {errorMessage ? (
-        <Text style={[styles.errorText, { color: errorTextColor }]}>
-          {errorMessage}
-        </Text>
+        <View style={[styles.errorContainer, { backgroundColor: colors.errorSurface, borderColor: colors.error }]}>
+          <Text style={[styles.errorText, { color: errorTextColor }]}>
+            {errorMessage}
+          </Text>
+        </View>
       ) : null}
 
       <ThemedButton
+        size="lg"
         disabled={isSubmitting}
         label={isSubmitting ? '…' : 'Sign up'}
         onPress={() => void handleSignUp()}
@@ -214,10 +220,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  errorText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
+  errorContainer: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
     marginVertical: 4,
+  },
+  errorText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
   },
   footer: {
     fontFamily: 'Inter_400Regular',

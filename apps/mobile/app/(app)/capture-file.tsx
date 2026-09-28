@@ -91,7 +91,7 @@ export default function CaptureScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, isLight } = useAppTheme();
-  const { getToken } = useAuth();
+  const { getToken, userId } = useAuth();
   const { refresh: refreshProgression } = useProgression();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder);
@@ -246,10 +246,11 @@ export default function CaptureScreen() {
 
     try {
       const token = await getToken();
-      if (!token) throw new ApiError('Sign in required.', 401);
+      if (!token || !userId) throw new ApiError('Sign in required.', 401);
 
       const submitted = nextAttachment
         ? await submitCapture({
+            userId,
             token,
             source: nextAttachment.kind === 'voice' ? 'VOICE' : 'MANUAL',
             fileUri: nextAttachment.uri,
@@ -260,6 +261,7 @@ export default function CaptureScreen() {
             url: next.url,
           })
         : await submitCapture({
+            userId,
             token,
             source: 'MANUAL',
             content: next.content,

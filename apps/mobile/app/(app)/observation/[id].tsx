@@ -27,6 +27,11 @@ import {
   type ApiObservation,
 } from '../../../lib/api';
 import { captureSourceLabel } from '../../../lib/capture';
+import {
+  invalidateObservationCaches,
+  removeCache,
+} from '../../../lib/persistentCache';
+import { readQueryCache, writeQueryCache } from '../../../hooks/useAsync';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import type { Observation, ProcessingStatus, SourceType } from '../../../types';
 
@@ -147,11 +152,13 @@ export default function ObservationDetailScreen() {
   const { colors } = useAppTheme();
   const { getToken } = useAuth();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const loadedIdRef = useRef<string | null>(null);
-  const [data, setData] = useState<Observation | null>(null);
-  const [apiObs, setApiObs] = useState<ApiObservation | null>(null);
+  const cacheKey = `observation:${String(id)}`;
+  const [cached] = useState(() => readQueryCache<ApiObservation>(cacheKey));
+  const loadedIdRef = useRef<string | null>(cached ? String(id) : null);
+  const [data, setData] = useState<Observation | null>(() => (cached ? mapApiObservation(cached) : null));
+  const [apiObs, setApiObs] = useState<ApiObservation | null>(cached);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cached);
   const [retrying, setRetrying] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -182,11 +189,16 @@ export default function ObservationDetailScreen() {
       const api = await fetchObservation(token, observationId);
       setApiObs(api);
       setData(mapApiObservation(api));
+      writeQueryCache(`observation:${observationId}`, api);
       setError(null);
       loadedIdRef.current = observationId;
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
+        removeCache(`observation:${observationId}`);
         setError('Not found');
+      } else if (loadedIdRef.current === observationId) {
+        // Keep the saved copy on screen while offline or on a transient failure.
+        return;
       } else if (err instanceof ApiError && err.status === 401) {
         setError('Session expired');
       } else {
@@ -240,6 +252,7 @@ export default function ObservationDetailScreen() {
           const api = await fetchObservation(token, String(id));
           setApiObs(api);
           setData(mapApiObservation(api));
+          writeQueryCache(cacheKey, api);
         } catch {
           // Keep last known state while polling.
         }
@@ -252,7 +265,7 @@ export default function ObservationDetailScreen() {
         pollRef.current = null;
       }
     };
-  }, [data, getToken, id]);
+  }, [data, getToken, id, cacheKey]);
 
   const onRetry = async () => {
     try {
@@ -301,6 +314,7 @@ export default function ObservationDetailScreen() {
       });
       setApiObs(updated);
       setData(mapApiObservation(updated));
+      writeQueryCache(cacheKey, updated);
       setEditing(false);
     } catch (err) {
       setData(previous.data);
@@ -330,6 +344,7 @@ export default function ObservationDetailScreen() {
                 const token = await getToken();
                 if (!token) throw new ApiError('Sign in required.', 401);
                 await deleteObservation(token, String(id));
+                invalidateObservationCaches([String(id)]);
                 router.replace('/(app)/timeline');
               } catch (err) {
                 Alert.alert(

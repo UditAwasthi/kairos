@@ -1,121 +1,193 @@
 import * as Haptics from 'expo-haptics';
-import { Pressable, StyleSheet, ViewStyle } from 'react-native';
+import React from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TextStyle,
+  View,
+  ViewStyle,
+} from 'react-native';
 import Animated, {
-  interpolate,
-  interpolateColor,
+  Easing,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useAppTheme } from '../../providers/ThemeProvider';
+import { control } from '../../theme';
 import { TextAction } from './TextAction';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-type ThemedButtonProps = {
+export type ThemedButtonProps = {
   label: string;
   onPress: () => void;
   disabled?: boolean;
-  /** `text` = accent text-only action (no border / fill). */
-  variant?: 'primary' | 'outline' | 'text';
-  style?: ViewStyle;
+  loading?: boolean;
+  /** `primary` = chunky lavender 3D tactile button
+   *  `secondary` = soft lavender tinted button with purple depth
+   *  `outline` = bordered tactile button
+   *  `text` = text-only button
+   */
+  variant?: 'primary' | 'secondary' | 'outline' | 'text';
+  size?: 'sm' | 'md' | 'lg';
+  icon?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
 };
 
 export function ThemedButton({
   label,
   onPress,
   disabled = false,
+  loading = false,
   variant = 'primary',
+  size = 'md',
+  icon,
   style,
+  textStyle,
 }: ThemedButtonProps) {
-  const { colors, typography } = useAppTheme();
-  const press = useSharedValue(0);
+  const { colors, typography, radius, motion } = useAppTheme();
+  const reduced = useReducedMotion();
+  const press = useSharedValue(1);
 
   if (variant === 'text') {
-    return <TextAction label={label} onPress={onPress} disabled={disabled} />;
+    return <TextAction label={label} onPress={onPress} disabled={disabled || loading} />;
   }
 
   const isPrimary = variant === 'primary';
+  const isSecondary = variant === 'secondary';
+  const isOutline = variant === 'outline';
 
-  const restingBg = isPrimary ? colors.buttonFill : colors.surface;
-  const restingBorder = isPrimary ? colors.buttonFill : colors.border;
-  const restingText = isPrimary ? colors.buttonText : colors.text;
+  const heights = {
+    sm: { height: control.buttonSm, paddingH: 14, fontSize: typography.caption.size },
+    md: { height: control.buttonMd, paddingH: 20, fontSize: typography.button.size },
+    lg: { height: control.buttonLg, paddingH: 24, fontSize: typography.button.size },
+  }[size];
 
-  const pressedBg = isPrimary ? colors.buttonPressedFill : colors.accentGlow;
-  const pressedBorder = isPrimary ? colors.buttonPressedFill : colors.borderAccent;
-  const pressedText = isPrimary ? colors.buttonPressedText : colors.text;
+  const topBg = isPrimary
+    ? colors.buttonFill
+    : isSecondary
+      ? colors.buttonSecondaryFill
+      : colors.surface;
 
-  const currentBg = disabled ? colors.buttonDisabledFill : restingBg;
-  const currentBorder = disabled ? colors.border : restingBorder;
-  const currentText = disabled ? colors.buttonDisabledText : restingText;
+  const textColor = isPrimary
+    ? colors.buttonText
+    : isSecondary
+      ? colors.buttonSecondaryText
+      : colors.text;
 
-  const targetBg = disabled ? colors.buttonDisabledFill : pressedBg;
-  const targetBorder = disabled ? colors.border : pressedBorder;
-  const targetText = disabled ? colors.buttonDisabledText : pressedText;
+  const borderStroke = isOutline ? colors.border : 'transparent';
 
-  const buttonStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(press.value, [0, 1], [1, 0.97]) }],
-    backgroundColor: interpolateColor(press.value, [0, 1], [currentBg, targetBg]),
-    borderColor: interpolateColor(press.value, [0, 1], [currentBorder, targetBorder]),
+  const innerAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: press.value }],
   }));
 
-  const textStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(press.value, [0, 1], [currentText, targetText]),
-  }));
+  const handlePressIn = () => {
+    if (!disabled && !loading) {
+      press.value = withTiming(motion.pressScale, {
+        duration: reduced ? 0 : motion.fast,
+        easing: Easing.out(Easing.cubic),
+      });
+    }
+  };
+
+  const handlePressOut = () => {
+    press.value = withTiming(1, {
+      duration: reduced ? 0 : motion.normal,
+      easing: Easing.out(Easing.cubic),
+    });
+  };
+
+  const handlePress = () => {
+    if (disabled || loading) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onPress();
+  };
+
+  const borderRadius = radius.full;
 
   return (
-    <AnimatedPressable
-      disabled={disabled}
-      onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        onPress();
-      }}
-      onPressIn={() => {
-        if (!disabled) {
-          press.value = withSpring(1, { damping: 20, stiffness: 220 });
-        }
-      }}
-      onPressOut={() => {
-        press.value = withSpring(0, { damping: 20, stiffness: 200 });
-      }}
-      style={[
-        styles.button,
-        {
-          borderRadius: 14,
-          borderWidth: isPrimary ? 0 : StyleSheet.hairlineWidth,
-          opacity: disabled ? 0.5 : 1,
-        },
-        buttonStyle,
-        style,
-      ]}
-    >
-      <Animated.Text
+    <View style={style}>
+      <AnimatedPressable
+        disabled={disabled || loading}
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: disabled || loading }}
         style={[
-          styles.label,
+          styles.innerButton,
           {
-            fontSize: typography.body.size,
-            lineHeight: typography.body.lineHeight,
-            letterSpacing: typography.body.letterSpacing,
+            height: heights.height,
+            borderRadius,
+            backgroundColor: disabled ? colors.buttonDisabledFill : topBg,
+            borderWidth: isOutline ? 1 : 0,
+            borderColor: borderStroke,
+            paddingHorizontal: heights.paddingH,
+            opacity: disabled ? 0.55 : 1,
           },
-          textStyle,
+          innerAnimStyle,
         ]}
       >
-        {label}
-      </Animated.Text>
-    </AnimatedPressable>
+        {loading ? (
+          <ActivityIndicator
+            size="small"
+            color={disabled ? colors.buttonDisabledText : textColor}
+          />
+        ) : (
+          <View style={styles.contentRow}>
+            {icon ? <View style={styles.iconWrap}>{icon}</View> : null}
+            <Text
+              style={[
+                styles.label,
+                {
+                  fontSize: heights.fontSize,
+                  color: disabled ? colors.buttonDisabledText : textColor,
+                  fontFamily: typography.button.fontFamily,
+                },
+                textStyle,
+              ]}
+              numberOfLines={1}
+            >
+              {label}
+            </Text>
+          </View>
+        )}
+      </AnimatedPressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
+  outerContainer: {
+    justifyContent: 'flex-start',
     overflow: 'hidden',
-    paddingHorizontal: 20,
+  },
+  innerButton: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  contentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  iconWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   label: {
-    fontFamily: 'Inter_600SemiBold',
+    letterSpacing: 0.2,
+    textAlign: 'center',
   },
 });

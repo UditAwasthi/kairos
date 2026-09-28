@@ -1,105 +1,71 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   interpolate,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardState } from 'react-native-keyboard-controller';
 
+import { rememberTab, rememberedTab, type StableTab } from '../lib/lastRoute';
 import { useTabPagerGesture } from './TabScreenSwipe';
-import { useAppTheme } from '../providers/ThemeProvider';
+import { BottomDock, type DockItem } from './ui/system/BottomDock';
+import { control } from '../theme';
 
-type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
+type FeatherName = React.ComponentProps<typeof Feather>['name'];
 
-const TAB_META: Record<string, { label: string; icon: IconName; iconActive: IconName }> = {
-  index: { label: 'Today', icon: 'today', iconActive: 'today' },
-  library: { label: 'Library', icon: 'library-books', iconActive: 'library-books' },
-  ask: { label: 'Ask', icon: 'chat-bubble-outline', iconActive: 'chat-bubble' },
-  capture: { label: 'Capture', icon: 'add-circle-outline', iconActive: 'add-circle' },
-  profile: { label: 'You', icon: 'person-outline', iconActive: 'person' },
+const TAB_META: Record<string, { label: string; icon: FeatherName }> = {
+  index: { label: 'Today', icon: 'sun' },
+  library: { label: 'Library', icon: 'book-open' },
+  capture: { label: 'Capture', icon: 'plus' },
+  ask: { label: 'Ask', icon: 'message-circle' },
+  profile: { label: 'You', icon: 'user' },
 };
 
-export const FLOATING_TAB_BAR_CONTENT = 80;
+/** Only these five routes are dock items. Recall stays a screen, not a tab. */
+export const NAV_TABS = ['index', 'library', 'capture', 'ask', 'profile'] as const;
 
-function TabItem({
-  icon,
-  iconActive,
-  label,
-  focused,
-  accessibilityLabel,
-  prominent = false,
-  onPress,
-  onLongPress,
-}: {
-  icon: IconName;
-  iconActive: IconName;
-  label: string;
-  focused: boolean;
-  accessibilityLabel: string;
-  prominent?: boolean;
-  onPress: () => void;
-  onLongPress: () => void;
-}) {
-  const { colors } = useAppTheme();
-  const press = useSharedValue(0);
-  const pressStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(press.value, [0, 1], [1, 0.92]) }],
-  }));
-
-  return (
-    <Pressable
-      onPress={onPress}
-      onLongPress={onLongPress}
-      onPressIn={() => {
-        press.value = withSpring(1, { damping: 16, stiffness: 320 });
-      }}
-      onPressOut={() => {
-        press.value = withSpring(0, { damping: 16, stiffness: 280 });
-      }}
-      accessibilityRole="button"
-      accessibilityState={focused ? { selected: true } : {}}
-      accessibilityLabel={accessibilityLabel}
-      style={styles.item}
-    >
-      <Animated.View style={[styles.itemInner, pressStyle]}>
-        <View style={[styles.indicator, prominent && { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryContainer }]}>
-          <MaterialIcons
-            name={focused ? iconActive : icon}
-            size={prominent ? 28 : 25}
-            color={focused ? colors.text : colors.secondary}
-          />
-        </View>
-        <Text style={[styles.label, { color: focused ? colors.text : colors.secondary }]}>
-          {label}
-        </Text>
-      </Animated.View>
-    </Pressable>
-  );
-}
+export const FLOATING_TAB_BAR_CONTENT = control.dock + 12;
 
 export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
   const keyboardVisible = useKeyboardState((s) => s.isVisible);
   const visibility = useSharedValue(1);
 
   useEffect(() => {
     visibility.value = withTiming(keyboardVisible ? 0 : 1, {
-      duration: 180,
+      duration: 220,
       easing: Easing.out(Easing.cubic),
     });
   }, [keyboardVisible, visibility]);
 
+  const routeName = state.routes[state.index]?.name;
+
+  useEffect(() => {
+    if (!routeName) return;
+    if (routeName === 'index' || routeName === 'library' || routeName === 'ask' || routeName === 'profile') {
+      rememberTab(routeName);
+      return;
+    }
+    if (routeName === 'capture') return;
+    const fallback: StableTab = rememberedTab();
+    if (routeName !== fallback) navigation.navigate(fallback);
+  }, [navigation, routeName]);
+
   const swipe = useTabPagerGesture();
+  const visibleRoutes = NAV_TABS.flatMap((name) => {
+    const index = state.routes.findIndex((route) => route.name === name);
+    if (index < 0) return [];
+    const route = state.routes[index];
+    return [{ route, index, options: descriptors[route.key]?.options }];
+  });
 
   const goToIndex = (next: number) => {
     const route = state.routes[next];
@@ -110,60 +76,42 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
       canPreventDefault: true,
     });
     if (!event.defaultPrevented) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       navigation.navigate(route.name, route.params);
     }
   };
 
   const shellStyle = useAnimatedStyle(() => ({
     opacity: visibility.value,
-    transform: [{ translateY: interpolate(visibility.value, [0, 1], [24, 0]) }],
+    transform: [{ translateY: interpolate(visibility.value, [0, 1], [16, 0]) }],
   }));
+
+  const items: DockItem[] = visibleRoutes.map(({ route, index }) => {
+    const meta = TAB_META[route.name as (typeof NAV_TABS)[number]];
+    return {
+      key: route.key,
+      label: meta.label,
+      icon: meta.icon,
+      active: state.index === index,
+      onPress: () => goToIndex(index),
+      onLongPress: () => {
+        navigation.emit({
+          type: 'tabLongPress',
+          target: route.key,
+        });
+      },
+    };
+  });
 
   return (
     <Animated.View
       pointerEvents={keyboardVisible ? 'none' : 'auto'}
-      style={[
-        styles.wrap,
-        {
-          paddingBottom: Math.max(insets.bottom, 8),
-          backgroundColor: colors.surfaceElevated,
-          borderTopColor: colors.divider,
-        },
-        shellStyle,
-      ]}
+      style={[styles.wrap, { paddingBottom: insets.bottom }, shellStyle]}
+      accessibilityRole="tablist"
     >
       <GestureDetector gesture={swipe}>
-        <View style={styles.inner}>
-          {state.routes.map((route, index) => {
-            const focused = state.index === index;
-            const meta = TAB_META[route.name] ?? {
-              label: descriptors[route.key]?.options.title ?? route.name,
-              icon: 'lens' as IconName,
-              iconActive: 'lens' as IconName,
-            };
-            const { options } = descriptors[route.key];
-            const accessibilityLabel = options.tabBarAccessibilityLabel ?? meta.label;
-
-            return (
-              <TabItem
-                key={route.key}
-                icon={meta.icon}
-                iconActive={meta.iconActive}
-                label={meta.label}
-                focused={focused}
-                accessibilityLabel={accessibilityLabel}
-                prominent={route.name === 'capture'}
-                onPress={() => goToIndex(index)}
-                onLongPress={() => {
-                  navigation.emit({
-                    type: 'tabLongPress',
-                    target: route.key,
-                  });
-                }}
-              />
-            );
-          })}
+        <View>
+          <BottomDock items={items} />
         </View>
       </GestureDetector>
     </Animated.View>
@@ -176,36 +124,5 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  inner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    minHeight: 64,
-  },
-  item: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 48,
-  },
-  itemInner: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  indicator: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 10,
-    letterSpacing: 0.08,
   },
 });

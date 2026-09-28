@@ -1,5 +1,5 @@
-import { TextInput, TextInputProps, StyleSheet } from 'react-native';
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { TextInput, TextInputProps, StyleSheet, View } from 'react-native';
 
 import { useAppTheme } from '../../providers/ThemeProvider';
 
@@ -8,41 +8,51 @@ export function ThemedInput(props: TextInputProps) {
   const [focused, setFocused] = useState(false);
 
   return (
-    <TextInput
-      placeholderTextColor={colors.inputPlaceholder}
-      keyboardAppearance={isLight ? 'light' : 'dark'}
-      {...props}
-      onFocus={(e) => {
-        setFocused(true);
-        props.onFocus?.(e);
-      }}
-      onBlur={(e) => {
-        setFocused(false);
-        props.onBlur?.(e);
-      }}
+    <View
       style={[
-        styles.input,
+        styles.wrapper,
         {
-          color: colors.text,
-          borderColor: focused ? colors.inputBorderFocused : colors.inputBorder,
-          backgroundColor: colors.inputFill,
           borderRadius: radius.md,
-          paddingHorizontal: spacing['4'],
-          paddingVertical: spacing['3'] + 2,
-          fontSize: typography.body.size,
-          lineHeight: typography.body.lineHeight,
-          letterSpacing: typography.body.letterSpacing,
+          backgroundColor: colors.inputFill,
+          borderColor: focused ? colors.borderActive : colors.inputBorder,
+          borderWidth: focused ? 1.5 : 1,
         },
-        props.style,
       ]}
-    />
+    >
+      <TextInput
+        placeholderTextColor={colors.inputPlaceholder}
+        keyboardAppearance={isLight ? 'light' : 'dark'}
+        {...props}
+        onFocus={(e) => {
+          setFocused(true);
+          props.onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          props.onBlur?.(e);
+        }}
+        style={[
+          styles.input,
+          {
+            color: colors.text,
+            paddingHorizontal: spacing['4'],
+            paddingVertical: spacing['3'],
+            fontSize: typography.body.size,
+            lineHeight: typography.body.lineHeight,
+          },
+          props.style,
+        ]}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    overflow: 'hidden',
+  },
   input: {
-    borderWidth: 0,
     fontFamily: 'Inter_400Regular',
-    minHeight: 44,
+    minHeight: 48,
   },
 });

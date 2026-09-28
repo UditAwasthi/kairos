@@ -1,5 +1,6 @@
-import { ReactNode } from 'react';
+import React, { ReactNode } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -10,7 +11,6 @@ import {
 import { useAppTheme } from '../../providers/ThemeProvider';
 import { ThemeToggleButton } from '../ThemeToggleButton';
 import { ThemedText } from '../ThemedText';
-import { ScreenGradient } from '../ui/Glass';
 
 type AuthScreenLayoutProps = {
   title: string;
@@ -25,42 +25,63 @@ export function AuthScreenLayout({
   children,
   footer,
 }: AuthScreenLayoutProps) {
-  const { themeProgress, toggleTheme, spacing } = useAppTheme();
+  const { toggleTheme, spacing, isLight, colors, typography, radius } = useAppTheme();
 
   return (
-    <ScreenGradient>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.root}
       >
-        <View style={[styles.topBar, { paddingHorizontal: spacing['6'] }]}>
-          <ThemedText colorKey="textMuted" style={styles.glyphLabel}>
-            Kairos
-          </ThemedText>
-          <ThemeToggleButton themeProgress={themeProgress} onToggle={toggleTheme} />
+        <View style={[styles.topBar, { paddingHorizontal: spacing['5'] }]}>
+          <Image
+            source={isLight ? require('../../assets/logo-dark.png') : require('../../assets/logo-light.png')}
+            style={styles.logo}
+            resizeMode="contain"
+            accessibilityLabel="Kairos"
+          />
+          <ThemeToggleButton onToggle={toggleTheme} />
         </View>
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.content, { padding: spacing['6'], gap: spacing['4'] }]}
+          contentContainerStyle={[
+            styles.content,
+            { paddingHorizontal: spacing['6'], paddingBottom: spacing['8'], gap: spacing['4'] },
+          ]}
           keyboardShouldPersistTaps="handled"
-          removeClippedSubviews
         >
-          <View style={[styles.header, { gap: spacing['1'] }]}>
-            <ThemedText colorKey="text" style={styles.title}>
+          <View style={styles.header}>
+            <View style={[styles.markBadge, { backgroundColor: colors.primaryContainer, borderRadius: radius.full }]}>
+              <ThemedText colorKey="primary" style={styles.markBadgeText}>
+                WELCOME TO KAIROS
+              </ThemedText>
+            </View>
+            <ThemedText
+              colorKey="text"
+              style={[
+                styles.title,
+                {
+                  fontFamily: typography.display.fontFamily,
+                  fontSize: 28,
+                },
+              ]}
+            >
               {title}
             </ThemedText>
             {subtitle ? (
-              <ThemedText colorKey="textMuted" style={styles.subtitle}>
+              <ThemedText colorKey="textSecondary" style={styles.subtitle}>
                 {subtitle}
               </ThemedText>
             ) : null}
           </View>
-          {children}
+
+          <View style={styles.formCard}>{children}</View>
+
           {footer}
         </ScrollView>
       </KeyboardAvoidingView>
-    </ScreenGradient>
+    </View>
   );
 }
 
@@ -75,28 +96,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 56,
-    paddingBottom: 4,
+    paddingTop: 54,
+    paddingBottom: 8,
   },
-  glyphLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 14,
-    letterSpacing: 0.2,
+  logo: {
+    width: 90,
+    height: 32,
   },
   content: {
     flexGrow: 1,
     justifyContent: 'center',
   },
   header: {
-    marginBottom: 4,
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  markBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  markBadgeText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 0.8,
   },
   title: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 28,
-    letterSpacing: 0,
+    textAlign: 'center',
+    letterSpacing: -0.3,
   },
   subtitle: {
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
+    textAlign: 'center',
+  },
+  formCard: {
+    gap: 14,
   },
 });

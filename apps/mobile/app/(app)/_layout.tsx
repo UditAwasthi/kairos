@@ -1,11 +1,15 @@
 import { useAuth } from '@clerk/expo';
 import * as Notifications from 'expo-notifications';
-import { Redirect, Stack, useRouter } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { Redirect, Stack, useRouter, useSegments } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, StyleSheet, View } from 'react-native';
 
-import { fetchDashboard } from '../../lib/api';
-import { flushCaptureQueue } from '../../lib/capture';
+import { OfflineBanner } from '../../components/ui/NetworkStatus';
+import { ApiError, fetchDashboard } from '../../lib/api';
+import { flushCaptureQueue, resumeCaptureQueue } from '../../lib/capture';
+import { listPendingCaptures } from '../../lib/captureQueue';
+import { onReconnect } from '../../lib/network';
+import { hydrateCache, writeCache } from '../../lib/persistentCache';
 import {
   flushedCopy,
   hrefFromNotificationData,
@@ -14,22 +18,33 @@ import {
 } from '../../lib/notifications';
 import { recordCaptureSync, setCaptureSyncInflight } from '../../lib/syncStatus';
 import { consumePendingOsCapture, KairosOs } from '../../lib/osIntegrations';
+import { noteSegments } from '../../lib/lastRoute';
 import { ensureRecallReady } from '../../lib/recallSync';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import Recall from 'kairos-recall';
 import { ProgressionProvider } from '../../providers/ProgressionProvider';
 import * as SecureStore from 'expo-secure-store';
 
+function RememberRoute() {
+  const segments = useSegments();
+  useEffect(() => {
+    noteSegments(segments as string[]);
+  }, [segments]);
+  return null;
+}
+
 export default function AppLayout() {
   const { isLoaded, isSignedIn, getToken, userId } = useAuth();
   const { colors } = useAppTheme();
   const router = useRouter();
   const handledResponseRef = useRef<string | null>(null);
+  const [cacheUser, setCacheUser] = useState<string | null>(null);
 
   // Keep a fresh auth token in the native Recall service so background uploads
   // do not 401 and (previously) tear down MediaProjection.
   useEffect(() => {
-    if (!isSignedIn) return;
+    if (!isSignedIn || !userId) return;
+    resumeCaptureQueue(userId);
 
     let cancelled = false;
 
@@ -40,6 +55,7 @@ export default function AppLayout() {
         await KairosOs.setAuthToken(token);
         try {
           const dashboard = await fetchDashboard(token);
+          writeCache('dashboard', dashboard);
           await KairosOs.refreshWidget(
             dashboard.insight.empty
               ? dashboard.insight.body
@@ -59,7 +75,15 @@ export default function AppLayout() {
       try {
         const token = await getToken();
         if (token) {
-          const result = await flushCaptureQueue(token);
+          let result;
+          try {
+            result = await flushCaptureQueue(userId, token);
+          } catch (error) {
+            if (!(error instanceof ApiError) || error.status !== 401) throw error;
+            const freshToken = await getToken({ skipCache: true });
+            if (!freshToken) throw error;
+            result = await flushCaptureQueue(userId, freshToken);
+          }
           recordCaptureSync(result.flushed, result.remaining);
           const flushed = flushedCopy(result.flushed);
           if (flushed) void presentLocalNotification(flushed);
@@ -74,24 +98,45 @@ export default function AppLayout() {
     void SecureStore.getItemAsync('kairos.device.pushEnabled').then((enabled) => {
       if (enabled !== 'false') void registerPushForSignedInUser(getToken);
     });
+    void listPendingCaptures(userId).then((items) => {
+      recordCaptureSync(0, items.length);
+    }).catch(() => undefined);
     syncNative();
-    void consumePendingOsCapture(getToken);
+    void consumePendingOsCapture(getToken, userId);
     void flush();
     const interval = setInterval(() => syncNative(true), 3 * 60_000);
     const sub = AppState.addEventListener('change', (next) => {
       if (next === 'active') {
         syncNative();
-        void consumePendingOsCapture(getToken);
+        void consumePendingOsCapture(getToken, userId);
         void flush();
       }
+    });
+    const unsubscribeReconnect = onReconnect(() => {
+      syncNative();
+      void consumePendingOsCapture(getToken, userId);
+      void flush();
     });
 
     return () => {
       cancelled = true;
       clearInterval(interval);
       sub.remove();
+      unsubscribeReconnect();
     };
   }, [isSignedIn, getToken, userId]);
+
+  useEffect(() => {
+    if (!isSignedIn || !userId) return;
+    let cancelled = false;
+    setCacheUser(null);
+    void hydrateCache(userId).finally(() => {
+      if (!cancelled) setCacheUser(userId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSignedIn, userId]);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -131,20 +176,26 @@ export default function AppLayout() {
     return <Redirect href="/" />;
   }
 
+  if (cacheUser !== userId) {
+    return <View style={[styles.loading, { backgroundColor: colors.background }]} />;
+  }
+
   return (
     <ProgressionProvider>
+    <View style={styles.root}>
+    <RememberRoute />
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.text,
         headerTitleStyle: {
-          fontFamily: 'Inter_500Medium',
-          fontSize: 18,
+          fontFamily: 'Inter_600SemiBold',
+          fontSize: 16,
         },
         headerShadowVisible: false,
         contentStyle: { backgroundColor: colors.background },
         animation: 'ios_from_right',
-        animationDuration: 340,
+        animationDuration: 300,
         gestureEnabled: true,
         fullScreenGestureEnabled: true,
         gestureDirection: 'horizontal',
@@ -216,11 +267,14 @@ export default function AppLayout() {
       <Stack.Screen name="how-it-works/[id]" options={{ title: 'How it works' }} />
       <Stack.Screen name="about" options={{ title: 'About' }} />
     </Stack>
+    <OfflineBanner />
+    </View>
     </ProgressionProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   loading: {
     flex: 1,
     alignItems: 'center',

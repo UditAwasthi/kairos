@@ -33,9 +33,28 @@ import {
   type ApiProjectSummary,
   type ApiTopicSummary,
 } from '../../lib/api';
+import { readQueryCache, writeQueryCache } from '../../hooks/useAsync';
+import { AmbientBackground } from '../../components/ui/system/AmbientBackground';
 import { useAppTheme } from '../../providers/ThemeProvider';
 
 type FilterMode = 'all' | 'project' | 'topic' | 'entity';
+type TimelineMeta = {
+  topics: ApiTopicSummary[];
+  entities: ApiEntitySummary[];
+  projects: ApiProjectSummary[];
+};
+
+const META_CACHE_KEY = 'timeline:meta';
+
+function timelineCacheKey(f: {
+  mode: FilterMode;
+  projectId?: string;
+  topicId?: string;
+  entityId?: string;
+}): string {
+  const id = f.mode === 'project' ? f.projectId : f.mode === 'topic' ? f.topicId : f.mode === 'entity' ? f.entityId : '';
+  return `timeline:${f.mode}:${id ?? ''}`;
+}
 
 const POLL_MS = 3000;
 const PAGE_SIZE = 40;
@@ -59,10 +78,18 @@ export default function TimelineScreen() {
     projectId?: string;
   }>();
 
-  const [observations, setObservations] = useState<ApiObservation[]>([]);
-  const [topics, setTopics] = useState<ApiTopicSummary[]>([]);
-  const [entities, setEntities] = useState<ApiEntitySummary[]>([]);
-  const [projects, setProjects] = useState<ApiProjectSummary[]>([]);
+  const initialFilters = {
+    mode: (params.projectId ? 'project' : params.topicId ? 'topic' : params.entityId ? 'entity' : 'all') as FilterMode,
+    projectId: typeof params.projectId === 'string' ? params.projectId : undefined,
+    topicId: typeof params.topicId === 'string' ? params.topicId : undefined,
+    entityId: typeof params.entityId === 'string' ? params.entityId : undefined,
+  };
+  const [initialPage] = useState(() => readQueryCache<ApiObservation[]>(timelineCacheKey(initialFilters)));
+  const [initialMeta] = useState(() => readQueryCache<TimelineMeta>(META_CACHE_KEY));
+  const [observations, setObservations] = useState<ApiObservation[]>(initialPage ?? []);
+  const [topics, setTopics] = useState<ApiTopicSummary[]>(initialMeta?.topics ?? []);
+  const [entities, setEntities] = useState<ApiEntitySummary[]>(initialMeta?.entities ?? []);
+  const [projects, setProjects] = useState<ApiProjectSummary[]>(initialMeta?.projects ?? []);
   const [mode, setMode] = useState<FilterMode>(
     params.projectId
       ? 'project'
@@ -81,7 +108,7 @@ export default function TimelineScreen() {
   const [entityId, setEntityId] = useState<string | undefined>(
     typeof params.entityId === 'string' ? params.entityId : undefined,
   );
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialPage);
   const [refreshing, setRefreshing] = useState(false);
   const [filtering, setFiltering] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -94,21 +121,30 @@ export default function TimelineScreen() {
   const filtersRef = useRef({ mode, projectId, topicId, entityId });
   const nextCursorRef = useRef<string | null>(null);
   const loadingMoreRef = useRef(false);
-  const hasLoadedRef = useRef(false);
+  const hasLoadedRef = useRef(initialPage != null);
   observationsRef.current = observations;
   filtersRef.current = { mode, projectId, topicId, entityId };
 
   const loadMeta = useCallback(async () => {
-    const token = await getToken();
-    if (!token) return;
-    const [topicData, entityData, projectData] = await Promise.all([
-      fetchTopics({ token, limit: 30 }),
-      fetchEntities({ token, limit: 30 }),
-      fetchProjects({ token, limit: 30 }),
-    ]);
-    setTopics(topicData.items);
-    setEntities(entityData.items);
-    setProjects(projectData.items);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const [topicData, entityData, projectData] = await Promise.all([
+        fetchTopics({ token, limit: 30 }),
+        fetchEntities({ token, limit: 30 }),
+        fetchProjects({ token, limit: 30 }),
+      ]);
+      setTopics(topicData.items);
+      setEntities(entityData.items);
+      setProjects(projectData.items);
+      writeQueryCache<TimelineMeta>(META_CACHE_KEY, {
+        topics: topicData.items,
+        entities: entityData.items,
+        projects: projectData.items,
+      });
+    } catch {
+      // Filter chips keep their saved copy.
+    }
   }, [getToken]);
 
   const loadPage = useCallback(
@@ -141,9 +177,15 @@ export default function TimelineScreen() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      const key = timelineCacheKey({ mode, projectId, topicId, entityId });
+      const saved = readQueryCache<ApiObservation[]>(key);
+      if (saved) {
+        setObservations(saved);
+        hasLoadedRef.current = true;
+      }
       const initial = !hasLoadedRef.current;
       if (initial) setLoading(true);
-      else setFiltering(true);
+      else setFiltering(!saved);
       setError(null);
       nextCursorRef.current = null;
       setEndReached(false);
@@ -151,9 +193,10 @@ export default function TimelineScreen() {
         const data = await loadPage('reset');
         if (cancelled) return;
         setObservations(data);
+        writeQueryCache(key, data.map((item) => ({ ...item, extractedText: null })));
         hasLoadedRef.current = true;
       } catch {
-        if (!cancelled) setError('Unable to load timeline.');
+        if (!cancelled && !saved) setError('Unable to load timeline.');
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -264,6 +307,7 @@ export default function TimelineScreen() {
   }
 
   return (
+    <AmbientBackground>
     <FadeInContent style={[styles.flex, { paddingBottom: insets.bottom }]}>
       <ScrollView
         horizontal
@@ -381,9 +425,11 @@ export default function TimelineScreen() {
             return (
               <>
                 {showDay ? (
-                  <ThemedText colorKey="textMuted" style={styles.day}>
-                    {label}
-                  </ThemedText>
+                  <View style={[styles.dayBadge, { backgroundColor: colors.primaryContainer, borderRadius: 999 }]}>
+                    <ThemedText colorKey="primary" style={styles.day}>
+                      {label}
+                    </ThemedText>
+                  </View>
                 ) : null}
                 <ObservationStatusCard
                   observation={item}
@@ -401,6 +447,7 @@ export default function TimelineScreen() {
         />
       )}
     </FadeInContent>
+    </AmbientBackground>
   );
 }
 
@@ -415,12 +462,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 16,
   },
-  day: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginTop: 12,
+  dayBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginTop: 14,
     marginBottom: 8,
+  },
+  day: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
 });

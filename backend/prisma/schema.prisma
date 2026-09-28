@@ -223,6 +223,7 @@ model Observation {
   id               String                @id @default(cuid())
   userId           String
   user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientCaptureId  String?
   type             ObservationType
   source           CaptureSource         @default(MANUAL)
   originalFilename String
@@ -251,6 +252,7 @@ model Observation {
   @@index([userId, capturedAt(sort: Desc)])
   @@index([userId, processingStatus])
   @@index([userId, source])
+  @@unique([userId, clientCaptureId])
   @@map("observations")
 }
 

@@ -35,6 +35,7 @@ import {
   searchSourceLabel,
   type SearchDatePreset,
 } from '../../lib/searchFilters';
+import { InsightCard as SuggestionCard } from '../../components/ui/system/InsightCard';
 import { useAppTheme } from '../../providers/ThemeProvider';
 
 function formatDate(iso: string): string {
@@ -164,6 +165,10 @@ export default function SearchScreen() {
             <Feather name="search" size={18} color={colors.buttonText} />
           </Pressable>
         </View>
+
+        {!searched ? (
+          <SuggestionCard message="Search notes, topics, and projects Kairos already remembers." />
+        ) : null}
 
         <View style={styles.filterLaunch}>
           <TopicChip

@@ -1,50 +1,198 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../../components/ThemedText';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import { useSubscription } from '../../../providers/SubscriptionProvider';
 import Recall from 'kairos-recall';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PressScale } from '../../../components/ui/Motion';
+import { tabHref } from '../../../lib/lastRoute';
 
 const OPTIONS = [
-  { label: 'Note', icon: 'edit-note' as const, href: '/(app)/quick-capture?mode=note' },
-  { label: 'Voice', icon: 'mic-none' as const, href: '/(app)/voice-capture' },
-  { label: 'Photo or file', icon: 'attach-file' as const, href: '/(app)/capture-file' },
-  { label: 'Link', icon: 'link' as const, href: '/(app)/quick-capture?mode=link' },
+  {
+    label: 'Text Note',
+    icon: 'edit-note' as const,
+    href: '/(app)/quick-capture?mode=note',
+    description: 'Jot down a quick thought or observation',
+    tint: 'blue' as const,
+  },
+  {
+    label: 'Voice Memo',
+    icon: 'mic-none' as const,
+    href: '/(app)/voice-capture',
+    description: 'Speak freely and let Kairos transcribe',
+    tint: 'teal' as const,
+  },
+  {
+    label: 'Photo or File',
+    icon: 'attach-file' as const,
+    href: '/(app)/capture-file',
+    description: 'Upload images, PDFs, or documents',
+    tint: 'blue' as const,
+  },
+  {
+    label: 'Web Link',
+    icon: 'link' as const,
+    href: '/(app)/quick-capture?mode=link',
+    description: 'Save articles, videos, or URLs',
+    tint: 'amber' as const,
+  },
 ];
 
 export default function CaptureTab() {
   const router = useRouter();
-  const { colors } = useAppTheme();
+  const { colors, radius } = useAppTheme();
   const insets = useSafeAreaInsets();
   const subscription = useSubscription();
 
-  const close = () => router.replace('/(app)/(tabs)/index');
+  const close = () => router.navigate(tabHref() as '/(app)/(tabs)');
 
   return (
     <Modal transparent animationType="slide" visible onRequestClose={close}>
-      <Pressable style={[styles.backdrop, { backgroundColor: colors.scrim }]} onPress={close} accessibilityRole="button" accessibilityLabel="Close capture options">
-        <Pressable style={[styles.sheet, { backgroundColor: colors.surfaceElevated, paddingBottom: insets.bottom + 24 }]} onPress={(event) => event.stopPropagation()}>
+      <Pressable
+        style={[styles.backdrop, { backgroundColor: colors.scrim }]}
+        onPress={close}
+        accessibilityRole="button"
+        accessibilityLabel="Close capture options"
+      >
+        <Pressable
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: colors.surfaceElevated,
+              paddingBottom: Math.max(insets.bottom, 16) + 16,
+            },
+          ]}
+          onPress={(event) => event.stopPropagation()}
+        >
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
-          <ThemedText colorKey="text" style={styles.title}>Capture something</ThemedText>
-          {OPTIONS.map((option) => (
-            <Pressable key={option.label} style={[styles.option, { borderColor: colors.divider }]} onPress={() => router.push(option.href as never)} accessibilityRole="button" accessibilityLabel={option.label}>
-              <MaterialIcons name={option.icon} size={24} color={colors.text} />
-              <ThemedText colorKey="text" style={styles.label}>{option.label}</ThemedText>
-              <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
-            </Pressable>
-          ))}
-          {Platform.OS === 'android' && Recall.isAvailable() && subscription.isPro ? (
-            <Pressable style={[styles.option, { borderColor: colors.divider }]} onPress={() => router.push('/(app)/screen-memory')} accessibilityRole="button" accessibilityLabel="Open Screen memory">
-              <MaterialIcons name="visibility" size={24} color={colors.text} />
-              <ThemedText colorKey="text" style={styles.label}>Screen memory</ThemedText>
-              <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
-            </Pressable>
-          ) : null}
-          <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="Cancel capture">
-            <ThemedText colorKey="textMuted" style={styles.cancel}>Cancel</ThemedText>
+
+          <View style={styles.sheetHeader}>
+            <View
+              style={[
+                styles.badge,
+                { backgroundColor: colors.primaryContainer, borderRadius: 999 },
+              ]}
+            >
+              <MaterialIcons name="add" size={14} color={colors.primary} />
+              <Text style={[styles.badgeText, { color: colors.primary }]}>
+                NEW CAPTURE
+              </Text>
+            </View>
+            <ThemedText colorKey="text" style={styles.title}>
+              What do you want Kairos to remember?
+            </ThemedText>
+            <ThemedText colorKey="textSecondary" style={styles.subtitle}>
+              Choose a format and Kairos will extract meaning automatically.
+            </ThemedText>
+          </View>
+
+          <View style={styles.optionsGrid}>
+            {OPTIONS.map((option) => {
+              const tintColor =
+                option.tint === 'teal'
+                  ? colors.accentTeal
+                  : option.tint === 'amber'
+                    ? colors.accentYellow
+                    : colors.accentMorningBlue;
+              const tintWash =
+                option.tint === 'teal'
+                  ? colors.tintTeal
+                  : option.tint === 'amber'
+                    ? colors.tintYellow
+                    : colors.tertiaryContainer;
+              return (
+              <PressScale
+                key={option.label}
+                onPress={() => router.push(option.href as never)}
+                accessibilityLabel={option.label}
+              >
+                <View
+                  style={[
+                    styles.optionCard,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      borderRadius: radius.lg,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.iconWrap,
+                      {
+                        backgroundColor: tintWash,
+                        borderRadius: radius.md,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name={option.icon} size={24} color={tintColor} />
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <ThemedText colorKey="text" style={styles.optionTitle}>
+                      {option.label}
+                    </ThemedText>
+                    <ThemedText colorKey="textSecondary" style={styles.optionDesc}>
+                      {option.description}
+                    </ThemedText>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
+                </View>
+              </PressScale>
+              );
+            })}
+
+            {Platform.OS === 'android' && Recall.isAvailable() && subscription.isPro ? (
+              <PressScale
+                onPress={() => router.push('/(app)/screen-memory')}
+                accessibilityLabel="Open Screen memory"
+              >
+                <View
+                  style={[
+                    styles.optionCard,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      borderRadius: radius.xl,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.iconWrap,
+                      {
+                        backgroundColor: colors.primaryContainer,
+                        borderRadius: radius.full,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="visibility" size={24} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <ThemedText colorKey="text" style={styles.optionTitle}>
+                      Screen Memory
+                    </ThemedText>
+                    <ThemedText colorKey="textSecondary" style={styles.optionDesc}>
+                      Passive on-device screen recall
+                    </ThemedText>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
+                </View>
+              </PressScale>
+            ) : null}
+          </View>
+
+          <Pressable
+            onPress={close}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel capture"
+            style={styles.cancelBtn}
+          >
+            <ThemedText colorKey="textSecondary" style={styles.cancel}>
+              Cancel
+            </ThemedText>
           </Pressable>
         </Pressable>
       </Pressable>
@@ -53,11 +201,83 @@ export default function CaptureTab() {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 22, paddingTop: 12, paddingBottom: 38, gap: 10 },
-  handle: { width: 38, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 8 },
-  title: { fontFamily: 'Inter_600SemiBold', fontSize: 22, marginBottom: 6 },
-  option: { minHeight: 56, borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  label: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 16 },
-  cancel: { textAlign: 'center', padding: 10, fontSize: 15 },
+  backdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    gap: 14,
+  },
+  handle: {
+    width: 42,
+    height: 5,
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: 6,
+  },
+  sheetHeader: {
+    gap: 4,
+    marginBottom: 4,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    alignSelf: 'flex-start',
+    marginBottom: 2,
+  },
+  badgeText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 0.8,
+  },
+  title: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 22,
+    lineHeight: 28,
+    letterSpacing: -0.2,
+  },
+  subtitle: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  optionsGrid: {
+    gap: 10,
+  },
+  optionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderWidth: 1,
+    gap: 14,
+  },
+  iconWrap: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 16,
+  },
+  optionDesc: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+  },
+  cancelBtn: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  cancel: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 15,
+  },
 });

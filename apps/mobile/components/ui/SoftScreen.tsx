@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import React from 'react';
 import {
   Pressable,
   ScrollView,
@@ -13,8 +14,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../ThemedText';
 import { useAppTheme } from '../../providers/ThemeProvider';
+import { AmbientBackground } from './system/AmbientBackground';
 import { FLOATING_TAB_BAR_CONTENT } from '../FloatingTabBar';
-import { GlassPanel, ScreenGradient } from './Glass';
+import { SurfaceCard } from './SectionHeader';
 import { itemEntering, pageEntering, PressScale } from './Motion';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
@@ -30,7 +32,7 @@ type SoftPageProps = {
   contentStyle?: StyleProp<ViewStyle>;
 };
 
-/** Soft atmospheric page shell — gradient + generous padding. */
+/** Atmospheric page shell with solid surface + generous padding. */
 export function SoftPage({
   children,
   tabBar = false,
@@ -40,21 +42,24 @@ export function SoftPage({
   contentStyle,
 }: SoftPageProps) {
   const insets = useSafeAreaInsets();
+  const { spacing } = useAppTheme();
   const bottom = tabBar
-    ? insets.bottom + FLOATING_TAB_BAR_CONTENT + 16
-    : insets.bottom + 24;
+    ? insets.bottom + FLOATING_TAB_BAR_CONTENT + spacing['5']
+    : insets.bottom + spacing['6'];
 
   const pad = [
     styles.content,
     {
-      paddingTop: safeTop ? insets.top + 12 : 8,
+      paddingHorizontal: spacing['5'],
+      gap: spacing['4'],
+      paddingTop: safeTop ? insets.top + spacing['3'] : spacing['3'],
       paddingBottom: bottom,
     },
     contentStyle,
   ];
 
   return (
-    <ScreenGradient style={style}>
+    <AmbientBackground style={style}>
       <Animated.View entering={pageEntering()} style={{ flex: 1 }}>
         {scroll ? (
           <ScrollView
@@ -68,7 +73,7 @@ export function SoftPage({
           <View style={[{ flex: 1 }, pad]}>{children}</View>
         )}
       </Animated.View>
-    </ScreenGradient>
+    </AmbientBackground>
   );
 }
 
@@ -79,9 +84,22 @@ type SoftTitleProps = {
 };
 
 export function SoftTitle({ children, trailing, style }: SoftTitleProps) {
+  const { typography } = useAppTheme();
+
   return (
     <View style={[styles.titleRow, style]}>
-      <ThemedText colorKey="text" style={styles.title} numberOfLines={1}>
+      <ThemedText
+        colorKey="text"
+        style={[
+          styles.title,
+          {
+            fontFamily: typography.title1.fontFamily,
+            fontSize: typography.title1.size,
+            lineHeight: typography.title1.lineHeight,
+          },
+        ]}
+        numberOfLines={1}
+      >
         {children}
       </ThemedText>
       {trailing}
@@ -98,15 +116,16 @@ type SoftRowProps = {
 };
 
 export function SoftRow({ label, icon, meta, onPress, destructive }: SoftRowProps) {
-  const { colors } = useAppTheme();
+  const { colors, radius } = useAppTheme();
+
   const content = (
     <View style={styles.rowInner}>
       {icon ? (
-        <View style={[styles.rowIcon, { backgroundColor: colors.accentGlow }]}>
+        <View style={[styles.rowIcon, { backgroundColor: destructive ? colors.errorSurface : colors.surfaceContainer, borderRadius: radius.md }]}>
           <Feather
             name={icon}
-            size={16}
-            color={destructive ? colors.error : colors.accent}
+            size={18}
+            color={destructive ? colors.error : colors.textSecondary}
           />
         </View>
       ) : null}
@@ -118,22 +137,18 @@ export function SoftRow({ label, icon, meta, onPress, destructive }: SoftRowProp
         {label}
       </ThemedText>
       {meta ? (
-        <ThemedText colorKey="textMuted" style={styles.rowMeta}>
+        <ThemedText colorKey="textSecondary" style={styles.rowMeta}>
           {meta}
         </ThemedText>
       ) : null}
       {onPress ? (
-        <Feather name="chevron-right" size={16} color={colors.textMuted} />
+        <Feather name="chevron-right" size={18} color={colors.textMuted} />
       ) : null}
     </View>
   );
 
   if (!onPress) {
-    return (
-      <GlassPanel padded={false} contentStyle={styles.rowPanel}>
-        {content}
-      </GlassPanel>
-    );
+    return <SurfaceCard style={{ padding: 14 }}>{content}</SurfaceCard>;
   }
 
   return (
@@ -144,9 +159,7 @@ export function SoftRow({ label, icon, meta, onPress, destructive }: SoftRowProp
       }}
       accessibilityLabel={label}
     >
-      <GlassPanel padded={false} contentStyle={styles.rowPanel}>
-        {content}
-      </GlassPanel>
+      <SurfaceCard style={{ padding: 14 }}>{content}</SurfaceCard>
     </PressScale>
   );
 }
@@ -161,11 +174,12 @@ type SoftLinkListProps = {
   items: SoftLink[];
 };
 
-/** Grouped soft list — one glass panel, hairline dividers. */
+/** Grouped consumer-style list — solid card with clean rounded items and dividers. */
 export function SoftLinkList({ items }: SoftLinkListProps) {
-  const { colors } = useAppTheme();
+  const { colors, radius } = useAppTheme();
+
   return (
-    <GlassPanel padded={false} contentStyle={styles.linkList}>
+    <SurfaceCard style={{ padding: 0 }}>
       {items.map((item, index) => (
         <Animated.View key={item.label} entering={itemEntering(index)}>
           <PressScale
@@ -178,21 +192,21 @@ export function SoftLinkList({ items }: SoftLinkListProps) {
               styles.linkRow,
               index < items.length - 1 && {
                 borderBottomWidth: StyleSheet.hairlineWidth,
-                borderBottomColor: colors.divider,
+                borderBottomColor: colors.border,
               },
             ]}
           >
-            <View style={[styles.rowIcon, { backgroundColor: colors.accentGlow }]}>
-              <Feather name={item.icon} size={16} color={colors.accent} />
+            <View style={[styles.rowIcon, { backgroundColor: colors.surfaceContainer, borderRadius: radius.md }]}>
+              <Feather name={item.icon} size={18} color={colors.textSecondary} />
             </View>
             <ThemedText colorKey="text" style={styles.rowLabel} numberOfLines={1}>
               {item.label}
             </ThemedText>
-            <Feather name="chevron-right" size={16} color={colors.textMuted} />
+            <Feather name="chevron-right" size={18} color={colors.textMuted} />
           </PressScale>
         </Animated.View>
       ))}
-    </GlassPanel>
+    </SurfaceCard>
   );
 }
 
@@ -204,7 +218,8 @@ type SoftTileProps = {
 };
 
 export function SoftTile({ icon, label, onPress, width = '48%' }: SoftTileProps) {
-  const { colors } = useAppTheme();
+  const { colors, radius } = useAppTheme();
+
   return (
     <PressScale
       onPress={() => {
@@ -214,14 +229,14 @@ export function SoftTile({ icon, label, onPress, width = '48%' }: SoftTileProps)
       accessibilityLabel={label}
       style={{ width }}
     >
-      <GlassPanel padded={false} contentStyle={styles.tileInner}>
-        <View style={[styles.tileIcon, { backgroundColor: colors.accentGlow }]}>
-          <Feather name={icon} size={20} color={colors.accent} />
+      <SurfaceCard style={styles.tileInner}>
+        <View style={[styles.tileIcon, { backgroundColor: colors.surfaceContainer, borderRadius: radius.md }]}>
+          <Feather name={icon} size={22} color={colors.textSecondary} />
         </View>
         <ThemedText colorKey="text" style={styles.tileLabel}>
           {label}
         </ThemedText>
-      </GlassPanel>
+      </SurfaceCard>
     </PressScale>
   );
 }
@@ -234,7 +249,8 @@ type SoftIconBtnProps = {
 };
 
 export function SoftIconBtn({ icon, label, onPress, disabled }: SoftIconBtnProps) {
-  const { colors } = useAppTheme();
+  const { colors, radius } = useAppTheme();
+
   return (
     <Pressable
       disabled={disabled}
@@ -248,6 +264,9 @@ export function SoftIconBtn({ icon, label, onPress, disabled }: SoftIconBtnProps
         styles.iconBtn,
         {
           backgroundColor: colors.surfaceElevated,
+          borderColor: colors.border,
+          borderWidth: 1,
+          borderRadius: radius.md,
           opacity: disabled ? 0.4 : pressed ? 0.85 : 1,
         },
       ]}
@@ -258,27 +277,18 @@ export function SoftIconBtn({ icon, label, onPress, disabled }: SoftIconBtnProps
 }
 
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: 16,
-    gap: 18,
-  },
+  content: {},
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
     minHeight: 40,
+    marginBottom: 4,
   },
   title: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 34,
-    lineHeight: 41,
-    letterSpacing: 0.4,
+    letterSpacing: -0.2,
     flex: 1,
-  },
-  rowPanel: {
-    paddingHorizontal: 14,
-    paddingVertical: 14,
   },
   rowInner: {
     flexDirection: 'row',
@@ -286,56 +296,48 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rowIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+    width: 38,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
   },
   rowLabel: {
     flex: 1,
-    fontFamily: 'Inter_500Medium',
-    fontSize: 15,
-    letterSpacing: -0.1,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 16,
   },
   rowMeta: {
     fontFamily: 'Inter_400Regular',
     fontSize: 13,
-  },
-  linkList: {
-    overflow: 'hidden',
   },
   linkRow: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 56,
   },
   tileInner: {
-    minHeight: 92,
+    minHeight: 96,
     padding: 16,
     justifyContent: 'space-between',
     gap: 12,
   },
   tileIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tileLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 14,
-    letterSpacing: -0.1,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 15,
   },
   iconBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },

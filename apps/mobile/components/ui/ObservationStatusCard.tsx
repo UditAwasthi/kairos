@@ -1,5 +1,6 @@
-import { Feather } from '@expo/vector-icons';
-import { Pressable, StyleSheet, View } from 'react-native';
+import React from 'react';
+import { MaterialIcons } from '@expo/vector-icons';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ThemedText } from '../ThemedText';
 import {
@@ -9,7 +10,8 @@ import {
   type ApiObservation,
 } from '../../lib/api';
 import { useAppTheme } from '../../providers/ThemeProvider';
-import { GlassPanel } from './Glass';
+import { SurfaceCard } from './SectionHeader';
+import { Badge } from './MetricCard';
 
 type Props = {
   observation: ApiObservation;
@@ -24,84 +26,93 @@ export function ObservationStatusCard({
   onRetry,
   retrying,
 }: Props) {
-  const { colors } = useAppTheme();
+  const { colors, radius } = useAppTheme();
   const processing = isProcessingObservationStatus(observation.status);
   const failed = observation.status === 'FAILED';
   const ready = observation.status === 'COMPLETED';
 
   const meta = retrying
-    ? '…'
+    ? 'Retrying…'
     : ready
       ? formatObservationReadyTime(observation.processedAt || observation.updatedAt)
       : failed
-        ? 'Failed'
+        ? 'Failed to process'
         : observationStageLabel(observation);
 
-  const icon: React.ComponentProps<typeof Feather>['name'] = ready
+  const iconName: keyof typeof MaterialIcons.glyphMap = ready
     ? 'check'
     : failed
-      ? 'alert-circle'
-      : 'loader';
+      ? 'error-outline'
+      : 'sync';
+
+  const iconBg = ready
+    ? colors.tintGreen
+    : failed
+      ? colors.errorSurface
+      : colors.primaryContainer;
+
+  const iconColor = ready
+    ? colors.success
+    : failed
+      ? colors.error
+      : colors.primary;
 
   return (
     <Pressable
       onPress={failed && onRetry ? onRetry : onPress}
       accessibilityRole="button"
       accessibilityLabel={observation.filename}
-      style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
+      style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1, marginVertical: 3 }]}
     >
-      <GlassPanel padded={false} contentStyle={styles.inner}>
-        <View style={[styles.icon, { backgroundColor: colors.accentGlow }]}>
-          <Feather
-            name={icon}
-            size={16}
-            color={ready ? colors.success : failed ? colors.error : colors.accent}
-          />
+      <SurfaceCard elevated style={styles.card}>
+        <View
+          style={[
+            styles.iconWrap,
+            { backgroundColor: iconBg, borderRadius: radius.full },
+          ]}
+        >
+          <MaterialIcons name={iconName} size={20} color={iconColor} />
         </View>
         <View style={styles.copy}>
           <ThemedText colorKey="text" style={styles.title} numberOfLines={1}>
             {observation.filename}
           </ThemedText>
-          <ThemedText colorKey="textMuted" style={styles.meta} numberOfLines={1}>
+          <ThemedText colorKey="textSecondary" style={styles.meta} numberOfLines={1}>
             {observation.sourceLabel ? `${observation.sourceLabel} · ${meta}` : meta}
           </ThemedText>
         </View>
-        {processing ? (
-          <View style={[styles.dot, { backgroundColor: colors.accent }]} />
-        ) : null}
-      </GlassPanel>
+        {failed ? (
+          <Badge label="RETRY" tone="warning" />
+        ) : processing ? (
+          <Badge label="IN PROGRESS" tone="accent" />
+        ) : (
+          <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+        )}
+      </SurfaceCard>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  inner: {
+  card: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: 12,
     gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
   },
-  icon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  iconWrap: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
   copy: { flex: 1, gap: 2 },
   title: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_600SemiBold',
     fontSize: 15,
-    letterSpacing: -0.1,
   },
   meta: {
     fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    fontSize: 13,
   },
 });

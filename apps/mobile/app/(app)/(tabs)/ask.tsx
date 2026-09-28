@@ -35,6 +35,9 @@ import { FadeInContent, LoadingSkeleton, SoftRefreshBar } from '../../../compone
 import { ScreenGradient } from '../../../components/ui/Glass';
 import { AskBubble } from '../../../components/ui/MemoryCards';
 import { itemEntering, PressScale } from '../../../components/ui/Motion';
+import { Mascot } from '../../../components/ui/system/Mascot';
+import { TopBar } from '../../../components/ui/system/TopBar';
+import { mascotSize } from '../../../theme';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import {
   ApiError,
@@ -48,18 +51,30 @@ import {
   fetchObservationsPage,
   listConversations,
   type ApiSemanticSearchFilters,
+  type ApiConversationDetail,
   type ApiConversationSummary,
+  type PredictionsSummary,
 } from '../../../lib/api';
 import type { AskMessage } from '../../../types';
 import { useProgression } from '../../../providers/ProgressionProvider';
+import { dedupeRequest, readQueryCache, writeQueryCache } from '../../../hooks/useAsync';
+import { removeCache } from '../../../lib/persistentCache';
+
+const CONVERSATIONS_KEY = 'ask:conversations';
+/** Same key as Today / Predictions so suggestions show instantly. */
+const PREDICTIONS_KEY = 'predictions';
+
+function suggestionsFrom(data: PredictionsSummary | null): string[] {
+  return data ? data.items.slice(0, 4).map((item) => item.title) : [];
+}
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 
 const STARTERS: { icon: IconName; prompt: string }[] = [
-  { icon: 'history', prompt: 'What have I been working on recently?' },
-  { icon: 'event', prompt: 'What did I work on last Tuesday?' },
-  { icon: 'school', prompt: 'When did I first start learning Redis?' },
-  { icon: 'auto-awesome', prompt: 'What have I mentioned about Kairos this week?' },
+  { icon: 'trending-up', prompt: 'What have I been focused on lately?' },
+  { icon: 'bubble-chart', prompt: 'What patterns do you notice?' },
+  { icon: 'schedule', prompt: 'When am I most productive?' },
+  { icon: 'school', prompt: 'What did I learn last week?' },
 ];
 
 const INPUT_MIN = 22;
@@ -156,17 +171,17 @@ export default function AskScreen() {
   }>();
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
-  const hasListRef = useRef(false);
+  const hasListRef = useRef(readQueryCache(CONVERSATIONS_KEY) != null);
   const consumedQuery = useRef<string | null>(null);
   const keyboardHeight = useGradualKeyboardHeight();
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [conversationSearch, setConversationSearch] = useState('');
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>(() => suggestionsFrom(readQueryCache<PredictionsSummary>(PREDICTIONS_KEY)));
   const [scopePickerOpen, setScopePickerOpen] = useState(false);
   const [scopeChoices, setScopeChoices] = useState<Array<{ id: string; name: string; type: 'topic' | 'entity' | 'project' | 'observation' }>>([]);
-  const [conversations, setConversations] = useState<ApiConversationSummary[]>([]);
+  const [conversations, setConversations] = useState<ApiConversationSummary[]>(() => readQueryCache<ApiConversationSummary[]>(CONVERSATIONS_KEY) ?? []);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationTitle, setConversationTitle] = useState('Kairos');
   const [scopeType, setScopeType] = useState<
@@ -201,8 +216,9 @@ export default function AskScreen() {
     void getToken().then(async (token) => {
       if (!token) return;
       try {
-        const data = await fetchPredictions(token);
-        setSuggestions(data.items.slice(0, 4).map((item) => item.title));
+        const data = await dedupeRequest(PREDICTIONS_KEY, () => fetchPredictions(token));
+        writeQueryCache(PREDICTIONS_KEY, data);
+        setSuggestions(suggestionsFrom(data));
       } catch { /* Suggestions are optional. */ }
     });
   }, [getToken]);
@@ -238,11 +254,14 @@ export default function AskScreen() {
       if (!token) throw new ApiError('You must be signed in.', 401);
       const data = await listConversations({ token, limit: 8 });
       setConversations(data.items);
+      writeQueryCache(CONVERSATIONS_KEY, data.items);
       hasListRef.current = true;
     } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : 'Could not load conversations.',
-      );
+      if (!hasListRef.current) {
+        setError(
+          err instanceof ApiError ? err.message : 'Could not load conversations.',
+        );
+      }
     } finally {
       setLoadingList(false);
     }
@@ -286,16 +305,19 @@ export default function AskScreen() {
   };
 
   const openConversation = async (id: string) => {
+    const threadKey = `ask:conversation:${id}`;
+    const saved = readQueryCache<ApiConversationDetail>(threadKey);
     setError(null);
-    setLoadingThread(true);
-    setMessages([]);
+    setLoadingThread(!saved);
+    setMessages(saved ? toUiMessages(saved.messages) : []);
     setConversationId(id);
-    setConversationTitle('…');
+    setConversationTitle(saved?.title ?? '…');
     setHistoryOpen(false);
     try {
       const token = await getToken();
       if (!token) throw new ApiError('You must be signed in.', 401);
       const detail = await fetchConversation({ token, id, limit: 50 });
+      writeQueryCache(threadKey, detail);
       setConversationId(detail.id);
       setConversationTitle(detail.title);
       setMessages(
@@ -307,7 +329,9 @@ export default function AskScreen() {
         ),
       );
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not open conversation.');
+      if (!saved) {
+        setError(err instanceof ApiError ? err.message : 'Could not open conversation.');
+      }
     } finally {
       setLoadingThread(false);
     }
@@ -433,6 +457,7 @@ export default function AskScreen() {
             const token = await getToken();
             if (!token) return;
             await deleteConversation({ token, id: item.id });
+            removeCache(`ask:conversation:${item.id}`);
             if (conversationId === item.id) startNewConversation();
             await refreshList();
           } catch {
@@ -450,28 +475,12 @@ export default function AskScreen() {
       <ScreenGradient>
         <FadeInContent>
           <View style={styles.flex}>
-            <View style={[styles.chrome, { paddingTop: insets.top + 4 }]}>
-              <Pressable
-                onPress={openHistory}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="Chat history"
-                style={styles.chromeBtn}
-              >
-                <MaterialIcons name="menu" size={24} color={colors.text} />
-              </Pressable>
-              <Text style={[styles.chromeTitle, { color: colors.text }]} numberOfLines={1}>
-                {headerTitle}
-              </Text>
-              <Pressable
-                onPress={startNewConversation}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="New chat"
-                style={styles.chromeBtn}
-              >
-                <MaterialIcons name="edit" size={22} color={colors.text} />
-              </Pressable>
+            <View style={{ paddingTop: insets.top }}>
+              <TopBar
+                title={headerTitle}
+                leading={{ icon: 'menu', label: 'Chat history', onPress: openHistory }}
+                trailing={{ icon: 'edit-3', label: 'New chat', onPress: startNewConversation }}
+              />
             </View>
 
             {
@@ -516,14 +525,13 @@ export default function AskScreen() {
 
               {emptyThread ? (
                 <Animated.View entering={FadeIn.duration(280)} style={styles.empty}>
+                  <Mascot state="thinking" size={mascotSize.lg} />
                   <Text style={[styles.hero, { color: colors.text }]}>
-                    {firstName ? `Hi, ${firstName}` : 'What can I help with?'}
+                    Ask Kairos
                   </Text>
-                  {firstName ? (
-                    <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
-                      What can I help with?
-                    </Text>
-                  ) : null}
+                  <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
+                    Ask about your memories, patterns, habits, or past.
+                  </Text>
                   <View style={styles.starterGrid}>
                     {STARTERS.map((item, index) => (
                       <Animated.View
@@ -536,10 +544,16 @@ export default function AskScreen() {
                           accessibilityLabel={item.prompt}
                           style={[
                             styles.starterCard,
-                            { backgroundColor: colors.surfaceElevated },
+                            {
+                              backgroundColor: colors.surfaceElevated,
+                              borderColor: colors.border,
+                              borderWidth: 1,
+                            },
                           ]}
                         >
-                          <MaterialIcons name={item.icon} size={20} color={colors.text} />
+                          <View style={[styles.starterIconBubble, { backgroundColor: colors.primaryContainer, borderRadius: 999 }]}>
+                            <MaterialIcons name={item.icon} size={20} color={colors.primary} />
+                          </View>
                           <Text style={[styles.starterText, { color: colors.text }]} numberOfLines={3}>
                             {item.prompt}
                           </Text>
@@ -547,7 +561,25 @@ export default function AskScreen() {
                       </Animated.View>
                     ))}
                   </View>
-                  {suggestions.length ? <View style={styles.followUps}>{suggestions.map((question) => <PressScale key={question} onPress={() => void send(question)} accessibilityLabel={`Ask: ${question}`} style={[styles.followChip, { borderColor: colors.border, backgroundColor: colors.background }]}><Text style={[styles.followText, { color: colors.text }]}>{question}</Text></PressScale>)}</View> : null}
+                  {suggestions.length ? (
+                    <View style={styles.followUps}>
+                      {suggestions.map((question) => (
+                        <PressScale
+                          key={question}
+                          onPress={() => void send(question)}
+                          accessibilityLabel={`Ask: ${question}`}
+                          style={[
+                            styles.followChip,
+                            { borderColor: colors.borderAccent, backgroundColor: colors.primaryContainer },
+                          ]}
+                        >
+                          <Text style={[styles.followText, { color: colors.primary }]}>
+                            {question}
+                          </Text>
+                        </PressScale>
+                      ))}
+                    </View>
+                  ) : null}
                 </Animated.View>
               ) : null}
 
@@ -567,7 +599,7 @@ export default function AskScreen() {
                       <View style={[styles.evidenceNote, { backgroundColor: colors.surfaceElevated }]}>
                         <Text style={{ color: colors.textSecondary }}>There is not enough in your memories to answer this confidently.</Text>
                         <View style={styles.evidenceActions}>
-                          <Pressable onPress={() => router.push('/(app)/(tabs)/capture')} accessibilityRole="button" accessibilityLabel="Capture more information"><Text style={{ color: colors.text }}>Capture something</Text></Pressable>
+                          <Pressable onPress={() => router.push('/(app)/quick-capture')} accessibilityRole="button" accessibilityLabel="Capture more information"><Text style={{ color: colors.text }}>Capture something</Text></Pressable>
                           <Pressable onPress={() => { setScopeType(null); setScopeId(null); setScopeName(null); }} accessibilityRole="button" accessibilityLabel="Broaden memory scope"><Text style={{ color: colors.text }}>Broaden scope</Text></Pressable>
                         </View>
                       </View>
@@ -873,16 +905,36 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingBottom: 24,
   },
+  intelligenceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginBottom: 4,
+  },
+  intelligenceBadgeText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 0.8,
+  },
+  starterIconBubble: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
   hero: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 32,
-    lineHeight: 38,
-    letterSpacing: 0.3,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 30,
+    lineHeight: 36,
+    letterSpacing: -0.3,
     textAlign: 'center',
   },
   heroSub: {
     fontFamily: 'Inter_400Regular',
-    fontSize: 17,
+    fontSize: 15,
     lineHeight: 22,
     letterSpacing: -0.41,
     textAlign: 'center',

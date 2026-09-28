@@ -1,4 +1,6 @@
+import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import Animated from 'react-native-reanimated';
 
 import { ThemedText } from '../ThemedText';
@@ -14,7 +16,6 @@ import type {
 } from '../../types';
 import { SOURCE_TYPE_LABELS } from '../../services';
 import { AURORA_TONES, AuroraTone, auroraToneColors } from '../../theme';
-import { GlassPanel } from './Glass';
 import { Badge } from './MetricCard';
 import { messageEntering, PressScale } from './Motion';
 import { SurfaceCard } from './SectionHeader';
@@ -23,7 +24,7 @@ export function TopicChip({
   label,
   onPress,
   selected,
-  tone = 'frost',
+  tone = 'purple',
 }: {
   label: string;
   onPress?: () => void;
@@ -32,23 +33,27 @@ export function TopicChip({
 }) {
   const { colors, spacing, radius } = useAppTheme();
   const palette = auroraToneColors(colors, tone);
+
   return (
     <Pressable
       onPress={onPress}
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : undefined}
       style={{
-        paddingHorizontal: spacing['3'] + 2,
+        paddingHorizontal: spacing['3'] + 4,
         paddingVertical: spacing['2'],
         borderRadius: radius.full,
-        borderWidth: 1,
-        borderColor: selected ? palette.accent : `${palette.accent}44`,
-        backgroundColor: selected ? palette.accent : palette.tint,
+        borderWidth: 1.5,
+        borderColor: selected ? palette.accent : colors.border,
+        backgroundColor: selected ? palette.accent : colors.surfaceElevated,
       }}
     >
       <ThemedText
         colorKey={selected ? 'inverseText' : 'text'}
-        style={[styles.chipLabel, !selected && { color: palette.accent }]}
+        style={[
+          styles.chipLabel,
+          !selected && { color: colors.textSecondary },
+        ]}
       >
         {label}
       </ThemedText>
@@ -60,11 +65,28 @@ export function toneForIndex(index: number): AuroraTone {
   return AURORA_TONES[index % AURORA_TONES.length]!;
 }
 
+const SOURCE_ICONS: Record<SourceType, keyof typeof MaterialIcons.glyphMap> = {
+  note: 'edit-note',
+  audio: 'mic',
+  document: 'description',
+  link: 'link',
+  photo: 'image',
+  screenshot: 'screenshot',
+  conversation: 'chat',
+  task: 'check-circle-outline',
+};
+
 export function SourceTypeLabel({ type }: { type: SourceType }) {
+  const { colors } = useAppTheme();
+  const icon = SOURCE_ICONS[type] ?? 'article';
+
   return (
-    <ThemedText colorKey="textMuted" style={styles.kicker}>
-      {SOURCE_TYPE_LABELS[type]}
-    </ThemedText>
+    <View style={styles.sourceLabelRow}>
+      <MaterialIcons name={icon} size={14} color={colors.primary} />
+      <ThemedText colorKey="primary" style={styles.kicker}>
+        {SOURCE_TYPE_LABELS[type]}
+      </ThemedText>
+    </View>
   );
 }
 
@@ -75,7 +97,7 @@ type MemoryCardProps = {
 };
 
 export function MemoryCard({ memory, onPress, topicNames }: MemoryCardProps) {
-  const { colors, spacing } = useAppTheme();
+  const { colors, spacing, radius } = useAppTheme();
   const time = new Date(memory.capturedAt).toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
@@ -84,11 +106,8 @@ export function MemoryCard({ memory, onPress, topicNames }: MemoryCardProps) {
   });
 
   return (
-    <PressScale
-      onPress={onPress}
-      accessibilityLabel={`Memory: ${memory.title}`}
-    >
-      <SurfaceCard>
+    <PressScale onPress={onPress} accessibilityLabel={`Memory: ${memory.title}`}>
+      <SurfaceCard elevated style={styles.memoryCard}>
         <View style={[styles.rowBetween, { gap: spacing['2'] }]}>
           <SourceTypeLabel type={memory.sourceType} />
           {memory.favorite ? <Badge label="Saved" tone="accent" /> : null}
@@ -104,12 +123,24 @@ export function MemoryCard({ memory, onPress, topicNames }: MemoryCardProps) {
             {time}
           </ThemedText>
           {topicNames && topicNames.length > 0 ? (
-            <ThemedText colorKey="textMuted" style={styles.meta} numberOfLines={1}>
-              {topicNames.slice(0, 2).join(' · ')}
-            </ThemedText>
+            <View style={styles.topicRow}>
+              {topicNames.slice(0, 2).map((t) => (
+                <View
+                  key={t}
+                  style={[
+                    styles.tagBadge,
+                    { backgroundColor: colors.primaryContainer, borderRadius: radius.full },
+                  ]}
+                >
+                  <ThemedText colorKey="primary" style={styles.tagText}>
+                    {t}
+                  </ThemedText>
+                </View>
+              ))}
+            </View>
           ) : null}
         </View>
-        <View style={[styles.rail, { backgroundColor: colors.accent }]} />
+        <View style={[styles.rail, { backgroundColor: colors.primary }]} />
       </SurfaceCard>
     </PressScale>
   );
@@ -128,7 +159,7 @@ export function TimelineMemoryItem({
   isFirst,
   isLast,
 }: TimelineMemoryItemProps) {
-  const { colors, spacing } = useAppTheme();
+  const { colors, spacing, radius } = useAppTheme();
   const timeOnly = new Date(memory.capturedAt).toLocaleTimeString(undefined, {
     hour: 'numeric',
     minute: '2-digit',
@@ -144,15 +175,15 @@ export function TimelineMemoryItem({
           <View
             style={[
               styles.spineLine,
-              { backgroundColor: colors.divider, opacity: isFirst ? 0 : 1 },
+              { backgroundColor: colors.border, opacity: isFirst ? 0 : 1 },
             ]}
           />
           <View
             style={[
               styles.spineDot,
               {
-                borderColor: colors.accent,
-                backgroundColor: colors.accentGlow,
+                borderColor: colors.primary,
+                backgroundColor: colors.primaryContainer,
               },
             ]}
           />
@@ -160,7 +191,7 @@ export function TimelineMemoryItem({
             style={[
               styles.spineLine,
               {
-                backgroundColor: colors.divider,
+                backgroundColor: colors.border,
                 opacity: isLast ? 0 : 1,
                 flex: 1,
               },
@@ -168,16 +199,20 @@ export function TimelineMemoryItem({
           />
         </View>
         <View style={[styles.timelineBody, { paddingBottom: spacing['4'] }]}>
-          <ThemedText colorKey="textMuted" style={styles.time}>
-            {timeOnly}
-          </ThemedText>
-          <ThemedText colorKey="text" style={styles.cardTitle}>
-            {memory.title}
-          </ThemedText>
-          <ThemedText colorKey="textSecondary" style={styles.body} numberOfLines={2}>
-            {memory.summary}
-          </ThemedText>
-          <SourceTypeLabel type={memory.sourceType} />
+          <SurfaceCard style={{ borderRadius: radius.lg }}>
+            <View style={styles.rowBetween}>
+              <ThemedText colorKey="textMuted" style={styles.time}>
+                {timeOnly}
+              </ThemedText>
+              <SourceTypeLabel type={memory.sourceType} />
+            </View>
+            <ThemedText colorKey="text" style={styles.cardTitle}>
+              {memory.title}
+            </ThemedText>
+            <ThemedText colorKey="textSecondary" style={styles.body} numberOfLines={2}>
+              {memory.summary}
+            </ThemedText>
+          </SurfaceCard>
         </View>
       </View>
     </PressScale>
@@ -193,7 +228,7 @@ export function SearchResultCard({
 }) {
   return (
     <PressScale onPress={onPress} accessibilityLabel={result.memory.title}>
-      <SurfaceCard>
+      <SurfaceCard elevated>
         <SourceTypeLabel type={result.memory.sourceType} />
         <ThemedText colorKey="text" style={styles.cardTitle}>
           {result.memory.title}
@@ -218,13 +253,18 @@ export function EvidenceCard({
   source: AskSource;
   onPress: () => void;
 }) {
+  const { colors } = useAppTheme();
+
   return (
     <Animated.View entering={messageEntering()}>
       <PressScale onPress={onPress} accessibilityLabel={`Source ${source.title}`}>
-        <SurfaceCard>
-          <ThemedText colorKey="textMuted" style={styles.kicker}>
-            Supporting memory
-          </ThemedText>
+        <SurfaceCard style={{ borderColor: colors.borderAccent }}>
+          <View style={styles.sourceLabelRow}>
+            <MaterialIcons name="auto-stories" size={14} color={colors.primary} />
+            <ThemedText colorKey="primary" style={styles.kicker}>
+              Supporting memory
+            </ThemedText>
+          </View>
           <ThemedText colorKey="text" style={styles.cardTitle}>
             {source.title}
           </ThemedText>
@@ -238,21 +278,33 @@ export function EvidenceCard({
 }
 
 export function AskBubble({ message }: { message: AskMessage }) {
-  const { colors, spacing } = useAppTheme();
+  const { colors, spacing, radius } = useAppTheme();
   const isUser = message.role === 'user';
 
   if (isUser) {
     return (
-      <Animated.View entering={messageEntering()} style={{ alignSelf: 'flex-end', maxWidth: '80%' }}>
+      <Animated.View entering={messageEntering()} style={{ alignSelf: 'flex-end', maxWidth: '85%' }}>
         <View
           style={{
-            backgroundColor: colors.primaryContainer,
-            borderRadius: 22,
-            paddingHorizontal: 16,
-            paddingVertical: 10,
+            backgroundColor: colors.buttonFill,
+            borderBottomRightRadius: 6,
+            borderRadius: radius.xl,
+            paddingHorizontal: spacing['4'],
+            paddingVertical: spacing['3'],
+            shadowColor: colors.buttonBottom,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.15,
+            shadowRadius: 4,
+            elevation: 2,
           }}
         >
-          <ThemedText colorKey="text" style={[styles.body, { fontSize: 16, lineHeight: 22 }]}>
+          <ThemedText
+            colorKey="onPrimary"
+            style={[
+              styles.body,
+              { color: '#FFFFFF', fontSize: 16, lineHeight: 22, fontWeight: '500' },
+            ]}
+          >
             {message.content}
           </ThemedText>
         </View>
@@ -263,7 +315,21 @@ export function AskBubble({ message }: { message: AskMessage }) {
   return (
     <Animated.View
       entering={messageEntering()}
-      style={{ alignSelf: 'stretch', gap: spacing['2'], paddingRight: spacing['6'] }}
+      style={{
+        alignSelf: 'stretch',
+        backgroundColor: colors.surfaceElevated,
+        borderColor: colors.border,
+        borderWidth: 1,
+        borderRadius: radius.xl,
+        borderTopLeftRadius: 6,
+        padding: spacing['4'],
+        gap: spacing['2'],
+        shadowColor: colors.shadow.shadowColor,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: colors.shadow.shadowOpacity,
+        shadowRadius: 6,
+        elevation: 2,
+      }}
     >
       <ThemedText colorKey="text" style={[styles.body, { fontSize: 16, lineHeight: 24 }]}>
         {message.content}
@@ -287,7 +353,7 @@ function stepGlyph(status: ProcessingStep['status']): string {
 export function ProcessingIndicator({ job }: { job: ProcessingJob }) {
   const { colors, spacing } = useAppTheme();
   return (
-    <SurfaceCard>
+    <SurfaceCard elevated>
       <View style={[styles.rowBetween, { marginBottom: spacing['2'] }]}>
         <ThemedText colorKey="text" style={styles.cardTitle}>
           {job.title}
@@ -327,29 +393,49 @@ export function ProcessingIndicator({ job }: { job: ProcessingJob }) {
 const styles = StyleSheet.create({
   chipLabel: {
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-    letterSpacing: 0.2,
+    fontSize: 13,
+    letterSpacing: 0.1,
+  },
+  sourceLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   kicker: {
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 11,
+    fontSize: 12,
     letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  memoryCard: {
+    position: 'relative',
   },
   cardTitle: {
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 16,
+    fontSize: 17,
     letterSpacing: -0.1,
+    marginTop: 2,
   },
   body: {
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
     lineHeight: 22,
-    letterSpacing: 0.1,
   },
   meta: {
     fontFamily: 'Inter_400Regular',
     fontSize: 12,
-    letterSpacing: 0.1,
+  },
+  topicRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  tagBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  tagText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
   },
   time: {
     fontFamily: 'Inter_600SemiBold',
@@ -364,29 +450,29 @@ const styles = StyleSheet.create({
   rail: {
     position: 'absolute',
     left: 0,
-    top: 12,
-    bottom: 12,
-    width: 2,
-    borderRadius: 1,
+    top: 14,
+    bottom: 14,
+    width: 3.5,
+    borderRadius: 2,
   },
   timelineRow: {
     flexDirection: 'row',
   },
   spineCol: {
-    width: 16,
+    width: 20,
     alignItems: 'center',
   },
   spineLine: {
-    width: 1,
+    width: 2,
     flexGrow: 0,
-    minHeight: 8,
+    minHeight: 12,
   },
   spineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 2,
-    marginVertical: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 3,
+    marginVertical: 4,
   },
   timelineBody: {
     flex: 1,
@@ -399,7 +485,7 @@ const styles = StyleSheet.create({
     minHeight: 28,
   },
   stepGlyph: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_700Bold',
     fontSize: 14,
     width: 16,
     textAlign: 'center',

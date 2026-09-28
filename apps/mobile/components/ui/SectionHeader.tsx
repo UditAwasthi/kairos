@@ -1,8 +1,9 @@
+import React from 'react';
 import { StyleSheet, StyleProp, View, ViewStyle } from 'react-native';
 
 import { ThemedText } from '../ThemedText';
-import { GlassPanel } from './Glass';
 import { TextAction } from './TextAction';
+import { useAppTheme } from '../../providers/ThemeProvider';
 
 type SectionHeaderProps = {
   title: string;
@@ -12,7 +13,6 @@ type SectionHeaderProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Minimal section label — single word preferred. */
 export function SectionHeader({
   title,
   subtitle,
@@ -20,14 +20,24 @@ export function SectionHeader({
   onAction,
   style,
 }: SectionHeaderProps) {
+  const { typography } = useAppTheme();
+
   return (
     <View style={[styles.row, style]}>
       <View style={styles.textCol}>
-        <ThemedText colorKey="textMuted" style={styles.title}>
+        <ThemedText
+          colorKey="text"
+          style={{
+            fontFamily: typography.title3.fontFamily,
+            fontSize: typography.title3.size,
+            lineHeight: typography.title3.lineHeight,
+            letterSpacing: typography.title3.letterSpacing,
+          }}
+        >
           {title}
         </ThemedText>
         {subtitle ? (
-          <ThemedText colorKey="textMuted" style={styles.subtitle}>
+          <ThemedText colorKey="textSecondary" style={styles.subtitle}>
             {subtitle}
           </ThemedText>
         ) : null}
@@ -39,17 +49,40 @@ export function SectionHeader({
   );
 }
 
-type CardProps = {
+type SurfaceCardProps = {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   elevated?: boolean;
+  highlighted?: boolean;
 };
 
-export function SurfaceCard({ children, style, elevated = false }: CardProps) {
+export function SurfaceCard({
+  children,
+  style,
+  elevated = false,
+  highlighted = false,
+}: SurfaceCardProps) {
+  const { colors, radius, spacing } = useAppTheme();
+  const shadow = elevated ? colors.shadowElevated : colors.shadow;
+
   return (
-    <GlassPanel elevated={elevated} style={style}>
+    <View
+      style={[
+        styles.cardBase,
+        {
+          borderRadius: radius.xl,
+          backgroundColor: elevated ? colors.surfaceElevated : colors.surface,
+          borderColor: highlighted ? colors.borderActive : colors.border,
+          borderWidth: 1,
+          padding: spacing['4'],
+          gap: spacing['2'],
+          ...(shadow ?? {}),
+        },
+        style,
+      ]}
+    >
       {children}
-    </GlassPanel>
+    </View>
   );
 }
 
@@ -59,21 +92,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    marginBottom: -4,
+    marginBottom: 8,
   },
   textCol: {
     flex: 1,
     gap: 2,
   },
-  title: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    letterSpacing: -0.08,
-    textTransform: 'uppercase',
-  },
   subtitle: {
     fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    opacity: 0.8,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  cardBase: {
+    overflow: 'hidden',
   },
 });

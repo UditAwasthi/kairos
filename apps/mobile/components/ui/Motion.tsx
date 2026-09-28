@@ -4,27 +4,41 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeInUp,
+  ReduceMotion,
   ZoomIn,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
 
-const material = Easing.bezier(0.2, 0, 0, 1);
+import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { motion } from '../../theme';
+
+const easeOut = Easing.out(Easing.cubic);
 
 export const pageEntering = (delay = 0) =>
-  FadeInDown.duration(280).easing(material).delay(delay);
+  FadeInDown.duration(motion.page)
+    .easing(easeOut)
+    .delay(delay)
+    .reduceMotion(ReduceMotion.System);
 
-export const fadeEntering = (delay = 0) => FadeIn.duration(220).delay(delay);
+export const fadeEntering = (delay = 0) =>
+  FadeIn.duration(motion.normal).delay(delay).reduceMotion(ReduceMotion.System);
 
 export const itemEntering = (index: number) =>
-  FadeInDown.duration(220)
-    .easing(material)
-    .delay(Math.min(index, 8) * 40);
+  FadeInDown.duration(motion.normal)
+    .easing(easeOut)
+    .delay(Math.min(index, 8) * motion.stagger)
+    .reduceMotion(ReduceMotion.System);
 
-export const messageEntering = () => FadeInUp.duration(200).easing(material);
+export const messageEntering = () =>
+  FadeInUp.duration(motion.normal).easing(easeOut).reduceMotion(ReduceMotion.System);
 
-export const popEntering = (delay = 160) => ZoomIn.duration(220).easing(material).delay(delay);
+export const popEntering = (delay = 160) =>
+  ZoomIn.duration(motion.normal)
+    .easing(easeOut)
+    .delay(delay)
+    .reduceMotion(ReduceMotion.System);
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -47,6 +61,7 @@ export function PressScale({
   accessibilityLabel,
   accessibilityRole = 'button',
 }: PressScaleProps) {
+  const reduced = useReducedMotion();
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -59,11 +74,17 @@ export function PressScale({
       onLongPress={onLongPress}
       onPressIn={() => {
         if (!disabled) {
-          scale.value = withTiming(0.97, { duration: 90, easing: material });
+          scale.value = withTiming(motion.pressScale, {
+            duration: reduced ? 0 : motion.fast,
+            easing: easeOut,
+          });
         }
       }}
       onPressOut={() => {
-        scale.value = withTiming(1, { duration: 180, easing: material });
+        scale.value = withTiming(1, {
+          duration: reduced ? 0 : motion.normal,
+          easing: easeOut,
+        });
       }}
       style={[animatedStyle, style]}
       accessibilityRole={accessibilityRole}

@@ -1,4 +1,5 @@
-import { StyleSheet, StyleProp, View, ViewStyle } from 'react-native';
+import React from 'react';
+import { StyleSheet, StyleProp, Text, View, ViewStyle } from 'react-native';
 
 import { ThemedText } from '../ThemedText';
 import { useAppTheme } from '../../providers/ThemeProvider';
@@ -8,33 +9,37 @@ type MetricCardProps = {
   label: string;
   value: string;
   hint?: string;
+  icon?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 };
 
-export function MetricCard({ label, value, hint, style }: MetricCardProps) {
-  const { typography, spacing } = useAppTheme();
+export function MetricCard({ label, value, hint, icon, style }: MetricCardProps) {
+  const { colors, typography, spacing, radius } = useAppTheme();
 
   return (
     <SurfaceCard style={[styles.metric, style]}>
-      <ThemedText
-        colorKey="textMuted"
-        style={{
-          fontFamily: typography.overline.fontFamily,
-          fontSize: typography.overline.size,
-          lineHeight: typography.overline.lineHeight,
-          letterSpacing: typography.overline.letterSpacing,
-          textTransform: 'uppercase',
-        }}
-      >
-        {label}
-      </ThemedText>
+      <View style={styles.metricTop}>
+        <ThemedText
+          colorKey="textSecondary"
+          style={{
+            fontFamily: typography.overline.fontFamily,
+            fontSize: typography.overline.size,
+            lineHeight: typography.overline.lineHeight,
+            letterSpacing: typography.overline.letterSpacing,
+            textTransform: 'uppercase',
+          }}
+        >
+          {label}
+        </ThemedText>
+        {icon ? <View style={[styles.iconWrap, { backgroundColor: colors.primaryContainer, borderRadius: radius.full }]}>{icon}</View> : null}
+      </View>
       <ThemedText
         colorKey="text"
         style={{
-          fontFamily: typography.title2.fontFamily,
-          fontSize: typography.title2.size,
-          letterSpacing: typography.title2.letterSpacing,
-          lineHeight: typography.title2.lineHeight,
+          fontFamily: typography.stat.fontFamily,
+          fontSize: typography.stat.size,
+          letterSpacing: typography.stat.letterSpacing,
+          lineHeight: typography.stat.lineHeight,
           marginTop: spacing['1'],
         }}
       >
@@ -42,12 +47,12 @@ export function MetricCard({ label, value, hint, style }: MetricCardProps) {
       </ThemedText>
       {hint ? (
         <ThemedText
-          colorKey="textSecondary"
+          colorKey="textMuted"
           style={{
             fontFamily: typography.caption.fontFamily,
             fontSize: typography.caption.size,
             lineHeight: typography.caption.lineHeight,
-            marginTop: spacing['1'],
+            marginTop: spacing['0.5'],
           }}
         >
           {hint}
@@ -57,70 +62,103 @@ export function MetricCard({ label, value, hint, style }: MetricCardProps) {
   );
 }
 
+export type BadgeTone = 'neutral' | 'accent' | 'success' | 'warning';
+
 type BadgeProps = {
   label: string;
-  tone?: 'neutral' | 'accent' | 'success';
+  tone?: BadgeTone;
 };
 
 export function Badge({ label, tone = 'neutral' }: BadgeProps) {
   const { colors, radius, typography, spacing } = useAppTheme();
-  const borderColor =
-    tone === 'accent'
-      ? colors.borderAccent
-      : tone === 'success'
-        ? colors.success
-        : colors.borderActive;
-  const backgroundColor = tone === 'accent' ? colors.accentGlow : 'transparent';
-  const colorKey = tone === 'accent' ? 'accent' : tone === 'success' ? 'success' : 'text';
+
+  const config = {
+    accent: {
+      bg: colors.primaryContainer,
+      text: colors.primary,
+      border: colors.borderAccent,
+    },
+    success: {
+      bg: colors.tintGreen,
+      text: colors.success,
+      border: 'transparent',
+    },
+    warning: {
+      bg: colors.tintYellow,
+      text: colors.warning,
+      border: 'transparent',
+    },
+    neutral: {
+      bg: colors.surfaceContainer,
+      text: colors.textSecondary,
+      border: colors.border,
+    },
+  }[tone];
 
   return (
     <View
       style={{
-        borderWidth: 1,
-        borderRadius: radius.sm,
-        paddingHorizontal: spacing['2'],
-        paddingVertical: spacing['0.5'],
-        borderColor,
-        backgroundColor,
+        borderRadius: radius.full,
+        paddingHorizontal: spacing['2'] + 4,
+        paddingVertical: spacing['0.5'] + 1,
+        backgroundColor: config.bg,
+        borderColor: config.border,
+        borderWidth: config.border === 'transparent' ? 0 : 1,
+        alignSelf: 'flex-start',
       }}
     >
-      <ThemedText
-        colorKey={colorKey}
+      <Text
         style={{
           fontFamily: typography.overline.fontFamily,
-          fontSize: typography.overline.size,
+          fontSize: typography.overline.size - 1,
           letterSpacing: typography.overline.letterSpacing,
-          textTransform: 'uppercase',
+          color: config.text,
+          fontWeight: '700',
         }}
       >
         {label}
-      </ThemedText>
+      </Text>
     </View>
   );
 }
 
 type ProgressBarProps = {
   progress: number;
+  height?: number;
+  color?: string;
+  trackColor?: string;
+  style?: StyleProp<ViewStyle>;
 };
 
-export function ProgressBar({ progress }: ProgressBarProps) {
+export function ProgressBar({
+  progress,
+  height = 8,
+  color,
+  trackColor,
+  style,
+}: ProgressBarProps) {
   const { colors, radius } = useAppTheme();
   const width = `${Math.max(0, Math.min(100, progress * 100))}%` as `${number}%`;
+  const activeColor = color ?? colors.primary;
+  const inactiveColor = trackColor ?? colors.surfaceContainer;
 
   return (
     <View
-      style={{
-        height: 4,
-        borderRadius: radius.sm,
-        overflow: 'hidden',
-        backgroundColor: colors.border,
-      }}
+      style={[
+        {
+          height,
+          borderRadius: radius.full,
+          overflow: 'hidden',
+          backgroundColor: inactiveColor,
+        },
+        style,
+      ]}
     >
       <View
         style={{
           height: '100%',
-          borderRadius: radius.sm,
-          backgroundColor: colors.text,
+          borderRadius: radius.full,
+          backgroundColor: activeColor,
           width,
         }}
       />
@@ -145,17 +183,16 @@ export function InsightCard({ title, body, meta, badge }: InsightCardProps) {
         <ThemedText
           colorKey="text"
           style={{
-            fontFamily: typography.bodySmall.fontFamily,
-            fontSize: typography.bodySmall.size + 1,
+            fontFamily: typography.title3.fontFamily,
+            fontSize: typography.title3.size,
             flex: 1,
-            letterSpacing: typography.bodySmall.letterSpacing,
-            lineHeight: typography.bodySmall.lineHeight + 2,
-            fontWeight: '600',
+            letterSpacing: typography.title3.letterSpacing,
+            lineHeight: typography.title3.lineHeight,
           }}
         >
           {title}
         </ThemedText>
-        {badge ? <Badge label={badge} /> : null}
+        {badge ? <Badge label={badge} tone="accent" /> : null}
       </View>
       <ThemedText
         colorKey="textSecondary"
@@ -172,9 +209,9 @@ export function InsightCard({ title, body, meta, badge }: InsightCardProps) {
         <ThemedText
           colorKey="textMuted"
           style={{
-            fontFamily: typography.overline.fontFamily,
-            fontSize: typography.overline.size,
-            letterSpacing: typography.overline.letterSpacing,
+            fontFamily: typography.caption.fontFamily,
+            fontSize: typography.caption.size,
+            letterSpacing: typography.caption.letterSpacing,
             marginTop: spacing['2'],
           }}
         >
@@ -190,6 +227,17 @@ const styles = StyleSheet.create({
     minWidth: 120,
     flexGrow: 1,
     flexBasis: '30%',
+  },
+  metricTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  iconWrap: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   insightHeader: {
     flexDirection: 'row',

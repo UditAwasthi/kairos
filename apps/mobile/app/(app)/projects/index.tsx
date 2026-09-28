@@ -12,6 +12,7 @@ import {
   SoftRefreshBar,
 } from '../../../components/ui/EmptyState';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
+import { InsightCard as SuggestionCard } from '../../../components/ui/system/InsightCard';
 import { ThemedText } from '../../../components/ThemedText';
 import { useAsync } from '../../../hooks/useAsync';
 import { fetchProjects } from '../../../lib/api';
@@ -34,6 +35,7 @@ export default function ProjectsScreen() {
     <FadeInContent>
       <SoftRefreshBar active={refreshing} />
       <SoftPage>
+        <SuggestionCard message="Group related memories into a project Kairos can revisit." />
         <ThemedButton
           label="New"
           onPress={() => router.push('/(app)/projects/new')}

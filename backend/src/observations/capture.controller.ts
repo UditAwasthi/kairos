@@ -16,6 +16,7 @@ import type { ObservationResponse } from './observation.mapper';
 import { ObservationsService } from './observations.service';
 
 type CaptureBody = {
+  clientCaptureId?: string;
   content?: string;
   text?: string;
   source?: string;
@@ -36,16 +37,19 @@ export class CaptureController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: CaptureBody,
   ): Promise<{ data: ObservationResponse }> {
-    const observation = await this.observations.capture({
-      clerkUserId: user.id,
-      content: body?.content ?? body?.text,
-      source: body?.source,
-      capturedAt: body?.capturedAt,
-      url: body?.url,
-      title: body?.title,
-      metadata: body?.metadata,
-      projectId: body?.projectId,
-    });
+    const observation = await this.captureIdempotently(user.id, body, () =>
+      this.observations.capture({
+        clerkUserId: user.id,
+        clientCaptureId: body?.clientCaptureId,
+        content: body?.content ?? body?.text,
+        source: body?.source,
+        capturedAt: body?.capturedAt,
+        url: body?.url,
+        title: body?.title,
+        metadata: body?.metadata,
+        projectId: body?.projectId,
+      }),
+    );
     return { data: observation };
   }
 
@@ -69,17 +73,41 @@ export class CaptureController {
         metadata = undefined;
       }
     }
-    const observation = await this.observations.capture({
-      clerkUserId: user.id,
-      file,
-      content: body?.content ?? body?.text,
-      source: body?.source,
-      capturedAt: body?.capturedAt,
-      url: body?.url,
-      title: body?.title,
-      metadata,
-      projectId: body?.projectId,
-    });
+    const observation = await this.captureIdempotently(user.id, body, () =>
+      this.observations.capture({
+        clerkUserId: user.id,
+        clientCaptureId: body?.clientCaptureId,
+        file,
+        content: body?.content ?? body?.text,
+        source: body?.source,
+        capturedAt: body?.capturedAt,
+        url: body?.url,
+        title: body?.title,
+        metadata,
+        projectId: body?.projectId,
+      }),
+    );
     return { data: observation };
+  }
+
+  private async captureIdempotently(
+    clerkUserId: string,
+    body: CaptureBody,
+    operation: () => Promise<ObservationResponse>,
+  ): Promise<ObservationResponse> {
+    try {
+      return await operation();
+    } catch (error) {
+      const clientCaptureId = body?.clientCaptureId?.trim();
+      if (!clientCaptureId || (error as { code?: string })?.code !== 'P2002') {
+        throw error;
+      }
+      const existing = await this.observations.findByClientCaptureId(
+        clerkUserId,
+        clientCaptureId,
+      );
+      if (!existing) throw error;
+      return existing;
+    }
   }
 }
