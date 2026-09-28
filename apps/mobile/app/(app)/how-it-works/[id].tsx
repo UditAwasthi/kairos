@@ -63,12 +63,12 @@ export default function HowItWorksFeatureScreen() {
 
 const styles = StyleSheet.create({
   body: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 15,
     lineHeight: 23,
   },
   kicker: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 11,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
@@ -76,14 +76,14 @@ const styles = StyleSheet.create({
   steps: { gap: 14 },
   step: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   stepIndex: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 12,
     letterSpacing: 0.6,
     marginTop: 2,
   },
   stepText: {
     flex: 1,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     lineHeight: 21,
   },

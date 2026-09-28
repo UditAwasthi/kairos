@@ -152,6 +152,6 @@ const styles = StyleSheet.create({
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
   copy: { flex: 1, gap: 2 },
-  title: { fontFamily: 'Inter_500Medium', fontSize: 15 },
-  meta: { fontFamily: 'Inter_400Regular', fontSize: 12 },
+  title: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
+  meta: { fontFamily: 'Roboto_400Regular', fontSize: 12 },
 });

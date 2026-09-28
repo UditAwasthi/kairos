@@ -457,7 +457,7 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingBottom: 24 },
   footer: { paddingVertical: 16, alignItems: 'center' },
   end: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 12,
     textAlign: 'center',
     paddingVertical: 16,
@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   day: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 11,
     letterSpacing: 0.6,
     textTransform: 'uppercase',

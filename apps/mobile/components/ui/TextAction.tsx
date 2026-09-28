@@ -53,7 +53,7 @@ export function TextAction({
 
 const styles = StyleSheet.create({
   label: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     letterSpacing: 0.2,
   },
 });

@@ -34,7 +34,7 @@ export function ThemedLink({ href, label }: ThemedLinkProps) {
 
 const styles = StyleSheet.create({
   link: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     letterSpacing: 0.2,
   },
 });

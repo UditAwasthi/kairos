@@ -196,6 +196,7 @@ describe('canonical capture API client', () => {
 
     const dashboard = await fetchDashboard('tok');
     expect(dashboard.activity).toEqual([]);
+    expect(dashboard.heatmap).toEqual([]);
     expect(dashboard.streak).toEqual({
       current: 0,
       longest: 0,

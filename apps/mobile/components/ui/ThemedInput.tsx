@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   input: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     minHeight: 48,
   },
 });

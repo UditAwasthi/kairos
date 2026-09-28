@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   groupTitle: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 16,
     letterSpacing: -0.2,
     paddingHorizontal: 4,
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarLetter: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 22,
   },
   accountCopy: {
@@ -396,12 +396,12 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   accountName: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 19,
     letterSpacing: -0.2,
   },
   accountEmail: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
   },
   appearance: {
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
     minHeight: 58,
   },
   appearanceLabel: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 16,
   },
   segment: {
@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   segmentText: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 13,
   },
   row: {
@@ -449,16 +449,16 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     flex: 1,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 16,
   },
   rowMeta: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     maxWidth: 140,
   },
   footer: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
     textAlign: 'center',
     paddingTop: 12,

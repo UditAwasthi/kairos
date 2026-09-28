@@ -84,7 +84,7 @@ export default function DataScreen() {
 
 const styles = StyleSheet.create({
   message: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
     textAlign: 'center',
   },

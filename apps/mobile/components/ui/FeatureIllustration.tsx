@@ -1,6 +1,5 @@
 import { Feather } from '@expo/vector-icons';
 import { StyleSheet, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 
 import { useAppTheme } from '../../providers/ThemeProvider';
 
@@ -42,18 +41,14 @@ export function FeatureIllustration({ id, size = 'card' }: Props) {
         {
           width: hero ? '100%' : 72,
           height: hero ? 148 : 72,
-          backgroundColor: colors.accentGlow,
+          backgroundColor: colors.background,
+          borderWidth: 1,
+          borderColor: colors.primary,
         },
       ]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <LinearGradient
-        colors={[`${colors.accent}26`, 'transparent']}
-        start={{ x: 0.1, y: 0 }}
-        end={{ x: 0.95, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
       <Marks id={id} accent={colors.accent} surface={colors.surface} />
       <View
         style={[

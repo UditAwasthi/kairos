@@ -83,6 +83,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   copy: { flex: 1 },
-  title: { fontFamily: 'Inter_500Medium', fontSize: 15 },
-  meta: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+  title: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
+  meta: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
 });

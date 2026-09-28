@@ -50,9 +50,9 @@ export function SoftPage({
   const pad = [
     styles.content,
     {
-      paddingHorizontal: spacing['5'],
-      gap: spacing['4'],
-      paddingTop: safeTop ? insets.top + spacing['3'] : spacing['3'],
+      paddingHorizontal: spacing['8'],
+      gap: spacing['10'],
+      paddingTop: safeTop ? insets.top + spacing['6'] : spacing['6'],
       paddingBottom: bottom,
     },
     contentStyle,
@@ -303,11 +303,11 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     flex: 1,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 16,
   },
   rowMeta: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
   },
   linkRow: {
@@ -315,8 +315,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
     minHeight: 56,
   },
   tileInner: {
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tileLabel: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 15,
   },
   iconBtn: {

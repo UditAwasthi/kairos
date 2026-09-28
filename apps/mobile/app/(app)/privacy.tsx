@@ -68,7 +68,7 @@ export default function PrivacyScreen() {
 
 const styles = StyleSheet.create({
   lead: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     lineHeight: 21,
   },
@@ -95,11 +95,11 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   factLabel: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 14,
   },
   factDesc: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
     lineHeight: 18,
   },

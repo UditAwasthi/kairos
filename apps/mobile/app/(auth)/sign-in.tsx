@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   errorText: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 13,
   },
   footerText: {

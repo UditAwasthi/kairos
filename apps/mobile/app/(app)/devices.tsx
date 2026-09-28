@@ -129,7 +129,7 @@ export default function DevicesScreen() {
 
 const styles = StyleSheet.create({
   lead: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     lineHeight: 21,
   },
@@ -155,11 +155,11 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   infoLabel: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 14,
   },
   infoValue: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
   },
   statusDot: {
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   errorText: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     lineHeight: 20,
   },

@@ -589,7 +589,7 @@ export default function AskScreen() {
                     {message.role === 'kairos' ? (
                       <View style={styles.assistantHead}>
                         <View style={[styles.mark, { backgroundColor: colors.text }]}>
-                          <Text style={[styles.markLetter, { color: colors.onPrimary }]}>K</Text>
+                          <Text style={[styles.markLetter, { color: colors.inverseText }]}>K</Text>
                         </View>
                         <Text style={[styles.assistantName, { color: colors.text }]}>Kairos</Text>
                       </View>
@@ -666,7 +666,7 @@ export default function AskScreen() {
                   <View style={styles.typingBlock}>
                     <View style={styles.assistantHead}>
                       <View style={[styles.mark, { backgroundColor: colors.text }]}>
-                        <Text style={[styles.markLetter, { color: colors.onPrimary }]}>K</Text>
+                        <Text style={[styles.markLetter, { color: colors.inverseText }]}>K</Text>
                       </View>
                       <Text style={[styles.assistantName, { color: colors.text }]}>Kairos</Text>
                     </View>
@@ -866,7 +866,7 @@ const styles = StyleSheet.create({
   chromeTitle: {
     flex: 1,
     textAlign: 'center',
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 17,
     letterSpacing: -0.41,
   },
@@ -886,7 +886,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   scopeLabel: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 13,
     maxWidth: 220,
   },
@@ -914,7 +914,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   intelligenceBadgeText: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 11,
     letterSpacing: 0.8,
   },
@@ -926,14 +926,14 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   hero: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 30,
     lineHeight: 36,
     letterSpacing: -0.3,
     textAlign: 'center',
   },
   heroSub: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 15,
     lineHeight: 22,
     letterSpacing: -0.41,
@@ -960,7 +960,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   starterText: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     lineHeight: 19,
     letterSpacing: -0.2,
@@ -980,11 +980,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   markLetter: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 11,
   },
   assistantName: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 14,
     letterSpacing: -0.2,
   },
@@ -1002,12 +1002,12 @@ const styles = StyleSheet.create({
     width: 240,
   },
   sourceIndex: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 12,
   },
   sourceTitle: {
     flexShrink: 1,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 13,
   },
   followUps: { gap: 8 },
@@ -1018,13 +1018,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   followText: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 15,
     letterSpacing: -0.24,
   },
   typingBlock: { gap: 10 },
   typingLabel: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
   },
   dotsRow: {
@@ -1041,12 +1041,12 @@ const styles = StyleSheet.create({
   },
   errorBlock: { gap: 8, paddingVertical: 4 },
   errorText: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 15,
     lineHeight: 22,
   },
   retry: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 15,
   },
   composerDock: {
@@ -1066,7 +1066,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 17,
     lineHeight: 22,
     letterSpacing: -0.41,
@@ -1102,7 +1102,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   historyTitle: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 28,
     letterSpacing: 0.35,
   },
@@ -1115,18 +1115,18 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   newChatLabel: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 16,
   },
   historyList: {
     gap: 2,
     paddingBottom: 24,
   },
-  historySearch: { minHeight: 44, borderRadius: 12, paddingHorizontal: 12, fontFamily: 'Inter_400Regular', fontSize: 15 },
+  historySearch: { minHeight: 44, borderRadius: 12, paddingHorizontal: 12, fontFamily: 'Roboto_400Regular', fontSize: 15 },
   evidenceNote: { borderRadius: 12, padding: 12, gap: 10 },
   evidenceActions: { flexDirection: 'row', gap: 18, flexWrap: 'wrap' },
   historyEmpty: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 15,
     paddingVertical: 24,
   },
@@ -1139,12 +1139,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   historyRowTitle: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 16,
     letterSpacing: -0.3,
   },
   historyRowMeta: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 12,
     marginTop: 2,
   },

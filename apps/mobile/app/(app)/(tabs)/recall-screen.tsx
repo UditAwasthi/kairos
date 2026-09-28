@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 22,
     letterSpacing: 0,
   },
@@ -536,7 +536,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   pillText: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 13,
   },
   hero: {
@@ -591,11 +591,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   metricValue: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 16,
   },
   metricLabel: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 11,
   },
   syncBanner: {
@@ -609,7 +609,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   syncBannerText: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 13,
   },
   actions: {
@@ -625,7 +625,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   error: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 12,
     textAlign: 'center',
   },

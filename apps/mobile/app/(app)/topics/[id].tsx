@@ -100,9 +100,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  meta: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+  meta: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
   kicker: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 11,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
@@ -112,5 +112,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  rowTitle: { fontFamily: 'Inter_500Medium', fontSize: 15 },
+  rowTitle: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
 });

@@ -299,10 +299,10 @@ export function AskBubble({ message }: { message: AskMessage }) {
           }}
         >
           <ThemedText
-            colorKey="onPrimary"
+            colorKey="buttonText"
             style={[
               styles.body,
-              { color: '#FFFFFF', fontSize: 16, lineHeight: 22, fontWeight: '500' },
+              { color: colors.buttonText, fontSize: 16, lineHeight: 22, fontWeight: '500' },
             ]}
           >
             {message.content}
@@ -392,7 +392,7 @@ export function ProcessingIndicator({ job }: { job: ProcessingJob }) {
 
 const styles = StyleSheet.create({
   chipLabel: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 13,
     letterSpacing: 0.1,
   },
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   kicker: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 12,
     letterSpacing: 0.3,
     textTransform: 'uppercase',
@@ -411,18 +411,18 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   cardTitle: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 17,
     letterSpacing: -0.1,
     marginTop: 2,
   },
   body: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     lineHeight: 22,
   },
   meta: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 12,
   },
   topicRow: {
@@ -434,11 +434,11 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   tagText: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 11,
   },
   time: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 12,
     letterSpacing: 0.2,
   },
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
     minHeight: 28,
   },
   stepGlyph: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 14,
     width: 16,
     textAlign: 'center',

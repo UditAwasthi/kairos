@@ -12,16 +12,16 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import Svg, { Circle } from 'react-native-svg';
 
 import { ThemedText } from '../../../components/ThemedText';
 import { EmptyState, ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
 import { SurfaceCard } from '../../../components/ui/SectionHeader';
 import { Badge } from '../../../components/ui/MetricCard';
+import { CaptureHeatmap, CaptureHistogram } from '../../../components/ui/CaptureCharts';
+import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { AmbientBackground } from '../../../components/ui/system/AmbientBackground';
-import { HeroStatusWidget } from '../../../components/ui/system/HeroStatusWidget';
 import { InsightCard as SuggestionCard } from '../../../components/ui/system/InsightCard';
-import { QuickActionGrid } from '../../../components/ui/system/QuickActionTile';
-import { TopBar } from '../../../components/ui/system/TopBar';
 import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
 import {
   fetchDailyBrief,
@@ -45,6 +45,7 @@ import { dedupeRequest, readQueryCache, writeQueryCache } from '../../../hooks/u
 import { isStale } from '../../../lib/freshness';
 import { onReconnect, useNetworkStatus } from '../../../lib/network';
 import { PressScale } from '../../../components/ui/Motion';
+import { ActionArt, type ActionArtId } from '../../../components/home/ActionArt';
 
 /** Shared with the Dashboard / Brief / Predictions / Today screens so either side warms the other. */
 const CACHE = {
@@ -67,13 +68,12 @@ function getGreetingTime(): string {
   return 'Good evening';
 }
 
-const HOME_ACTIONS = [
-  { id: 'capture', label: 'Capture', icon: 'plus' as const, tint: 'amber' as const, route: '/(app)/quick-capture' },
-  { id: 'ask', label: 'Ask', icon: 'message-circle' as const, tint: 'blue' as const, route: '/(app)/(tabs)/ask' },
-  { id: 'search', label: 'Search', icon: 'search' as const, tint: 'teal' as const, route: '/(app)/search' },
-  { id: 'recall', label: 'Recall', icon: 'eye' as const, tint: 'blue' as const, route: '/(app)/screen-memory' },
-  { id: 'projects', label: 'Projects', icon: 'folder' as const, tint: 'amber' as const, route: '/(app)/projects' },
-  { id: 'timeline', label: 'Timeline', icon: 'clock' as const, tint: 'teal' as const, route: '/(app)/timeline' },
+const HOME_ACTIONS: Array<{ id: ActionArtId; label: string; route: string }> = [
+  { id: 'ask', label: 'Ask', route: '/(app)/(tabs)/ask' },
+  { id: 'search', label: 'Search', route: '/(app)/search' },
+  { id: 'recall', label: 'Recall', route: '/(app)/screen-memory' },
+  { id: 'projects', label: 'Projects', route: '/(app)/projects' },
+  { id: 'timeline', label: 'Timeline', route: '/(app)/timeline' },
 ];
 
 const MEMORY_TYPE_ICONS: Record<string, keyof typeof MaterialIcons.glyphMap> = {
@@ -83,6 +83,13 @@ const MEMORY_TYPE_ICONS: Record<string, keyof typeof MaterialIcons.glyphMap> = {
   IMAGE: 'image',
   AUDIO: 'mic',
 };
+
+const PREDICTION_LABEL = {
+  revisit: 'REVISIT',
+  focus: 'FOCUS',
+  emerging: 'EMERGING PATTERN',
+  next: 'NEXT STEP',
+} as const;
 
 export default function TodayScreen() {
   const { getToken } = useAuth();
@@ -152,7 +159,12 @@ export default function TodayScreen() {
   useEffect(() => onReconnect(() => void load()), [load]);
 
   const firstName = user?.firstName || user?.fullName?.split(' ')[0] || 'Friend';
-  const greeting = `${getGreetingTime()}, ${firstName}`;
+  const greeting = getGreetingTime();
+  const todayLabel = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
   const errors: Record<string, boolean> = online ? rawErrors : { memories: rawErrors.memories };
 
   if (loading && !dashboard && !brief && !predictions) {
@@ -175,9 +187,18 @@ export default function TodayScreen() {
   const todayProgress = dashboard?.habit.todayProgress ?? memories.length;
   const dailyGoal = dashboard?.habit.dailyGoal ?? 5;
   const isGoalReached = todayProgress >= dailyGoal;
-
-  const insightMessage = todayInsight?.body || brief?.noticed.body;
-  const streakDays = dashboard?.streak.current ?? progression?.currentStreak;
+  const streakDays = dashboard?.streak.current ?? progression?.currentStreak ?? 0;
+  const insightMessage = (todayInsight && !todayInsight.empty ? todayInsight.body : brief?.noticed.body) || '';
+  const paceNote = isGoalReached
+    ? 'Today’s pace is already met.'
+    : `${Math.max(0, dailyGoal - todayProgress)} more to reach today’s pace.`;
+  const settling = memories.filter((memory) => !['COMPLETED', 'FAILED'].includes(memory.status));
+  const ring = 84;
+  const stroke = 7;
+  const ringRadius = (ring - stroke) / 2;
+  const circumference = 2 * Math.PI * ringRadius;
+  const paceRatio = dailyGoal > 0 ? Math.max(0, Math.min(1, todayProgress / dailyGoal)) : 0;
+  const ringCenter = ring / 2;
 
   return (
     <TabScreenSwipe>
@@ -185,7 +206,7 @@ export default function TodayScreen() {
       <ScrollView
         style={styles.screen}
         contentContainerStyle={{
-          paddingTop: insets.top + 10,
+          paddingTop: insets.top + 24,
           paddingBottom: insets.bottom + FLOATING_TAB_BAR_CONTENT + 32,
         }}
         showsVerticalScrollIndicator={false}
@@ -200,16 +221,28 @@ export default function TodayScreen() {
           />
         }
       >
-        <TopBar
-          title={greeting}
-          trailing={{
-            icon: 'award',
-            label: 'View progress and streaks',
-            onPress: () => router.push('/(app)/progress'),
-          }}
-        />
+        <View style={styles.header}>
+          <View style={styles.headerCopy}>
+            <View style={styles.greetingRow}>
+              <Text style={[styles.kicker, { color: colors.textMuted }]}>{greeting}</Text>
+            </View>
+            <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+              {firstName}
+            </Text>
+            <Text style={[styles.dateLine, { color: colors.textSecondary }]}>{todayLabel}</Text>
+          </View>
+          <PressScale
+            onPress={() => router.push('/(app)/progress')}
+            accessibilityLabel="View progress and streaks"
+            style={[
+              styles.progressButton,
+              { backgroundColor: colors.surfaceElevated, borderColor: colors.border, borderRadius: radius.md },
+            ]}
+          >
+            <MaterialIcons name="emoji-events" size={20} color={colors.primary} />
+          </PressScale>
+        </View>
 
-        {/* Bonus reward alert */}
         {lastReward ? (
           <Animated.View
             entering={lastReward.bonus ? FadeIn.duration(240) : undefined}
@@ -220,88 +253,147 @@ export default function TodayScreen() {
           >
             <MaterialIcons name="auto-awesome" size={16} color={colors.primary} />
             <ThemedText colorKey="primary" style={styles.rewardText}>
-              {lastReward.bonus ? 'Momentum bonus!' : 'Signal recorded'}
+              {lastReward.bonus ? 'Momentum bonus' : 'Signal recorded'}
               {lastReward.xp ? ` · +${lastReward.xp} XP` : ''}
               {lastReward.keeps ? ` · +${lastReward.keeps} keeps` : ''}
             </ThemedText>
           </Animated.View>
         ) : null}
 
-        <View style={styles.sectionPad}>
-          <HeroStatusWidget
-            value={String(todayProgress)}
-            label={isGoalReached ? 'Daily goal reached' : 'Daily progress'}
-            subtitle={
-              isGoalReached
-                ? "You've built a clearer picture of yourself today."
-                : `${Math.max(0, dailyGoal - todayProgress)} more to reach today's pace.`
-            }
-            progress={todayProgress / Math.max(1, dailyGoal)}
-            secondaryValue={streakDays != null ? String(streakDays) : undefined}
-            secondaryLabel={streakDays != null ? 'day streak' : undefined}
-            mascot={isGoalReached ? 'celebrating' : 'idle'}
-            accessibilityLabel={`${todayProgress} of ${dailyGoal} actions captured`}
+        <View
+          accessibilityRole="summary"
+          accessibilityLabel={`${todayProgress} of ${dailyGoal} captured today, ${streakDays} day streak`}
+          style={[
+            styles.hero,
+            { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.xl },
+          ]}
+        >
+          <View style={styles.heroTop}>
+            <View style={{ width: ring, height: ring }}>
+              <Svg width={ring} height={ring}>
+                <Circle
+                  cx={ringCenter}
+                  cy={ringCenter}
+                  r={ringRadius}
+                  stroke={colors.surfaceContainer}
+                  strokeWidth={stroke}
+                  fill="none"
+                />
+                <Circle
+                  cx={ringCenter}
+                  cy={ringCenter}
+                  r={ringRadius}
+                  stroke={colors.primary}
+                  strokeWidth={stroke}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray={`${circumference} ${circumference}`}
+                  strokeDashoffset={circumference * (1 - paceRatio)}
+                  transform={`rotate(-90 ${ringCenter} ${ringCenter})`}
+                />
+              </Svg>
+              <View style={styles.ringCenter}>
+                <Text style={[styles.ringValue, { color: colors.text }]}>{todayProgress}</Text>
+              </View>
+            </View>
+            <View style={styles.heroCopy}>
+              <Text style={[styles.heroLabel, { color: colors.textSecondary }]}>of {dailyGoal} today</Text>
+              <Text style={[styles.heroNote, { color: colors.textMuted }]}>{paceNote}</Text>
+            </View>
+            <View style={[styles.metricRule, { backgroundColor: colors.border }]} />
+            <View style={styles.streak}>
+              <Text style={[styles.streakValue, { color: colors.text }]}>{streakDays}</Text>
+              <Text style={[styles.heroLabel, { color: colors.textSecondary }]}>day streak</Text>
+            </View>
+          </View>
+          {dashboard?.habit.week ? (
+            <View style={styles.weekDotsRow}>
+              {dashboard.habit.week.map((day, index) => (
+                <View key={`${day.date}-${index}`} style={styles.dayDotCol}>
+                  <View
+                    style={[
+                      styles.dayDot,
+                      {
+                        backgroundColor: day.done ? colors.primary : colors.surfaceContainer,
+                        borderColor: day.done ? colors.primary : colors.border,
+                      },
+                    ]}
+                  />
+                  <Text style={[styles.dayLabel, { color: day.done ? colors.text : colors.textMuted }]}>
+                    {day.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        <View
+          style={[
+            styles.actionBand,
+            { backgroundColor: colors.primaryContainer, borderColor: colors.borderAccent, borderWidth: 1, borderRadius: radius.xl },
+          ]}
+        >
+          <ThemedButton
+            label="Capture"
+            icon={<ActionArt id="capture" size={22} color={colors.buttonText} accent={colors.buttonText} />}
+            onPress={() => router.push('/(app)/quick-capture')}
           />
+          <View style={styles.shortcutRow}>
+            {HOME_ACTIONS.map((action) => (
+              <PressScale
+                key={action.id}
+                onPress={() => router.push(action.route as never)}
+                accessibilityLabel={action.label}
+                style={styles.shortcut}
+              >
+                <View
+                  style={[
+                    styles.shortcutIcon,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.primary,
+                      borderRadius: radius.full,
+                    },
+                  ]}
+                >
+                  <ActionArt id={action.id} size={26} color={colors.text} accent={colors.primary} />
+                </View>
+                <Text style={[styles.shortcutLabel, { color: colors.text }]} numberOfLines={1}>
+                  {action.label}
+                </Text>
+              </PressScale>
+            ))}
+          </View>
         </View>
 
         {insightMessage ? (
           <View style={styles.sectionPad}>
-            <SuggestionCard
-              message={insightMessage}
-              onPress={() => router.push('/(app)/brief')}
-            />
+            <SuggestionCard message={insightMessage} onPress={() => router.push('/(app)/brief')} />
           </View>
         ) : null}
 
-        <View style={styles.sectionPad}>
-          <QuickActionGrid
-            actions={HOME_ACTIONS.map(({ route, ...action }) => ({
-              ...action,
-              onPress: () => router.push(route as never),
-            }))}
-          />
-        </View>
-
-        {dashboard?.habit.week ? (
+        {dashboard?.heatmap?.length ? (
           <View style={styles.sectionPad}>
-          <SurfaceCard>
-            <View style={styles.weekContainer}>
-              <View style={styles.weekDotsRow}>
-                {dashboard.habit.week.map((day, i) => (
-                  <View key={`${day.date}-${i}`} style={styles.dayDotCol}>
-                    <View
-                      style={[
-                        styles.dayDot,
-                        {
-                          backgroundColor: day.done
-                            ? colors.primary
-                            : colors.surfaceContainer,
-                          borderColor: day.done ? colors.primaryPressed : colors.border,
-                        },
-                      ]}
-                    >
-                      {day.done ? (
-                        <MaterialIcons name="check" size={12} color={colors.onPrimary} />
-                      ) : null}
-                    </View>
-                    <Text
-                      style={[
-                        styles.dayLabel,
-                        { color: day.done ? colors.primary : colors.textMuted },
-                      ]}
-                    >
-                      {day.label}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-              <View style={styles.streakFooter}>
-                <ThemedText colorKey="textSecondary" style={styles.streakFootText}>
-                  {dashboard.streak.current} day streak · {dashboard.habit.weekDaysCompleted} of {dashboard.habit.weekGoalDays} days
+            <View style={styles.sectionHeadRow}>
+              <ThemedText colorKey="text" style={styles.sectionHeaderTitle}>
+                Rhythm
+              </ThemedText>
+              <Pressable
+                onPress={() => router.push('/(app)/insights')}
+                accessibilityRole="button"
+                accessibilityLabel="Open insights"
+                hitSlop={8}
+              >
+                <ThemedText colorKey="primary" style={styles.seeAllText}>
+                  Insights
                 </ThemedText>
-              </View>
+              </Pressable>
             </View>
-          </SurfaceCard>
+            <View style={styles.chartStack}>
+              <CaptureHeatmap days={dashboard.heatmap} />
+              <CaptureHistogram days={dashboard.heatmap} />
+            </View>
           </View>
         ) : null}
 
@@ -311,20 +403,21 @@ export default function TodayScreen() {
               {brief.attentionTopics.length > 0 ? (
                 <View style={styles.attentionRow}>
                   <ThemedText colorKey="textMuted" style={styles.attentionLabel}>
-                    On your mind:
+                    On your mind
                   </ThemedText>
                   {brief.attentionTopics.slice(0, 3).map((topic) => (
-                    <View
-                      key={topic.name}
+                    <Pressable
+                      key={topic.id || topic.name}
+                      onPress={() => router.push(topic.id ? `/(app)/topics/${topic.id}` : '/(app)/topics')}
+                      accessibilityRole="button"
+                      accessibilityLabel={topic.name}
                       style={[
                         styles.attentionChip,
                         { backgroundColor: colors.primaryContainer, borderRadius: radius.full },
                       ]}
                     >
-                      <Text style={[styles.attentionChipText, { color: colors.primary }]}>
-                        {topic.name}
-                      </Text>
-                    </View>
+                      <Text style={[styles.attentionChipText, { color: colors.primary }]}>{topic.name}</Text>
+                    </Pressable>
                   ))}
                 </View>
               ) : null}
@@ -358,19 +451,10 @@ export default function TodayScreen() {
           <ErrorState compact title="Daily brief unavailable" onRetry={() => void load()} />
         ) : null}
 
-        {/* Prediction / Pattern */}
         {predictions?.items[0] ? (
           <View style={styles.sectionBlock}>
             <SurfaceCard style={{ borderColor: colors.borderAccent }}>
-              <Badge
-                label={{
-                  revisit: 'REVISIT',
-                  focus: 'FOCUS',
-                  emerging: 'EMERGING PATTERN',
-                  next: 'NEXT STEP',
-                }[predictions.items[0].kind]}
-                tone="accent"
-              />
+              <Badge label={PREDICTION_LABEL[predictions.items[0].kind]} tone="accent" />
               <ThemedText colorKey="text" style={styles.predictionTitle}>
                 {predictions.items[0].title}
               </ThemedText>
@@ -381,8 +465,7 @@ export default function TodayScreen() {
           </View>
         ) : null}
 
-        {/* Settling In: Observations in flight */}
-        {memories.some((memory) => !['COMPLETED', 'FAILED'].includes(memory.status)) ? (
+        {settling.length > 0 ? (
           <View style={styles.sectionBlock}>
             <SurfaceCard style={{ borderColor: colors.borderActive }}>
               <View style={styles.settlingHead}>
@@ -391,33 +474,30 @@ export default function TodayScreen() {
                   Connecting the dots…
                 </ThemedText>
               </View>
-              {memories
-                .filter((memory) => !['COMPLETED', 'FAILED'].includes(memory.status))
-                .map((memory) => (
-                  <Pressable
-                    key={memory.id}
-                    onPress={() => router.push(`/(app)/observation/${memory.id}`)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Open ${memory.filename}`}
-                    style={[styles.memoryRow, { backgroundColor: colors.surfaceContainer }]}
-                  >
-                    <ThemedText colorKey="text" style={styles.memoryTitle} numberOfLines={1}>
-                      {memory.filename}
-                    </ThemedText>
-                    <Badge
-                      label={observationStageLabel(memory) || observationStatusLabel(memory.status)}
-                      tone="accent"
-                    />
-                  </Pressable>
-                ))}
+              {settling.map((memory) => (
+                <Pressable
+                  key={memory.id}
+                  onPress={() => router.push(`/(app)/observation/${memory.id}`)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${memory.filename}`}
+                  style={[styles.memoryRow, { backgroundColor: colors.surfaceContainer }]}
+                >
+                  <ThemedText colorKey="text" style={styles.memoryTitle} numberOfLines={1}>
+                    {memory.filename}
+                  </ThemedText>
+                  <Badge
+                    label={observationStageLabel(memory) || observationStatusLabel(memory.status)}
+                    tone="accent"
+                  />
+                </Pressable>
+              ))}
             </SurfaceCard>
           </View>
         ) : null}
 
-        {/* Recent Memories Section */}
-        <View style={styles.sectionHeadRow}>
+        <View style={styles.sectionHeadRowPadded}>
           <ThemedText colorKey="text" style={styles.sectionHeaderTitle}>
-            Recent Memories
+            Recent
           </ThemedText>
           <Pressable
             onPress={() => router.push('/(app)/timeline')}
@@ -426,7 +506,7 @@ export default function TodayScreen() {
             hitSlop={8}
           >
             <ThemedText colorKey="primary" style={styles.seeAllText}>
-              See all ›
+              See all
             </ThemedText>
           </Pressable>
         </View>
@@ -468,15 +548,11 @@ export default function TodayScreen() {
                     >
                       <MaterialIcons name={iconName} size={20} color={colors.textSecondary} />
                     </View>
-                    <View style={{ flex: 1, gap: 2 }}>
+                    <View style={styles.memoryCopy}>
                       <ThemedText colorKey="text" style={styles.memoryTitle} numberOfLines={1}>
                         {memory.filename}
                       </ThemedText>
-                      <ThemedText
-                        colorKey="textSecondary"
-                        numberOfLines={2}
-                        style={styles.memorySnippet}
-                      >
+                      <ThemedText colorKey="textSecondary" numberOfLines={2} style={styles.memorySnippet}>
                         {memory.summary || memory.sourceLabel || memory.type}
                       </ThemedText>
                     </View>
@@ -488,31 +564,17 @@ export default function TodayScreen() {
           </View>
         )}
 
-        {/* Dashboard links */}
-        <View style={styles.bottomLinks}>
-          <Pressable
-            onPress={() => router.push('/(app)/dashboard')}
-            accessibilityRole="button"
-            accessibilityLabel="Open dashboard"
-            style={[styles.smallPillLink, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
-          >
-            <MaterialIcons name="bar-chart" size={16} color={colors.textSecondary} />
-            <ThemedText colorKey="textSecondary" style={styles.pillLinkText}>
-              Detailed Dashboard
-            </ThemedText>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/(app)/activity')}
-            accessibilityRole="button"
-            accessibilityLabel="Open capture activity"
-            style={[styles.smallPillLink, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
-          >
-            <MaterialIcons name="history" size={16} color={colors.textSecondary} />
-            <ThemedText colorKey="textSecondary" style={styles.pillLinkText}>
-              Capture Activity
-            </ThemedText>
-          </Pressable>
-        </View>
+        <Pressable
+          onPress={() => router.push('/(app)/dashboard')}
+          accessibilityRole="button"
+          accessibilityLabel="Open dashboard"
+          style={styles.dashboardLink}
+        >
+          <ThemedText colorKey="textSecondary" style={styles.dashboardLinkText}>
+            Open the full dashboard
+          </ThemedText>
+          <MaterialIcons name="arrow-forward" size={16} color={colors.textSecondary} />
+        </Pressable>
       </ScrollView>
       </AmbientBackground>
     </TabScreenSwipe>
@@ -523,141 +585,104 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginBottom: 12,
+    paddingHorizontal: 28,
+    marginBottom: 44,
+    gap: 16,
   },
-  greetingTitle: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 26,
-    lineHeight: 32,
-    letterSpacing: -0.3,
+  headerCopy: { flex: 1, gap: 2 },
+  greetingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  kicker: {
+    fontFamily: 'Roboto_500Medium',
+    fontSize: 16,
   },
-  contextMessage: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
+  name: {
+    fontFamily: 'Roboto_700Bold',
+    fontSize: 42,
+    lineHeight: 50,
+    letterSpacing: -0.6,
   },
-  profileBadgeWrap: {
-    position: 'relative',
+  dateLine: {
+    fontFamily: 'Roboto_400Regular',
+    fontSize: 17,
+  },
+  progressButton: {
+    width: 52,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: '#8B5CF6',
-  },
-  avatarLetterCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarLetter: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 18,
-  },
-  streakMiniPill: {
-    position: 'absolute',
-    bottom: -6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 999,
     borderWidth: 1,
-  },
-  flameEmoji: { fontSize: 10 },
-  streakNumber: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 10,
+    marginTop: 4,
   },
   rewardPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginHorizontal: 20,
-    marginBottom: 12,
+    alignSelf: 'flex-start',
+    marginHorizontal: 28,
+    marginBottom: 20,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
   },
   rewardText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
+    fontFamily: 'Roboto_600SemiBold',
+    fontSize: 15,
   },
-  heroSignalCard: {
-    marginHorizontal: 18,
-    marginBottom: 16,
-    padding: 18,
-    gap: 14,
+  hero: {
+    marginHorizontal: 28,
+    borderWidth: 1,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 20,
+    gap: 22,
   },
-  signalTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  signalTitle: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 20,
-    marginTop: 4,
-  },
-  levelTag: {
+  heroTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
+    gap: 12,
   },
-  levelText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-  },
-  ringHeroRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  ringWrap: {
-    width: 92,
-    height: 92,
+  ringCenter: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ringCenter: {
-    position: 'absolute',
-    flexDirection: 'row',
-    alignItems: 'baseline',
+  ringValue: {
+    fontFamily: 'Roboto_700Bold',
+    fontSize: 34,
+    lineHeight: 40,
+    letterSpacing: -0.6,
   },
-  ringCount: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 24,
+  heroCopy: {
+    flex: 1,
+    gap: 4,
   },
-  ringGoal: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
+  heroLabel: {
+    fontFamily: 'Roboto_400Regular',
+    fontSize: 17,
   },
-  signalHeading: {
-    fontFamily: 'Inter_700Bold',
+  heroNote: {
+    fontFamily: 'Roboto_400Regular',
     fontSize: 16,
+    lineHeight: 22,
   },
-  signalSub: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
+  metricRule: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: 'stretch',
+    marginVertical: 6,
   },
-  weekContainer: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(128,128,128,0.2)',
-    paddingTop: 12,
-    gap: 8,
+  streak: {
+    alignItems: 'flex-start',
+    gap: 2,
+    minWidth: 72,
+  },
+  streakValue: {
+    fontFamily: 'Roboto_700Bold',
+    fontSize: 40,
+    lineHeight: 46,
+    letterSpacing: -0.6,
   },
   weekDotsRow: {
     flexDirection: 'row',
@@ -669,123 +694,97 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   dayDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1,
   },
   dayLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 11,
+    fontFamily: 'Roboto_500Medium',
+    fontSize: 13,
   },
-  streakFooter: {
+  actionBand: {
+    marginHorizontal: 28,
+    marginTop: 48,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 20,
+    gap: 20,
+  },
+  shortcutRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  shortcut: {
+    flex: 1,
     alignItems: 'center',
-    marginTop: 2,
+    gap: 6,
   },
-  streakFootText: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
+  shortcutIcon: {
+    width: 56,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
   },
-  primaryCtaWrap: {
-    marginHorizontal: 18,
-    marginBottom: 20,
+  shortcutLabel: {
+    fontFamily: 'Roboto_600SemiBold',
+    fontSize: 13,
+  },
+  sectionPad: {
+    marginHorizontal: 28,
+    marginTop: 48,
   },
   sectionHeadRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    marginTop: 8,
     marginBottom: 10,
   },
+  sectionHeadRowPadded: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    marginTop: 48,
+    marginBottom: 20,
+  },
   sectionHeaderTitle: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 19,
+    fontFamily: 'Roboto_700Bold',
+    fontSize: 24,
     letterSpacing: -0.2,
   },
   seeAllText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
+    fontFamily: 'Roboto_600SemiBold',
+    fontSize: 16,
   },
-  quickActionsScroll: {
-    paddingHorizontal: 16,
-    gap: 10,
-    paddingBottom: 4,
-  },
-  quickActionCard: {
-    width: 130,
-    padding: 14,
-    borderWidth: 1,
-    gap: 6,
-  },
-  actionIconBubble: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  actionCardTitle: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 14,
-  },
-  actionCardDesc: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  sectionPad: {
-    marginHorizontal: 20,
-    marginTop: 12,
+  chartStack: {
+    gap: 28,
   },
   sectionBlock: {
-    marginHorizontal: 20,
-    marginVertical: 6,
+    marginHorizontal: 28,
+    marginTop: 44,
   },
   insightCard: {
     gap: 10,
-  },
-  insightTopBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  sparkleWrap: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  insightBadgeText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 12,
-    letterSpacing: 0.8,
-  },
-  insightBody: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    lineHeight: 22,
   },
   attentionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: 2,
   },
   attentionLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
+    fontFamily: 'Roboto_500Medium',
+    fontSize: 16,
   },
   attentionChip: {
     paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingVertical: 4,
   },
   attentionChipText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 11,
+    fontFamily: 'Roboto_600SemiBold',
+    fontSize: 15,
   },
   revisitBox: {
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -799,23 +798,24 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   revisitTitle: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
+    fontFamily: 'Roboto_600SemiBold',
+    fontSize: 17,
+    flex: 1,
   },
   revisitWhy: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
+    fontFamily: 'Roboto_400Regular',
+    fontSize: 16,
+    lineHeight: 22,
   },
   predictionTitle: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 16,
+    fontFamily: 'Roboto_700Bold',
+    fontSize: 20,
     marginTop: 4,
   },
   predictionWhy: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    lineHeight: 20,
+    fontFamily: 'Roboto_400Regular',
+    fontSize: 16,
+    lineHeight: 24,
   },
   settlingHead: {
     flexDirection: 'row',
@@ -824,61 +824,58 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   settlingTitle: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
-  },
-  memoriesList: {
-    paddingHorizontal: 18,
-    gap: 8,
-  },
-  memoryCardItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderWidth: 1,
-    gap: 12,
-  },
-  memIconBubble: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  memoryTitle: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
-  },
-  memorySnippet: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
+    fontFamily: 'Roboto_600SemiBold',
+    fontSize: 18,
   },
   memoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 10,
-    borderRadius: 12,
+    borderRadius: 22,
     marginVertical: 3,
+    gap: 8,
   },
-  bottomLinks: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 10,
-    marginTop: 18,
-    paddingHorizontal: 18,
+  memoriesList: {
+    paddingHorizontal: 28,
+    gap: 22,
   },
-  smallPillLink: {
+  memoryCardItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
+    padding: 16,
     borderWidth: 1,
+    gap: 12,
   },
-  pillLinkText: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
+  memIconBubble: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  memoryCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  memoryTitle: {
+    fontFamily: 'Roboto_600SemiBold',
+    fontSize: 18,
+  },
+  memorySnippet: {
+    fontFamily: 'Roboto_400Regular',
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  dashboardLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 48,
+    paddingVertical: 12,
+  },
+  dashboardLinkText: {
+    fontFamily: 'Roboto_500Medium',
+    fontSize: 16,
   },
 });

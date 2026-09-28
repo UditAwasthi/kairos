@@ -69,6 +69,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     gap: 12,
   },
-  title: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 15 },
-  meta: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+  title: { flex: 1, fontFamily: 'Roboto_500Medium', fontSize: 15 },
+  meta: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
 });

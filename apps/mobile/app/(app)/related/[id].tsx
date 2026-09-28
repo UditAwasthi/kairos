@@ -94,8 +94,8 @@ export default function RelatedMemoriesScreen() {
 }
 
 const styles = StyleSheet.create({
-  when: { fontFamily: 'Inter_400Regular', fontSize: 12, marginBottom: 6 },
-  title: { fontFamily: 'Inter_500Medium', fontSize: 16 },
-  snippet: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21, marginTop: 6 },
-  reasons: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 8 },
+  when: { fontFamily: 'Roboto_400Regular', fontSize: 12, marginBottom: 6 },
+  title: { fontFamily: 'Roboto_500Medium', fontSize: 16 },
+  snippet: { fontFamily: 'Roboto_400Regular', fontSize: 14, lineHeight: 21, marginTop: 6 },
+  reasons: { fontFamily: 'Roboto_400Regular', fontSize: 12, marginTop: 8 },
 });

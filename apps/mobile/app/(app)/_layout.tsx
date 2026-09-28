@@ -189,7 +189,7 @@ export default function AppLayout() {
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.text,
         headerTitleStyle: {
-          fontFamily: 'Inter_600SemiBold',
+          fontFamily: 'Roboto_600SemiBold',
           fontSize: 16,
         },
         headerShadowVisible: false,

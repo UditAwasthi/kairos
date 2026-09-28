@@ -133,8 +133,8 @@ export default function ProgressScreen() {
                   <Feather name="shield" size={14} color={colors.success} />
                   <ThemedText colorKey="text" style={styles.chipText}>{progression.freezeTokens} freezes</ThemedText>
                 </View>
-                <View style={[styles.statChip, { backgroundColor: '#FEF3C7' }]}>
-                  <Feather name="award" size={14} color="#D97706" />
+                <View style={[styles.statChip, { backgroundColor: colors.tintYellow }]}>
+                  <Feather name="award" size={14} color={colors.warning} />
                   <ThemedText colorKey="text" style={styles.chipText}>{progression.longestStreak} best</ThemedText>
                 </View>
               </View>
@@ -330,53 +330,53 @@ const styles = StyleSheet.create({
   card: { padding: 18, gap: 12 },
   levelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   levelBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
-  levelText: { fontFamily: 'Inter_700Bold', fontSize: 13 },
-  streakText: { fontFamily: 'Inter_500Medium', fontSize: 13 },
-  xp: { fontFamily: 'Inter_700Bold', fontSize: 36, letterSpacing: -0.5 },
-  xpUnit: { fontFamily: 'Inter_400Regular', fontSize: 20 },
+  levelText: { fontFamily: 'Roboto_700Bold', fontSize: 13 },
+  streakText: { fontFamily: 'Roboto_500Medium', fontSize: 13 },
+  xp: { fontFamily: 'Roboto_700Bold', fontSize: 36, letterSpacing: -0.5 },
+  xpUnit: { fontFamily: 'Roboto_400Regular', fontSize: 20 },
   track: { height: 10, borderRadius: 8, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 8 },
-  xpLabel: { fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: -4 },
+  xpLabel: { fontFamily: 'Roboto_400Regular', fontSize: 13, marginTop: -4 },
   statsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   statChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  chipText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+  chipText: { fontFamily: 'Roboto_600SemiBold', fontSize: 13 },
   freezeButton: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
-  freezeText: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
-  freezeHint: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: -4 },
+  freezeText: { fontFamily: 'Roboto_600SemiBold', fontSize: 14 },
+  freezeHint: { fontFamily: 'Roboto_400Regular', fontSize: 12, marginTop: -4 },
 
   // Sections
   heading: { marginTop: 12, marginBottom: 2 },
-  sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 20, letterSpacing: -0.2 },
+  sectionTitle: { fontFamily: 'Roboto_700Bold', fontSize: 20, letterSpacing: -0.2 },
 
   // Cosmetics
   cosmeticCard: { padding: 14 },
   cosmeticInner: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   cosmeticIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  cosmeticLabel: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
-  cosmeticSub: { fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: 1 },
+  cosmeticLabel: { fontFamily: 'Roboto_600SemiBold', fontSize: 15 },
+  cosmeticSub: { fontFamily: 'Roboto_400Regular', fontSize: 13, marginTop: 1 },
   equipButton: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
-  equipText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+  equipText: { fontFamily: 'Roboto_600SemiBold', fontSize: 13 },
 
   // Leaderboard
   privacyCard: { padding: 14 },
   privacyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   nameRow: { flexDirection: 'row', gap: 8 },
-  nameInput: { flex: 1, minHeight: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontFamily: 'Inter_400Regular', fontSize: 15 },
+  nameInput: { flex: 1, minHeight: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontFamily: 'Roboto_400Regular', fontSize: 15 },
   saveButton: { minHeight: 46, borderRadius: 12, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
-  saveText: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  saveText: { fontFamily: 'Roboto_600SemiBold', fontSize: 14 },
   scopes: { flexDirection: 'row', gap: 8 },
   scopeActive: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 999, alignItems: 'center' },
-  scopeText: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  scopeText: { fontFamily: 'Roboto_600SemiBold', fontSize: 14 },
   rankCard: { padding: 12 },
   rankRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   rankBadge: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  rankNum: { fontFamily: 'Inter_700Bold', fontSize: 13 },
-  rankXp: { fontFamily: 'Inter_700Bold', fontSize: 14 },
+  rankNum: { fontFamily: 'Roboto_700Bold', fontSize: 13 },
+  rankXp: { fontFamily: 'Roboto_700Bold', fontSize: 14 },
 
   // Modal
   scrim: { flex: 1, justifyContent: 'center', padding: 24 },
   prompt: { padding: 22, borderRadius: 24, gap: 14 },
-  promptTitle: { fontFamily: 'Inter_700Bold', fontSize: 20 },
-  promptBody: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20 },
-  privateText: { fontFamily: 'Inter_400Regular', textAlign: 'center', padding: 8 },
+  promptTitle: { fontFamily: 'Roboto_700Bold', fontSize: 20 },
+  promptBody: { fontFamily: 'Roboto_400Regular', fontSize: 14, lineHeight: 20 },
+  privateText: { fontFamily: 'Roboto_400Regular', textAlign: 'center', padding: 8 },
 });

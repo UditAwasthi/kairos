@@ -160,5 +160,5 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1.5,
   },
-  title: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 15 },
+  title: { flex: 1, fontFamily: 'Roboto_500Medium', fontSize: 15 },
 });

@@ -365,6 +365,10 @@ export type DashboardActivityDay = {
   count: number;
 };
 
+export type DashboardHeatmapDay = DashboardActivityDay & {
+  future: boolean;
+};
+
 export type DashboardHabitDay = {
   date: string;
   label: string;
@@ -400,6 +404,7 @@ export type DashboardSummary = {
   sources: Array<{ source: CaptureSource; label: string; count: number }>;
   topics: Array<{ id: string; name: string; observationCount: number }>;
   activity: DashboardActivityDay[];
+  heatmap: DashboardHeatmapDay[];
   streak: DashboardStreak;
   habit: DashboardHabit;
   recent: Array<{
@@ -478,6 +483,7 @@ function normalizeDashboard(data: DashboardSummary): DashboardSummary {
   return {
     ...data,
     activity: data.activity ?? [],
+    heatmap: data.heatmap ?? [],
     streak: data.streak ?? {
       current: 0,
       longest: 0,

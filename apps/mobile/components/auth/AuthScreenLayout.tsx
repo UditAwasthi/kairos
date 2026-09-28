@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   markBadgeText: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 11,
     letterSpacing: 0.8,
   },
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   subtitle: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     textAlign: 'center',
   },

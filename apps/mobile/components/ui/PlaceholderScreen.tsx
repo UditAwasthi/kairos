@@ -39,13 +39,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    fontFamily: 'DotGothic16_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 32,
     letterSpacing: 4,
     textAlign: 'center',
   },
   subtitle: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 15,
     textAlign: 'center',
     lineHeight: 22,

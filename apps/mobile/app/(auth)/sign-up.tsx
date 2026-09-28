@@ -228,11 +228,11 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   errorText: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 13,
   },
   footer: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
   },
   footerRow: {

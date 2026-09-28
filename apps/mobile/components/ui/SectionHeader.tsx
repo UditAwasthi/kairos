@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   subtitle: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
     lineHeight: 18,
   },

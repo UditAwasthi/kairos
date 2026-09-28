@@ -55,20 +55,20 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   orbGlyph: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 32,
   },
   brand: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 26,
     letterSpacing: -0.3,
   },
   meta: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 14,
   },
   body: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     lineHeight: 22,
     textAlign: 'center',
@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   versionText: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 12,
   },
 });

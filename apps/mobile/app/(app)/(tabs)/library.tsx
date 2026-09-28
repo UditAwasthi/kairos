@@ -438,8 +438,8 @@ export default function LibraryScreen() {
               style={[
                 styles.segmentText,
                 {
-                  color: view === label ? '#FFFFFF' : colors.textSecondary,
-                  fontFamily: view === label ? 'Inter_700Bold' : 'Inter_500Medium',
+                  color: view === label ? colors.onPrimary : colors.textSecondary,
+                  fontFamily: view === label ? 'Roboto_700Bold' : 'Roboto_500Medium',
                 },
               ]}
             >
@@ -757,7 +757,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 15,
   },
   filterBtn: {
@@ -811,7 +811,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   askBannerText: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 13,
   },
   actions: {
@@ -837,11 +837,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rowTitle: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 15,
   },
   rowSummary: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
     lineHeight: 18,
   },
@@ -854,7 +854,7 @@ const styles = StyleSheet.create({
   empty: {
     textAlign: 'center',
     padding: 32,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
   },
   scrim: {
     flex: 1,
@@ -869,7 +869,7 @@ const styles = StyleSheet.create({
     maxHeight: '85%',
   },
   sheetTitle: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 20,
   },
   wrap: {

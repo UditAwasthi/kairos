@@ -206,7 +206,7 @@ export const HOW_IT_WORKS_FEATURES: HowItWorksFeature[] = [
     group: 'intelligence',
     title: 'Dashboard',
     summary: 'A short reading of what you have been capturing.',
-    body: 'Dashboard looks at your recent memories and shows a capture streak, a daily habit week, a fourteen-day histogram, and a few grounded insights. Each insight can point back to the notes it used. Empty days stay empty.',
+    body: 'Dashboard looks at your recent memories and shows a capture streak, a daily habit week, a twelve-week heatmap, a histogram of how many memories land on a day, and a few grounded insights. Each insight can point back to the notes it used. Empty days stay empty.',
     steps: [
       'Open Dashboard from Home or Profile.',
       'Check the streak and weekly capture habit against days you actually saved something.',

@@ -117,7 +117,7 @@ export default function PredictionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  lead: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20 },
+  lead: { fontFamily: 'Roboto_400Regular', fontSize: 14, lineHeight: 20 },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
   icon: {
     width: 32,
@@ -126,8 +126,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { flex: 1, fontFamily: 'Inter_600SemiBold', fontSize: 16, letterSpacing: -0.2 },
-  body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21 },
-  why: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 10 },
-  explore: { fontFamily: 'Inter_500Medium', fontSize: 13, marginTop: 12 },
+  title: { flex: 1, fontFamily: 'Roboto_600SemiBold', fontSize: 16, letterSpacing: -0.2 },
+  body: { fontFamily: 'Roboto_400Regular', fontSize: 14, lineHeight: 21 },
+  why: { fontFamily: 'Roboto_400Regular', fontSize: 12, marginTop: 10 },
+  explore: { fontFamily: 'Roboto_500Medium', fontSize: 13, marginTop: 12 },
 });

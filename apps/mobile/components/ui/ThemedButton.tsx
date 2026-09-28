@@ -110,7 +110,7 @@ export function ThemedButton({
     onPress();
   };
 
-  const borderRadius = radius.full;
+  const borderRadius = radius.lg;
 
   return (
     <View style={style}>
@@ -149,6 +149,7 @@ export function ThemedButton({
                 styles.label,
                 {
                   fontSize: heights.fontSize,
+                  letterSpacing: typography.button.letterSpacing,
                   color: disabled ? colors.buttonDisabledText : textColor,
                   fontFamily: typography.button.fontFamily,
                 },
@@ -187,7 +188,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: {
-    letterSpacing: 0.2,
     textAlign: 'center',
+    textTransform: 'uppercase',
   },
 });

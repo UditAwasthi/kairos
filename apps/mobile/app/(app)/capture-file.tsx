@@ -481,13 +481,13 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   title: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 34,
     lineHeight: 41,
     letterSpacing: 0.4,
   },
   lead: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 17,
     lineHeight: 22,
     letterSpacing: -0.41,
@@ -514,11 +514,11 @@ const styles = StyleSheet.create({
   },
   recordLabel: {
     flex: 1,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 14,
   },
   recordCancel: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 14,
   },
   chip: {
@@ -534,14 +534,14 @@ const styles = StyleSheet.create({
   },
   chipName: {
     flexShrink: 1,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 14,
     maxWidth: 220,
   },
   input: {
     minHeight: 96,
     maxHeight: 180,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 17,
     lineHeight: 22,
     letterSpacing: -0.41,
@@ -570,7 +570,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   hint: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
     textAlign: 'center',
   },
@@ -584,11 +584,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   status: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 15,
   },
   error: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     textAlign: 'center',
   },
@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   openLabel: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 17,
     letterSpacing: -0.41,
   },

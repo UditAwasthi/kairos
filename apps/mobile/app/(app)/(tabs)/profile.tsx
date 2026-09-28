@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarLetter: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 22,
   },
   headerText: {
@@ -254,12 +254,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   name: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 20,
     letterSpacing: -0.2,
   },
   email: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
   },
   statsStrip: {
@@ -282,11 +282,11 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   statValue: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 16,
   },
   statLabel: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 11,
   },
   statDivider: {
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionLabel: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 12,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
@@ -323,17 +323,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   syncKicker: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 11,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
   syncTitle: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 15,
   },
   syncDetail: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
     lineHeight: 18,
   },

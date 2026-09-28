@@ -52,6 +52,9 @@ describe('insights rhythm', () => {
     });
 
     expect(rhythm.activity).toHaveLength(14);
+    expect(rhythm.heatmap).toHaveLength(84);
+    expect(rhythm.heatmap.find((day) => day.date === dayKey(now))?.count).toBe(1);
+    expect(rhythm.heatmap.filter((day) => day.future)).toHaveLength(6 - now.getDay());
     expect(rhythm.activity[13]?.date).toBe(dayKey(now));
     expect(rhythm.activity[13]?.count).toBe(1);
     expect(rhythm.activity[12]?.count).toBe(2);

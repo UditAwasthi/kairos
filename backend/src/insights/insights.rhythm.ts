@@ -1,5 +1,6 @@
 export const HISTORY_DAYS = 180;
 export const ACTIVITY_DAYS = 14;
+export const HEATMAP_WEEKS = 12;
 export const HABIT_WEEK_DAYS = 7;
 export const HABIT_WEEK_GOAL = 5;
 export const DAILY_CAPTURE_GOAL = 1;
@@ -8,6 +9,10 @@ export type ActivityDay = {
   date: string;
   label: string;
   count: number;
+};
+
+export type HeatmapDay = ActivityDay & {
+  future: boolean;
 };
 
 export type HabitWeekDay = {
@@ -33,6 +38,7 @@ export type CaptureHabit = {
 
 export type DashboardRhythm = {
   activity: ActivityDay[];
+  heatmap: HeatmapDay[];
   streak: CaptureStreak;
   habit: CaptureHabit;
 };
@@ -121,6 +127,30 @@ export function seriesForDays(
   return days;
 }
 
+/** Twelve full weeks, Sunday through Saturday, ending with the current week. */
+export function heatmapSeries(
+  counts: Map<string, number>,
+  end: Date,
+  weeks = HEATMAP_WEEKS,
+): HeatmapDay[] {
+  const today = startOfLocalDay(end);
+  const weekStart = addDays(today, -today.getDay());
+  const start = addDays(weekStart, -(weeks - 1) * 7);
+  const days: HeatmapDay[] = [];
+  for (let index = 0; index < weeks * 7; index += 1) {
+    const date = addDays(start, index);
+    const key = dayKey(date);
+    const future = date.getTime() > today.getTime();
+    days.push({
+      date: key,
+      label: date.toLocaleDateString('en-US', { weekday: 'narrow' }),
+      count: future ? 0 : (counts.get(key) ?? 0),
+      future,
+    });
+  }
+  return days;
+}
+
 export function buildDashboardRhythm(params: {
   capturedAt: Date[];
   now?: Date;
@@ -131,6 +161,7 @@ export function buildDashboardRhythm(params: {
   const historyStart = addDays(today, -(HISTORY_DAYS - 1));
   const counts = countsByDay(params.capturedAt);
   const activity = seriesForDays(counts, today, ACTIVITY_DAYS);
+  const heatmap = heatmapSeries(counts, today);
   const week = seriesForDays(counts, today, HABIT_WEEK_DAYS).map((day) => ({
     date: day.date,
     label: day.label,
@@ -142,6 +173,7 @@ export function buildDashboardRhythm(params: {
 
   return {
     activity,
+    heatmap,
     streak: {
       current: currentStreak(counts, today),
       longest: longestStreak(counts, historyStart, today),

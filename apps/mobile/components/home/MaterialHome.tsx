@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   searchText: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 17,
     letterSpacing: -0.41,
   },
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   chipLabel: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 15,
     letterSpacing: -0.24,
   },
@@ -320,18 +320,18 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   todayKicker: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 12,
     letterSpacing: 0.4,
   },
   todayValue: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 34,
     lineHeight: 41,
     letterSpacing: 0.4,
   },
   todayCaption: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     marginTop: 2,
   },
@@ -343,12 +343,12 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   sectionTitle: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 20,
     letterSpacing: 0.38,
   },
   sectionAction: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 17,
     letterSpacing: -0.41,
   },
@@ -372,11 +372,11 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   tileTitle: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 13,
   },
   tileMeta: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 12,
   },
   shortcut: {
@@ -400,11 +400,11 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   shortcutLabel: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 16,
   },
   shortcutMeta: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
   },
   topic: {
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   topicLabel: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 13,
     maxWidth: 160,
   },
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
   },
   bannerText: {
     flex: 1,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
   },
 });

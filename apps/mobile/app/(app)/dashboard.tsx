@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '../../components/ThemedText';
+import { CaptureHeatmap, CaptureHistogram } from '../../components/ui/CaptureCharts';
 import {
   ActivityHistogram,
   HabitCard,
@@ -90,6 +91,8 @@ export default function DashboardScreen() {
         />
 
         <HabitCard habit={data.habit} />
+        <CaptureHeatmap days={data.heatmap} />
+        <CaptureHistogram days={data.heatmap} />
         <ActivityHistogram days={data.activity} />
 
         <ShareBars
@@ -184,19 +187,19 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  day: { fontFamily: 'Inter_400Regular', fontSize: 15, marginBottom: 4 },
+  day: { fontFamily: 'Roboto_400Regular', fontSize: 15, marginBottom: 4 },
   section: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 12,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginTop: 8,
   },
-  kicker: { fontFamily: 'Inter_500Medium', fontSize: 13, marginBottom: 6 },
+  kicker: { fontFamily: 'Roboto_500Medium', fontSize: 13, marginBottom: 6 },
   recentRow: { paddingHorizontal: 16, paddingVertical: 16, gap: 4 },
-  recentTitle: { fontFamily: 'Inter_500Medium', fontSize: 15 },
-  recentMeta: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+  recentTitle: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
+  recentMeta: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
   askCard: { paddingHorizontal: 20, paddingVertical: 18, gap: 4 },
-  askTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 17 },
-  askHint: { fontFamily: 'Inter_400Regular', fontSize: 14, opacity: 0.86 },
+  askTitle: { fontFamily: 'Roboto_600SemiBold', fontSize: 17 },
+  askHint: { fontFamily: 'Roboto_400Regular', fontSize: 14, opacity: 0.86 },
 });

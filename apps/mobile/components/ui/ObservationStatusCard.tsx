@@ -108,11 +108,11 @@ const styles = StyleSheet.create({
   },
   copy: { flex: 1, gap: 2 },
   title: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 15,
   },
   meta: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
   },
 });

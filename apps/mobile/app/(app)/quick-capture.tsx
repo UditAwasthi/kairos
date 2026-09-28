@@ -183,7 +183,7 @@ export default function QuickCaptureScreen() {
 
 const styles = StyleSheet.create({
   lead: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 15,
     lineHeight: 21,
     marginBottom: 8,
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   error: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 14,
   },
 });

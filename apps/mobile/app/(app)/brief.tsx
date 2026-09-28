@@ -114,9 +114,9 @@ export default function DailyBriefScreen() {
 }
 
 const styles = StyleSheet.create({
-  stat: { fontFamily: 'Inter_400Regular', fontSize: 16, lineHeight: 24 },
-  meta: { fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: 6 },
-  kicker: { fontFamily: 'Inter_500Medium', fontSize: 13, marginBottom: 8 },
+  stat: { fontFamily: 'Roboto_400Regular', fontSize: 16, lineHeight: 24 },
+  meta: { fontFamily: 'Roboto_400Regular', fontSize: 13, marginTop: 6 },
+  kicker: { fontFamily: 'Roboto_500Medium', fontSize: 13, marginBottom: 8 },
   topicWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   topic: {
     borderWidth: StyleSheet.hairlineWidth * 2,
@@ -124,5 +124,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  topicLabel: { fontFamily: 'Inter_500Medium', fontSize: 13 },
+  topicLabel: { fontFamily: 'Roboto_500Medium', fontSize: 13 },
 });

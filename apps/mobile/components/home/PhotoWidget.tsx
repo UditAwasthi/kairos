@@ -1,5 +1,4 @@
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   Image,
   ImageSourcePropType,
@@ -50,12 +49,7 @@ export function PhotoWidget({
       ]}
     >
       <Image source={source} resizeMode="cover" style={[styles.photo, imageStyle]} />
-      <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.22)', 'rgba(0,0,0,0.78)']}
-        locations={[0.28, 0.58, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
+      <View style={styles.scrim} pointerEvents="none" />
       <View style={styles.copy}>
         {value ? (
           <Text style={styles.value} numberOfLines={1}>
@@ -86,6 +80,14 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  scrim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '42%',
+    backgroundColor: '#121212',
+  },
   copy: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -94,20 +96,20 @@ const styles = StyleSheet.create({
   },
   value: {
     color: INK.bone,
-    fontFamily: 'PlayfairDisplay_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 36,
     letterSpacing: -0.8,
     lineHeight: 40,
   },
   label: {
     color: INK.bone,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 15,
     letterSpacing: -0.2,
   },
   caption: {
     color: INK.ash,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 12,
     marginTop: 2,
   },

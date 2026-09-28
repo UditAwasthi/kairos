@@ -11,6 +11,7 @@ import {
   type ActivityDay,
   type CaptureHabit,
   type CaptureStreak,
+  type HeatmapDay,
 } from './insights.rhythm';
 
 export type KnowledgeMaturity = 'single' | 'repeated' | 'pattern' | 'stable';
@@ -49,6 +50,7 @@ export type DashboardSummary = {
   sources: Array<{ source: CaptureSource; label: string; count: number }>;
   topics: Array<{ id: string; name: string; observationCount: number }>;
   activity: ActivityDay[];
+  heatmap: HeatmapDay[];
   streak: CaptureStreak;
   habit: CaptureHabit;
   recent: Array<{
@@ -304,6 +306,7 @@ export class InsightsService {
         observationCount: topic._count.observationTopics,
       })),
       activity: rhythm.activity,
+      heatmap: rhythm.heatmap,
       streak: rhythm.streak,
       habit: rhythm.habit,
       recent: recent.map((item) => ({

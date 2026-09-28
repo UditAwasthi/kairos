@@ -233,18 +233,18 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   badgeText: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 10,
     letterSpacing: 0.8,
   },
   title: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Roboto_700Bold',
     fontSize: 22,
     lineHeight: 28,
     letterSpacing: -0.2,
   },
   subtitle: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 14,
     lineHeight: 20,
   },
@@ -265,11 +265,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   optionTitle: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 16,
   },
   optionDesc: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
   },
   cancelBtn: {
@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   cancel: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Roboto_600SemiBold',
     fontSize: 15,
   },
 });

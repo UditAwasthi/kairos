@@ -16,7 +16,7 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.text,
         headerTitleStyle: {
-          fontFamily: 'Inter_500Medium',
+          fontFamily: 'Roboto_500Medium',
           fontSize: 18,
         },
         headerShadowVisible: false,

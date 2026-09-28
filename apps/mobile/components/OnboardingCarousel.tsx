@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Image,
   Pressable,
@@ -15,12 +15,10 @@ import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
+import Svg, { Circle } from 'react-native-svg';
 
-import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useAppTheme } from '../providers/ThemeProvider';
 import { motion } from '../theme';
 import { ThemeToggleButton } from './ThemeToggleButton';
@@ -60,46 +58,32 @@ const easeOut = Easing.out(Easing.cubic);
 
 function OrganicArtwork({ active }: { active: boolean }) {
   const { colors } = useAppTheme();
-  const reduced = useReducedMotion();
-  const gradientId = `wave${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
-  const breath = useSharedValue(1);
-
-  useEffect(() => {
-    if (reduced || !active) {
-      breath.value = 1;
-      return;
+  const dots = [];
+  for (let y = 16; y < 420; y += 18) {
+    for (let x = 16; x < 360; x += 18) {
+      const signal = active && x > 140 && x < 220 && y > 150 && y < 250;
+      dots.push(
+        <Circle
+          key={`${x}-${y}`}
+          cx={x}
+          cy={y}
+          r={signal ? 2.4 : 1.3}
+          fill={signal ? colors.primary : colors.dot}
+          opacity={signal ? 1 : 0.35}
+        />,
+      );
     }
-    breath.value = withRepeat(
-      withTiming(1.04, { duration: 3200, easing: Easing.inOut(Easing.quad) }),
-      -1,
-      true,
-    );
-  }, [active, breath, reduced]);
-
-  const artStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: breath.value }],
-    opacity: 0.92,
-  }));
+  }
 
   return (
-    <Animated.View style={[styles.art, artStyle]}>
+    <View style={styles.art}>
       <Svg width="100%" height="100%" viewBox="0 0 360 420">
-        <Defs>
-          <RadialGradient id={gradientId} cx="50%" cy="42%" r="55%">
-            <Stop offset="0" stopColor={colors.accentLilac} stopOpacity={0.9} />
-            <Stop offset="0.45" stopColor={colors.accentMorningBlue} stopOpacity={0.55} />
-            <Stop offset="1" stopColor={colors.accentCream} stopOpacity={0.15} />
-          </RadialGradient>
-        </Defs>
-        <Ellipse cx="180" cy="190" rx="150" ry="130" fill={`url(#${gradientId})`} />
-        <Ellipse cx="120" cy="150" rx="70" ry="54" fill={colors.accentCream} opacity={0.28} />
-        <Ellipse cx="230" cy="230" rx="80" ry="60" fill={colors.primary} opacity={0.22} />
-        <Ellipse cx="200" cy="120" rx="46" ry="36" fill={colors.accentMorningBlue} opacity={0.2} />
+        {dots}
       </Svg>
       <View style={styles.mascotFloat}>
-        <Mascot state="happy" size={mascotSize.lg} animate={active} />
+        <Mascot state="idle" size={mascotSize.lg} />
       </View>
-    </Animated.View>
+    </View>
   );
 }
 

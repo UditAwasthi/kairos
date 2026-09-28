@@ -84,7 +84,7 @@ export default function HowItWorksScreen() {
 }
 
 const styles = StyleSheet.create({
-  lead: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 22 },
+  lead: { fontFamily: 'Roboto_400Regular', fontSize: 15, lineHeight: 22 },
   flow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -102,23 +102,23 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   flowLabel: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 13,
   },
   flowCopy: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
     lineHeight: 19,
   },
   group: { gap: 10 },
   kicker: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Roboto_500Medium',
     fontSize: 11,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
   groupLead: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Roboto_400Regular',
     fontSize: 13,
     lineHeight: 19,
     marginBottom: 2,
@@ -131,6 +131,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   copy: { flex: 1, gap: 4 },
-  title: { fontFamily: 'Inter_500Medium', fontSize: 16 },
-  summary: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18 },
+  title: { fontFamily: 'Roboto_500Medium', fontSize: 16 },
+  summary: { fontFamily: 'Roboto_400Regular', fontSize: 13, lineHeight: 18 },
 });

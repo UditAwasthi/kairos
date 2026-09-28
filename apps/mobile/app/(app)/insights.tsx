@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
+import { CaptureHeatmap, CaptureHistogram } from '../../components/ui/CaptureCharts';
 import { ThemedText } from '../../components/ThemedText';
 import { ErrorState, LoadingSkeleton } from '../../components/ui/EmptyState';
 import { SurfaceCard } from '../../components/ui/SectionHeader';
@@ -13,7 +14,7 @@ import { useAppTheme } from '../../providers/ThemeProvider';
 
 export default function InsightsScreen() {
   const { getToken } = useAuth();
-  const { colors, radius } = useAppTheme();
+  const { colors } = useAppTheme();
   const router = useRouter();
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,8 +34,6 @@ export default function InsightsScreen() {
 
   if (loading && !data) return <LoadingSkeleton rows={5} />;
   if (error && !data) return <ErrorState title="Insights unavailable" onRetry={() => void load()} />;
-
-  const maxCount = Math.max(1, ...(data?.activity.map((day) => day.count) ?? [1]));
 
   return (
     <SoftPage>
@@ -57,36 +56,11 @@ export default function InsightsScreen() {
       </View>
 
       <ThemedText colorKey="textMuted" style={styles.lead}>
-        A view of how your memory has grown this week.
+        A view of how your memory has grown over the last twelve weeks.
       </ThemedText>
 
-      {/* Activity chart */}
-      <SurfaceCard style={styles.card}>
-        <ThemedText colorKey="text" style={styles.cardTitle}>7-Day Activity</ThemedText>
-        <View style={styles.chart}>
-          {(data?.activity ?? []).slice(-7).map((day, index) => (
-            <View key={`${day.date}-${index}`} style={styles.barCol}>
-              <ThemedText colorKey="textMuted" style={styles.barCount}>{day.count || ''}</ThemedText>
-              <View style={[styles.barTrack, { backgroundColor: colors.primaryContainer }]}>
-                <View
-                  style={[
-                    styles.barFill,
-                    {
-                      backgroundColor: colors.primary,
-                      height: `${Math.max(4, (day.count / maxCount) * 100)}%`,
-                      opacity: day.count > 0 ? 1 : 0.2,
-                    },
-                  ]}
-                />
-              </View>
-              <ThemedText colorKey="textMuted" style={styles.barDay}>{day.label}</ThemedText>
-            </View>
-          ))}
-        </View>
-        <ThemedText colorKey="textSecondary" style={styles.chartNote}>
-          {data?.weekCount ?? 0} memories this week · {data?.todayCount ?? 0} today
-        </ThemedText>
-      </SurfaceCard>
+      <CaptureHeatmap days={data?.heatmap ?? []} />
+      <CaptureHistogram days={data?.heatmap ?? []} />
 
       {/* Sources breakdown */}
       <SurfaceCard style={styles.card}>
@@ -137,25 +111,18 @@ export default function InsightsScreen() {
 const styles = StyleSheet.create({
   summaryRow: { flexDirection: 'row', gap: 10 },
   summaryChip: { flex: 1, padding: 14, alignItems: 'center', gap: 2 },
-  summaryValue: { fontFamily: 'Inter_700Bold', fontSize: 22, letterSpacing: -0.3 },
-  summaryLabel: { fontFamily: 'Inter_500Medium', fontSize: 12 },
-  lead: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21 },
+  summaryValue: { fontFamily: 'Roboto_700Bold', fontSize: 22, letterSpacing: -0.3 },
+  summaryLabel: { fontFamily: 'Roboto_500Medium', fontSize: 12 },
+  lead: { fontFamily: 'Roboto_400Regular', fontSize: 14, lineHeight: 21 },
   card: { padding: 16, gap: 12 },
-  cardTitle: { fontFamily: 'Inter_700Bold', fontSize: 17 },
-  chart: { flexDirection: 'row', justifyContent: 'space-between', height: 140, paddingTop: 10 },
-  barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
-  barCount: { fontSize: 11, minHeight: 14 },
-  barTrack: { height: 95, width: 18, borderRadius: 9, justifyContent: 'flex-end', overflow: 'hidden' },
-  barFill: { width: '100%', borderRadius: 9 },
-  barDay: { fontSize: 11 },
-  chartNote: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+  cardTitle: { fontFamily: 'Roboto_700Bold', fontSize: 17 },
   sourceRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   sourceDot: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  sourceLabel: { fontFamily: 'Inter_400Regular', fontSize: 14, flex: 1 },
+  sourceLabel: { fontFamily: 'Roboto_400Regular', fontSize: 14, flex: 1 },
   sourceBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
-  sourceBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 13 },
-  emptyNote: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18 },
+  sourceBadgeText: { fontFamily: 'Roboto_700Bold', fontSize: 13 },
+  emptyNote: { fontFamily: 'Roboto_400Regular', fontSize: 13, lineHeight: 18 },
   navRow: { gap: 8 },
   navLink: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, padding: 14 },
-  navLinkText: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  navLinkText: { fontFamily: 'Roboto_600SemiBold', fontSize: 14 },
 });

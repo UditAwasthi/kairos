@@ -64,13 +64,13 @@ export function GlassPanel({
           overflow: 'hidden',
           backgroundColor: colors.surfaceElevated,
           borderWidth: 1,
-          borderColor: colors.borderSubtle,
+          borderColor: colors.border,
           ...(shadow ?? {}),
         },
         style,
       ]}
     >
-      <View style={[padded && { padding: spacing['4'], gap: spacing['2'] }, contentStyle]}>
+      <View style={[padded && { padding: spacing['6'], gap: spacing['4'] }, contentStyle]}>
         {children}
       </View>
     </View>
