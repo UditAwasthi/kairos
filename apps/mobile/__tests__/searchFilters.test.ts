@@ -1,5 +1,7 @@
 import {
+  buildSemanticFilters,
   dateRangeForPreset,
+  removeLibraryFilter,
   searchDateLabel,
   searchSourceLabel,
 } from '../lib/searchFilters';
@@ -24,5 +26,12 @@ describe('search filter chips', () => {
 
     const month = dateRangeForPreset('this_month', now);
     expect(new Date(month.from).getDate()).toBe(1);
+  });
+
+  it('builds semantic filters and removes a date range as one chip', () => {
+    expect(buildSemanticFilters({ source: 'VOICE', topicId: 'topic-1', from: 'a', to: 'b' })).toEqual({
+      source: 'VOICE', topicId: 'topic-1', from: 'a', to: 'b',
+    });
+    expect(removeLibraryFilter({ from: 'a', to: 'b', entity: 'Mira' }, 'from')).toEqual({ entity: 'Mira' });
   });
 });

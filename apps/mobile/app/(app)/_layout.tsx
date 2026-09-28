@@ -195,6 +195,8 @@ export default function AppLayout() {
       <Stack.Screen name="activity" options={{ title: 'Activity' }} />
       <Stack.Screen name="notifications" options={{ title: 'Updates' }} />
       <Stack.Screen name="devices" options={{ title: 'Devices' }} />
+      <Stack.Screen name="screen-memory" options={{ title: 'Screen memory' }} />
+      <Stack.Screen name="progress" options={{ title: 'Progress' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="privacy" options={{ title: 'Privacy' }} />
       <Stack.Screen name="data" options={{ title: 'Data' }} />

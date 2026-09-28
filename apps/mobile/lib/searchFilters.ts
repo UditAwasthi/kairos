@@ -1,4 +1,30 @@
-import type { CaptureSource } from './api';
+import type { ApiSemanticSearchFilters, CaptureSource } from './api';
+
+export type LibraryFilters = {
+  observationType?: ApiSemanticSearchFilters['observationType'];
+  source?: CaptureSource;
+  from?: string;
+  to?: string;
+  topicId?: string;
+  topic?: string;
+  entityId?: string;
+  entity?: string;
+  projectId?: string;
+};
+
+export function buildSemanticFilters(filters: LibraryFilters): ApiSemanticSearchFilters {
+  return Object.fromEntries(Object.entries(filters).filter(([, value]) => Boolean(value))) as ApiSemanticSearchFilters;
+}
+
+export function removeLibraryFilter(filters: LibraryFilters, key: keyof LibraryFilters): LibraryFilters {
+  const next = { ...filters };
+  delete next[key];
+  if (key === 'from' || key === 'to') {
+    delete next.from;
+    delete next.to;
+  }
+  return next;
+}
 
 export const SEARCH_SOURCE_OPTIONS: Array<{
   value: CaptureSource;

@@ -1335,6 +1335,28 @@ async function progressionRequest<T>(token: string, path: string, init?: Request
   return body.data;
 }
 
+export async function addObservationsToProjectBulk(params: {
+  token: string;
+  projectId: string;
+  observationIds: string[];
+}): Promise<{ added: number; skipped: number }> {
+  const response = await apiFetch(
+    `${normalizeBaseUrl(apiBaseUrl)}/projects/${encodeURIComponent(params.projectId)}/observations/bulk`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ observationIds: params.observationIds }),
+    },
+  );
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: { added: number; skipped: number } };
+  return body.data;
+}
+
 export function fetchProgression(token: string): Promise<ProgressionView> {
   return progressionRequest(token, '/progression');
 }

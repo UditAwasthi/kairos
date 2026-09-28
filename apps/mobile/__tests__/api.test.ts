@@ -1,6 +1,7 @@
 import {
   ApiError,
   askKairos,
+  addObservationsToProjectBulk,
   createNoteObservation,
   deleteObservation,
   fetchAuthMe,
@@ -446,5 +447,15 @@ describe('progression API client', () => {
     expect(request.mock.calls[1][0]).toMatch(/\/progression\/freeze$/);
     await addProgressionPeer({ token: 'tok', peerUserId: 'peer_12345678' });
     expect(JSON.parse(request.mock.calls[2][1].body)).toEqual({ peerUserId: 'peer_12345678' });
+  });
+});
+
+describe('project bulk API', () => {
+  it('posts selected observations to the project bulk endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: { added: 2, skipped: 1 } }) });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await expect(addObservationsToProjectBulk({ token: 'tok', projectId: 'p/1', observationIds: ['o1', 'o2'] })).resolves.toEqual({ added: 2, skipped: 1 });
+    expect(fetchMock.mock.calls[0][0]).toContain('/projects/p%2F1/observations/bulk');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ observationIds: ['o1', 'o2'] });
   });
 });

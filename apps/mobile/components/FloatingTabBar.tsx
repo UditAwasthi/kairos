@@ -21,11 +21,11 @@ import { useAppTheme } from '../providers/ThemeProvider';
 type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
 
 const TAB_META: Record<string, { label: string; icon: IconName; iconActive: IconName }> = {
-  index: { label: 'Home', icon: 'home', iconActive: 'home' },
-  recall: { label: 'Recall', icon: 'visibility', iconActive: 'visibility' },
+  index: { label: 'Today', icon: 'today', iconActive: 'today' },
+  library: { label: 'Library', icon: 'library-books', iconActive: 'library-books' },
   ask: { label: 'Ask', icon: 'chat-bubble-outline', iconActive: 'chat-bubble' },
   capture: { label: 'Capture', icon: 'add-circle-outline', iconActive: 'add-circle' },
-  profile: { label: 'Profile', icon: 'person-outline', iconActive: 'person' },
+  profile: { label: 'You', icon: 'person-outline', iconActive: 'person' },
 };
 
 export const FLOATING_TAB_BAR_CONTENT = 80;

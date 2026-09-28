@@ -19,3 +19,8 @@
 
 - Peer invitation/discovery is deferred unless an existing clean invitation code capability is found. The backend peer API accepts an internal user ID and exposes no discovery endpoint, so the mobile app must not invent a way to obtain IDs.
 - No hybrid search or knowledge-graph endpoint work is planned.
+
+## Phase notes
+
+- **Phase 1 complete:** typed progression and leaderboard API client, silent progression provider, foreground refresh, reward delta detection, and API endpoint tests.
+- **Phase 2/3 in progress:** five-tab navigation, Capture launcher, Today summaries, Library browse/search/filter views, bulk selection operations, and the Screen memory route have been added. This phase is ready for review after its commit.

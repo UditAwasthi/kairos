@@ -43,17 +43,25 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: 'Today',
           headerShown: false,
-          tabBarAccessibilityLabel: 'Home',
+          tabBarAccessibilityLabel: 'Today',
         }}
       />
       <Tabs.Screen
-        name="recall"
+        name="library"
         options={{
-          title: 'Recall',
+          title: 'Library',
           headerShown: false,
-          tabBarAccessibilityLabel: 'Recall',
+          tabBarAccessibilityLabel: 'Library',
+        }}
+      />
+      <Tabs.Screen
+        name="capture"
+        options={{
+          title: 'Capture',
+          headerShown: false,
+          tabBarAccessibilityLabel: 'Capture options',
         }}
       />
       <Tabs.Screen
@@ -65,21 +73,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="capture"
-        options={{
-          title: 'Capture',
-          headerShown: false,
-          tabBarAccessibilityLabel: 'Capture',
-        }}
-      />
-      <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: 'You',
           headerShown: false,
-          tabBarAccessibilityLabel: 'Profile',
+          tabBarAccessibilityLabel: 'You',
         }}
       />
+      <Tabs.Screen name="recall" options={{ href: null }} />
+      <Tabs.Screen name="recall-screen" options={{ href: null }} />
     </Tabs>
   );
 }
