@@ -105,7 +105,7 @@ export default function TodayScreen() {
         </GlassPanel> : null}
 
         {predictions?.items[0] ? <GlassPanel style={styles.card}>
-          <SectionTitle>{predictions.items[0].kind === 'revisit' ? 'A thought to revisit' : 'A pattern taking shape'}</SectionTitle>
+          <SectionTitle>{{ revisit: 'A thought to revisit', focus: 'Focus for today', emerging: 'A pattern taking shape', next: 'A possible next step' }[predictions.items[0].kind]}</SectionTitle>
           <ThemedText colorKey="text" style={styles.label}>{predictions.items[0].title}</ThemedText>
           <ThemedText colorKey="textSecondary" style={styles.copy}>{predictions.items[0].why}</ThemedText>
           <View style={styles.chips}>{predictions.items[0].evidence.slice(0, 3).map((item) => <Pressable key={item.observationId} onPress={() => router.push(`/(app)/observation/${item.observationId}`)} accessibilityRole="button" accessibilityLabel={`Open source memory ${item.filename}`} style={[styles.chip, { borderColor: colors.border }]}><ThemedText colorKey="textSecondary" numberOfLines={1}>{item.filename}</ThemedText></Pressable>)}</View>
