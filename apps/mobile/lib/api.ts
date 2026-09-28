@@ -1269,6 +1269,101 @@ export type ApiConversationDetail = ApiConversationSummary & {
   nextCursor: string | null;
 };
 
+export type ProgressionEvent = {
+  action: 'CAPTURE' | 'ASK' | 'RECALL' | 'FREEZE';
+  xpAwarded: number;
+  keepsAwarded: number;
+  multiplier: number;
+  bonus: boolean;
+  freezeUsed: number;
+  streakAfter: number;
+  firstOfDay: boolean;
+  broke: boolean;
+  replayed: boolean;
+};
+
+export type ProgressionView = {
+  xp: number;
+  level: number;
+  intoLevel: number;
+  nextLevelXp: number;
+  progress: number;
+  keeps: number;
+  currentStreak: number;
+  longestStreak: number;
+  lastActiveDate: string | null;
+  freezeTokens: number;
+  freezeCost: number;
+  equippedTitle: string | null;
+  equippedAura: string | null;
+  equippedTitleLabel: string | null;
+  equippedAuraLabel: string | null;
+  leaderboardVisible: boolean;
+  displayName: string | null;
+  unlocks: Array<{ key: string; kind: string; label: string; streakGated: boolean; available: boolean }>;
+  lastEvent: ProgressionEvent | null;
+};
+
+export type LeaderboardView = {
+  scope: 'global' | 'circle';
+  visible: boolean;
+  selfRank: number | null;
+  rows: Array<{
+    rank: number;
+    userId: string;
+    displayName: string;
+    level: number;
+    xp: number;
+    currentStreak: number;
+    title: string | null;
+    self: boolean;
+  }>;
+};
+
+async function progressionRequest<T>(token: string, path: string, init?: RequestInit): Promise<T> {
+  const response = await apiFetch(`${normalizeBaseUrl(apiBaseUrl)}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init?.headers,
+    },
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = (await response.json()) as { data: T };
+  return body.data;
+}
+
+export function fetchProgression(token: string): Promise<ProgressionView> {
+  return progressionRequest(token, '/progression');
+}
+
+export function fetchLeaderboard(params: { token: string; scope: 'global' | 'circle' }): Promise<LeaderboardView> {
+  return progressionRequest(params.token, `/progression/leaderboard?scope=${params.scope}`);
+}
+
+export function updateProgression(params: {
+  token: string;
+  leaderboardVisible?: boolean;
+  displayName?: string;
+  equippedTitle?: string | null;
+  equippedAura?: string | null;
+}): Promise<ProgressionView> {
+  const { token, ...patch } = params;
+  return progressionRequest(token, '/progression', { method: 'PATCH', body: JSON.stringify(patch) });
+}
+
+export function buyStreakFreeze(token: string): Promise<ProgressionView> {
+  return progressionRequest(token, '/progression/freeze', { method: 'POST' });
+}
+
+export function addProgressionPeer(params: { token: string; peerUserId: string }): Promise<{ ok: true }> {
+  return progressionRequest(params.token, '/progression/peers', {
+    method: 'POST', body: JSON.stringify({ peerUserId: params.peerUserId }),
+  });
+}
+
 export async function askKairos(params: {
   token: string;
   question: string;

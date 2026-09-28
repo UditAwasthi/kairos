@@ -17,6 +17,7 @@ import { consumePendingOsCapture, KairosOs } from '../../lib/osIntegrations';
 import { ensureRecallReady } from '../../lib/recallSync';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import Recall from 'kairos-recall';
+import { ProgressionProvider } from '../../providers/ProgressionProvider';
 
 export default function AppLayout() {
   const { isLoaded, isSignedIn, getToken, userId } = useAuth();
@@ -128,6 +129,7 @@ export default function AppLayout() {
   }
 
   return (
+    <ProgressionProvider>
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.background },
@@ -200,6 +202,7 @@ export default function AppLayout() {
       <Stack.Screen name="how-it-works/[id]" options={{ title: 'How it works' }} />
       <Stack.Screen name="about" options={{ title: 'About' }} />
     </Stack>
+    </ProgressionProvider>
   );
 }
 

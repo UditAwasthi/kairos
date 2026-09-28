@@ -4,6 +4,11 @@ import {
   createNoteObservation,
   deleteObservation,
   fetchAuthMe,
+  fetchProgression,
+  fetchLeaderboard,
+  updateProgression,
+  buyStreakFreeze,
+  addProgressionPeer,
   fetchObservation,
   isProcessingObservationStatus,
   isTerminalObservationStatus,
@@ -416,5 +421,30 @@ describe('observations API client', () => {
       expect.stringMatching(/\/devices\/push-token$/),
       expect.objectContaining({ method: 'PUT' }),
     );
+  });
+});
+
+describe('progression API client', () => {
+  const originalFetch = global.fetch;
+  afterEach(() => { global.fetch = originalFetch; });
+
+  it('uses the typed progression endpoints and payloads', async () => {
+    const view = { xp: 4, level: 1, lastEvent: null };
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: view }) }) as typeof fetch;
+    await expect(fetchProgression('tok')).resolves.toEqual(view);
+    expect(global.fetch).toHaveBeenLastCalledWith(expect.stringMatching(/\/progression$/), expect.objectContaining({ cache: 'no-store' }));
+
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: { scope: 'circle', visible: false, selfRank: null, rows: [] } }) }) as typeof fetch;
+    await fetchLeaderboard({ token: 'tok', scope: 'circle' });
+    expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('scope=circle'), expect.anything());
+
+    const request = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: view }) });
+    global.fetch = request as unknown as typeof fetch;
+    await updateProgression({ token: 'tok', leaderboardVisible: true, displayName: 'A' });
+    expect(JSON.parse(request.mock.calls[0][1].body)).toEqual({ leaderboardVisible: true, displayName: 'A' });
+    await buyStreakFreeze('tok');
+    expect(request.mock.calls[1][0]).toMatch(/\/progression\/freeze$/);
+    await addProgressionPeer({ token: 'tok', peerUserId: 'peer_12345678' });
+    expect(JSON.parse(request.mock.calls[2][1].body)).toEqual({ peerUserId: 'peer_12345678' });
   });
 });
