@@ -19,8 +19,11 @@
 
 - Peer invitation/discovery is deferred unless an existing clean invitation code capability is found. The backend peer API accepts an internal user ID and exposes no discovery endpoint, so the mobile app must not invent a way to obtain IDs.
 - No hybrid search or knowledge-graph endpoint work is planned.
+- The Ask response contract has no dedicated `followUps` or `suggestedQuestions` fields, so empty-thread prompts and post-answer follow-ups are seeded from the existing predictions endpoint.
+- Observation detail does not expose chunk records or offsets. Cited chunk IDs are carried to the detail route and the supplied citation snippet is matched and highlighted when present in extracted text.
 
 ## Phase notes
 
 - **Phase 1 complete:** typed progression and leaderboard API client, silent progression provider, foreground refresh, reward delta detection, and API endpoint tests.
 - **Phase 2/3 in progress:** five-tab navigation, Capture launcher, Today summaries, Library browse/search/filter views, bulk selection operations, and the Screen memory route have been added. This phase is ready for review after its commit.
+- **Phase 4 complete:** Ask now exposes scopes, prediction seeded prompts, citation cards, insufficient-evidence guidance, searchable eight-item conversation history, and progression refresh after successful answers. Memory detail highlights citation snippets and shows the chunk identifier when supplied.

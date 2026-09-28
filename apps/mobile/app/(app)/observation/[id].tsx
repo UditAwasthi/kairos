@@ -1,7 +1,7 @@
 import { useAuth } from '@clerk/expo';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ThemedText } from '../../../components/ThemedText';
 import { ErrorState, FadeInContent, LoadingSkeleton } from '../../../components/ui/EmptyState';
@@ -136,9 +136,10 @@ function summaryText(
 }
 
 export default function ObservationDetailScreen() {
-  const { id, highlight } = useLocalSearchParams<{
+  const { id, highlight, chunkId } = useLocalSearchParams<{
     id: string;
     highlight?: string;
+    chunkId?: string;
   }>();
   const router = useRouter();
   const { colors } = useAppTheme();
@@ -435,7 +436,7 @@ export default function ObservationDetailScreen() {
         {matchedSnippet ? (
           <GlassPanel>
             <ThemedText colorKey="textMuted" style={styles.kicker}>
-              Match
+              {typeof chunkId === 'string' && chunkId ? `Citation excerpt · ${chunkId.slice(0, 8)}` : 'Citation excerpt'}
             </ThemedText>
             <ThemedText colorKey="textSecondary" style={styles.body}>
               {matchedSnippet}
@@ -613,7 +614,13 @@ export default function ObservationDetailScreen() {
             />
           ) : (
             <ThemedText colorKey="textSecondary" style={styles.body}>
-              {extractedTextMessage(data, apiObs)}
+              {(() => {
+                const extracted = extractedTextMessage(data, apiObs);
+                if (!matchedSnippet) return extracted;
+                const index = extracted.toLocaleLowerCase().indexOf(matchedSnippet.toLocaleLowerCase());
+                if (index < 0) return extracted;
+                return <>{extracted.slice(0, index)}<Text style={styles.highlight}>{extracted.slice(index, index + matchedSnippet.length)}</Text>{extracted.slice(index + matchedSnippet.length)}</>;
+              })()}
             </ThemedText>
           )}
         </GlassPanel>
@@ -647,6 +654,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   body: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21 },
+  highlight: { fontFamily: 'Inter_600SemiBold', textDecorationLine: 'underline', backgroundColor: 'rgba(255, 204, 0, 0.25)' },
   placeholder: { fontFamily: 'Inter_400Regular', fontSize: 13 },
   sourceTitle: { fontFamily: 'Inter_500Medium', fontSize: 15 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

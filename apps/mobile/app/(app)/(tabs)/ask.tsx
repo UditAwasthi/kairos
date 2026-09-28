@@ -41,10 +41,17 @@ import {
   askKairos,
   deleteConversation,
   fetchConversation,
+  fetchPredictions,
+  fetchTopics,
+  fetchEntities,
+  fetchProjects,
+  fetchObservationsPage,
   listConversations,
+  type ApiSemanticSearchFilters,
   type ApiConversationSummary,
 } from '../../../lib/api';
 import type { AskMessage } from '../../../types';
+import { useProgression } from '../../../providers/ProgressionProvider';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -139,11 +146,13 @@ export default function AskScreen() {
   const { colors, isLight } = useAppTheme();
   const { getToken } = useAuth();
   const { user } = useUser();
+  const { refresh: refreshProgression } = useProgression();
   const params = useLocalSearchParams<{
     q?: string;
     scopeType?: string;
     scopeId?: string;
     scopeName?: string;
+    filterScope?: string;
   }>();
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
@@ -153,16 +162,21 @@ export default function AskScreen() {
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
 
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [conversationSearch, setConversationSearch] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [scopePickerOpen, setScopePickerOpen] = useState(false);
+  const [scopeChoices, setScopeChoices] = useState<Array<{ id: string; name: string; type: 'topic' | 'entity' | 'project' | 'observation' }>>([]);
   const [conversations, setConversations] = useState<ApiConversationSummary[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationTitle, setConversationTitle] = useState('Kairos');
   const [scopeType, setScopeType] = useState<
-    'topic' | 'entity' | 'project' | 'observation' | null
+    'topic' | 'entity' | 'project' | 'observation' | 'filters' | null
   >(
     params.scopeType === 'topic' ||
       params.scopeType === 'entity' ||
       params.scopeType === 'project' ||
-      params.scopeType === 'observation'
+      params.scopeType === 'observation' ||
+      params.scopeType === 'filters'
       ? params.scopeType
       : null,
   );
@@ -172,12 +186,26 @@ export default function AskScreen() {
   const [scopeName, setScopeName] = useState<string | null>(
     typeof params.scopeName === 'string' ? params.scopeName : null,
   );
+  const scopedFilters: ApiSemanticSearchFilters = (() => {
+    if (scopeType !== 'filters' || typeof params.filterScope !== 'string') return {};
+    try { return JSON.parse(params.filterScope) as ApiSemanticSearchFilters; } catch { return {}; }
+  })();
   const [input, setInput] = useState('');
   const [inputHeight, setInputHeight] = useState(INPUT_MIN);
   const [messages, setMessages] = useState<AskMessage[]>([]);
   const [typing, setTyping] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [loadingThread, setLoadingThread] = useState(false);
+
+  useEffect(() => {
+    void getToken().then(async (token) => {
+      if (!token) return;
+      try {
+        const data = await fetchPredictions(token);
+        setSuggestions(data.items.slice(0, 4).map((item) => item.title));
+      } catch { /* Suggestions are optional. */ }
+    });
+  }, [getToken]);
   const [error, setError] = useState<string | null>(null);
   const [statusLabel, setStatusLabel] = useState('Looking through your memories…');
 
@@ -208,7 +236,7 @@ export default function AskScreen() {
     try {
       const token = await getToken();
       if (!token) throw new ApiError('You must be signed in.', 401);
-      const data = await listConversations({ token, limit: 30 });
+      const data = await listConversations({ token, limit: 8 });
       setConversations(data.items);
       hasListRef.current = true;
     } catch (err) {
@@ -223,6 +251,38 @@ export default function AskScreen() {
   const openHistory = () => {
     setHistoryOpen(true);
     void refreshList();
+  };
+
+  const openScopePicker = async () => {
+    setScopePickerOpen(true);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const [topics, entities, projects, observations] = await Promise.all([
+        fetchTopics({ token, limit: 30 }),
+        fetchEntities({ token, limit: 30 }),
+        fetchProjects({ token, limit: 30 }),
+        fetchObservationsPage(token, { limit: 20 }),
+      ]);
+      setScopeChoices([
+        ...topics.items.map((item) => ({ ...item, type: 'topic' as const })),
+        ...entities.items.map((item) => ({ ...item, type: 'entity' as const })),
+        ...projects.items.map((item) => ({ ...item, type: 'project' as const })),
+        ...observations.items.map((item) => ({ id: item.id, name: item.filename, type: 'observation' as const })),
+      ]);
+    } catch {
+      setScopeChoices([]);
+    }
+  };
+
+  const chooseScope = (type: 'topic' | 'entity' | 'project' | 'observation', id: string, name: string) => {
+    setScopeType(type);
+    setScopeId(id);
+    setScopeName(name);
+    setScopePickerOpen(false);
+    setConversationId(null);
+    setMessages([]);
+    setConversationTitle(name);
   };
 
   const openConversation = async (id: string) => {
@@ -305,6 +365,7 @@ export default function AskScreen() {
           projectId: scopeType === 'project' ? scopeId ?? undefined : undefined,
           observationId:
             scopeType === 'observation' ? scopeId ?? undefined : undefined,
+          ...scopedFilters,
         },
       });
 
@@ -336,9 +397,11 @@ export default function AskScreen() {
               createdAt: citation.createdAt,
             })),
             insufficientEvidence: result.insufficientEvidence,
+            followUps: suggestions,
           },
         ];
       });
+      void refreshProgression();
     } catch (err) {
       const message =
         err instanceof ApiError
@@ -411,14 +474,14 @@ export default function AskScreen() {
               </Pressable>
             </View>
 
-            {scopeName ? (
+            {
               <View style={styles.scopeRow}>
-                <View style={[styles.scopeChip, { backgroundColor: colors.primaryContainer }]}>
+                <Pressable onPress={() => void openScopePicker()} accessibilityRole="button" accessibilityLabel={`Choose memory scope. Current scope: ${scopeName || 'All memories'}`} style={[styles.scopeChip, { backgroundColor: colors.primaryContainer }]}>
                   <MaterialIcons name="filter-list" size={14} color={colors.text} />
                   <Text style={[styles.scopeLabel, { color: colors.text }]} numberOfLines={1}>
-                    {scopeName}
+                    {scopeName || 'All memories'}
                   </Text>
-                  <Pressable
+                  {scopeName ? <Pressable
                     onPress={() => {
                       setScopeType(null);
                       setScopeId(null);
@@ -430,10 +493,10 @@ export default function AskScreen() {
                     accessibilityLabel="Clear scope"
                   >
                     <MaterialIcons name="close" size={16} color={colors.textMuted} />
-                  </Pressable>
-                </View>
+                  </Pressable> : null}
+                </Pressable>
               </View>
-            ) : null}
+            }
 
             <ScrollView
               ref={scrollRef}
@@ -484,6 +547,7 @@ export default function AskScreen() {
                       </Animated.View>
                     ))}
                   </View>
+                  {suggestions.length ? <View style={styles.followUps}>{suggestions.map((question) => <PressScale key={question} onPress={() => void send(question)} accessibilityLabel={`Ask: ${question}`} style={[styles.followChip, { borderColor: colors.border, backgroundColor: colors.background }]}><Text style={[styles.followText, { color: colors.text }]}>{question}</Text></PressScale>)}</View> : null}
                 </Animated.View>
               ) : null}
 
@@ -499,6 +563,15 @@ export default function AskScreen() {
                       </View>
                     ) : null}
                     <AskBubble message={message} />
+                    {message.role === 'kairos' && message.insufficientEvidence ? (
+                      <View style={[styles.evidenceNote, { backgroundColor: colors.surfaceElevated }]}>
+                        <Text style={{ color: colors.textSecondary }}>There is not enough in your memories to answer this confidently.</Text>
+                        <View style={styles.evidenceActions}>
+                          <Pressable onPress={() => router.push('/(app)/(tabs)/capture')} accessibilityRole="button" accessibilityLabel="Capture more information"><Text style={{ color: colors.text }}>Capture something</Text></Pressable>
+                          <Pressable onPress={() => { setScopeType(null); setScopeId(null); setScopeName(null); }} accessibilityRole="button" accessibilityLabel="Broaden memory scope"><Text style={{ color: colors.text }}>Broaden scope</Text></Pressable>
+                        </View>
+                      </View>
+                    ) : null}
                     {message.role === 'kairos' && message.sources && message.sources.length > 0 ? (
                       <ScrollView
                         horizontal
@@ -513,10 +586,13 @@ export default function AskScreen() {
                                 pathname: '/(app)/observation/[id]',
                                 params: {
                                   id: source.observationId,
+                                  chunkId: source.chunkId,
                                   highlight: source.snippet.slice(0, 240),
                                 },
                               })
                             }
+                            accessibilityRole="button"
+                            accessibilityLabel={`Open citation ${source.title}`}
                             style={[
                               styles.sourceChip,
                               { backgroundColor: colors.primaryContainer },
@@ -528,6 +604,8 @@ export default function AskScreen() {
                             <Text style={[styles.sourceTitle, { color: colors.text }]} numberOfLines={1}>
                               {source.title}
                             </Text>
+                            <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }} numberOfLines={2}>{source.snippet}</Text>
+                            <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>{source.createdAt ? new Date(source.createdAt).toLocaleDateString() : ''}</Text>
                           </Pressable>
                         ))}
                       </ScrollView>
@@ -677,6 +755,7 @@ export default function AskScreen() {
               <MaterialIcons name="edit" size={18} color={colors.text} />
               <Text style={[styles.newChatLabel, { color: colors.text }]}>New chat</Text>
             </PressScale>
+            <TextInput value={conversationSearch} onChangeText={setConversationSearch} placeholder="Search chats" placeholderTextColor={colors.textMuted} accessibilityLabel="Search conversations" style={[styles.historySearch, { backgroundColor: colors.surfaceElevated, color: colors.text }]} />
             <SoftRefreshBar active={loadingList && conversations.length > 0} />
             {loadingList && conversations.length === 0 ? (
               <LoadingSkeleton rows={6} />
@@ -687,7 +766,7 @@ export default function AskScreen() {
                     Your chats will show up here
                   </Text>
                 ) : null}
-                {conversations.map((item) => {
+                {conversations.filter((item) => item.title.toLowerCase().includes(conversationSearch.toLowerCase())).map((item) => {
                   const active = item.id === conversationId;
                   return (
                     <Pressable
@@ -721,6 +800,16 @@ export default function AskScreen() {
             accessibilityRole="button"
             accessibilityLabel="Dismiss history"
           />
+        </View>
+      </Modal>
+      <Modal visible={scopePickerOpen} transparent animationType="slide" onRequestClose={() => setScopePickerOpen(false)}>
+        <View style={styles.historyRoot}>
+          <View style={[styles.historyPanel, { backgroundColor: colors.background, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12 }]}>
+            <View style={styles.historyHead}><Text style={[styles.historyTitle, { color: colors.text }]}>Ask about</Text><Pressable onPress={() => setScopePickerOpen(false)} accessibilityRole="button" accessibilityLabel="Close scope picker"><MaterialIcons name="close" size={22} color={colors.text} /></Pressable></View>
+            <Pressable onPress={() => { setScopeType(null); setScopeId(null); setScopeName(null); setScopePickerOpen(false); setConversationId(null); setMessages([]); }} accessibilityRole="button" accessibilityLabel="Ask across all memories" style={styles.historyRow}><Text style={{ color: colors.text }}>All memories</Text></Pressable>
+            <ScrollView contentContainerStyle={styles.historyList}>{scopeChoices.map((item) => <Pressable key={`${item.type}:${item.id}`} onPress={() => chooseScope(item.type, item.id, item.name)} accessibilityRole="button" accessibilityLabel={`Ask about ${item.name}`} style={styles.historyRow}><MaterialIcons name={item.type === 'topic' ? 'tag' : item.type === 'project' ? 'folder' : item.type === 'entity' ? 'person' : 'description'} size={18} color={colors.textSecondary} /><Text style={{ color: colors.text, flex: 1 }} numberOfLines={1}>{item.name}</Text><Text style={{ color: colors.textMuted, fontSize: 11 }}>{item.type}</Text></Pressable>)}</ScrollView>
+          </View>
+          <Pressable style={[styles.historyScrim, { backgroundColor: colors.scrim }]} onPress={() => setScopePickerOpen(false)} accessibilityRole="button" accessibilityLabel="Dismiss scope picker" />
         </View>
       </Modal>
     </TabScreenSwipe>
@@ -852,13 +941,13 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   sourceChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
     gap: 6,
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 7,
-    maxWidth: 200,
+    width: 240,
   },
   sourceIndex: {
     fontFamily: 'Inter_500Medium',
@@ -981,6 +1070,9 @@ const styles = StyleSheet.create({
     gap: 2,
     paddingBottom: 24,
   },
+  historySearch: { minHeight: 44, borderRadius: 12, paddingHorizontal: 12, fontFamily: 'Inter_400Regular', fontSize: 15 },
+  evidenceNote: { borderRadius: 12, padding: 12, gap: 10 },
+  evidenceActions: { flexDirection: 'row', gap: 18, flexWrap: 'wrap' },
   historyEmpty: {
     fontFamily: 'Inter_400Regular',
     fontSize: 15,
