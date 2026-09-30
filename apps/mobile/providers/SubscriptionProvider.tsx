@@ -1,5 +1,4 @@
 import Purchases, {
-  type CustomerInfo,
   type PurchasesOffering,
   type PurchasesPackage,
 } from 'react-native-purchases';
@@ -20,7 +19,7 @@ import {
   hasRecallEntitlement,
 } from '../lib/revenuecatEntitlements';
 import { selectRevenueCatApiKey } from '../lib/revenuecatApiKey';
-import { ApiError, createStripeCheckout, syncBilling } from '../lib/api';
+import { ApiError, createStripeCheckout, fetchRecallEntitlement, syncBilling } from '../lib/api';
 
 const STORE_UNAVAILABLE = new Set([
   'STORE_PROBLEM_ERROR',
@@ -65,10 +64,10 @@ export function SubscriptionProvider({
   children: React.ReactNode;
 }) {
   const { isLoaded, isSignedIn, userId, getToken } = useAuth();
-  const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
   const [serverPro, setServerPro] = useState(false);
   const [offering, setOffering] = useState<PurchasesOffering | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [serverChecked, setServerChecked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isConfigured, setIsConfigured] = useState(false);
   const identityQueue = useRef<Promise<void>>(Promise.resolve());
@@ -76,36 +75,57 @@ export function SubscriptionProvider({
   const desiredUser = useRef<string | null>(null);
   const configured = useRef(false);
 
+  const applyServerView = useCallback(
+    (view: { isPro?: boolean; allowed: boolean }, requestedUser: string) => {
+      if (desiredUser.current !== requestedUser) return false;
+      const pro = view.isPro ?? view.allowed;
+      setServerPro(pro);
+      setServerChecked(true);
+      return pro;
+    },
+    [],
+  );
+
+  const readServer = useCallback(async () => {
+    const requestedUser = userId;
+    if (!requestedUser) {
+      setServerPro(false);
+      setServerChecked(true);
+      return false;
+    }
+    try {
+      const token = await getToken();
+      if (!token || desiredUser.current !== requestedUser) return false;
+      return applyServerView(await fetchRecallEntitlement(token), requestedUser);
+    } catch {
+      if (desiredUser.current === requestedUser) setServerChecked(true);
+      return false;
+    }
+  }, [applyServerView, getToken, userId]);
+
   const syncServer = useCallback(async () => {
     const requestedUser = userId;
     if (!requestedUser) return false;
     try {
       const token = await getToken();
       if (!token || desiredUser.current !== requestedUser) return false;
-      const view = await syncBilling(token);
-      if (desiredUser.current !== requestedUser) return false;
-      const pro = view.isPro ?? view.allowed;
-      setServerPro(pro);
-      return pro;
+      return applyServerView(await syncBilling(token), requestedUser);
     } catch {
+      if (desiredUser.current === requestedUser) setServerChecked(true);
       return false;
     }
-  }, [getToken, userId]);
+  }, [applyServerView, getToken, userId]);
 
   const refresh = useCallback(async () => {
     const requestedUser = userId;
     if (!configured.current || !requestedUser) return;
     try {
-      const [info, offerings] = await Promise.all([
-        Purchases.getCustomerInfo(),
-        Purchases.getOfferings(),
-      ]);
+      const offerings = await Purchases.getOfferings();
       if (
         desiredUser.current !== requestedUser ||
         currentUser.current !== requestedUser
       )
         return;
-      setCustomerInfo(info);
       setOffering(offerings.current ?? null);
       setError(
         offerings.current
@@ -122,8 +142,8 @@ export function SubscriptionProvider({
   useEffect(() => {
     if (!isLoaded) return;
     desiredUser.current = userId ?? null;
-    setCustomerInfo(null);
     setServerPro(false);
+    setServerChecked(false);
     setOffering(null);
     setIsLoading(Boolean(isSignedIn));
     setError(null);
@@ -141,8 +161,8 @@ export function SubscriptionProvider({
           }
           if (desiredUser.current !== userId) return;
           currentUser.current = null;
-          setCustomerInfo(null);
           setServerPro(false);
+          setServerChecked(true);
           setOffering(null);
           setIsLoading(false);
           return;
@@ -169,12 +189,8 @@ export function SubscriptionProvider({
             await Purchases.logIn(userId);
           }
           currentUser.current = userId;
-          const [info, offerings] = await Promise.all([
-            Purchases.getCustomerInfo(),
-            Purchases.getOfferings(),
-          ]);
+          const offerings = await Purchases.getOfferings();
           if (desiredUser.current !== userId) return;
-          setCustomerInfo(info);
           setOffering(offerings.current ?? null);
           if (!offerings.current)
             setError(
@@ -197,18 +213,21 @@ export function SubscriptionProvider({
 
   useEffect(() => {
     if (!isSignedIn || !userId) return;
-    void syncServer();
-  }, [isSignedIn, syncServer, userId]);
+    void readServer();
+  }, [isSignedIn, readServer, userId]);
 
   useEffect(() => {
     if (!isConfigured) return;
     const appState = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void refresh();
+      if (state === 'active') {
+        void refresh();
+        void readServer();
+      }
     });
     return () => {
       appState.remove();
     };
-  }, [isConfigured, refresh]);
+  }, [isConfigured, readServer, refresh]);
 
   const purchase = useCallback(
     async (aPackage: PurchasesPackage) => {
@@ -220,12 +239,8 @@ export function SubscriptionProvider({
         );
         if (desiredUser.current !== userId || currentUser.current !== userId)
           return 'error';
-        setCustomerInfo(info);
-        if (hasRecallEntitlement(info)) {
-          void syncServer();
-          return 'active';
-        }
-        return 'inactive';
+        if (!hasRecallEntitlement(info)) return 'inactive';
+        return (await syncServer()) ? 'active' : 'inactive';
       } catch (cause) {
         const code = (cause as { userCancelled?: boolean; code?: string }).code;
         if (
@@ -267,15 +282,10 @@ export function SubscriptionProvider({
   const restorePurchases = useCallback(async () => {
     setError(null);
     try {
-      const info = await getCustomerInfoAfterAction(
-        () => Purchases.restorePurchases(),
-        () => Purchases.getCustomerInfo(),
-      );
+      await Purchases.restorePurchases();
       if (desiredUser.current !== userId || currentUser.current !== userId)
         return 'error';
-      setCustomerInfo(info);
-      const pro = hasRecallEntitlement(info) || (await syncServer());
-      return pro ? 'active' : 'inactive';
+      return (await syncServer()) ? 'active' : 'inactive';
     } catch {
       setError(
         'Purchases could not be restored. Check your connection and try again.',
@@ -293,10 +303,10 @@ export function SubscriptionProvider({
     }
   }, [refresh]);
 
-  const hasRecallAccess = serverPro || (customerInfo ? hasRecallEntitlement(customerInfo) : false);
+  const hasRecallAccess = serverPro;
   const value = useMemo(
     () => ({
-      isLoading: !isLoaded || isLoading,
+      isLoading: !isLoaded || isLoading || (Boolean(isSignedIn) && !serverChecked),
       hasRecallAccess,
       isPro: hasRecallAccess,
       offering,
@@ -312,6 +322,8 @@ export function SubscriptionProvider({
       hasRecallAccess,
       isLoaded,
       isLoading,
+      isSignedIn,
+      serverChecked,
       manageSubscriptions,
       offering,
       purchase,

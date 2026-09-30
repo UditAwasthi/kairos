@@ -37,18 +37,6 @@ export class EntitlementService {
       return denied('disabled');
     }
 
-    if (readStubGrantAll()) {
-      return {
-        feature: 'RECALL',
-        status: EntitlementStatus.active,
-        allowed: true,
-        isPro: true,
-        validUntil: null,
-        source: 'stub_grant_all',
-        store: null,
-      };
-    }
-
     const remote = await this.provider.resolveRemote?.(userId, feature);
     if (remote) {
       await this.prisma.entitlement.upsert({
@@ -76,6 +64,18 @@ export class EntitlementService {
 
     if (row) {
       return toView(row);
+    }
+
+    if (readStubGrantAll()) {
+      return {
+        feature: 'RECALL',
+        status: EntitlementStatus.active,
+        allowed: true,
+        isPro: true,
+        validUntil: null,
+        source: 'stub_grant_all',
+        store: null,
+      };
     }
 
     const stubDefault = readStubDefaultStatus();

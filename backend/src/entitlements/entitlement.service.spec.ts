@@ -42,6 +42,20 @@ describe('EntitlementService', () => {
     expect(view.source).toBe('stub_grant_all');
   });
 
+  it('keeps an inactive DB row inactive even when stub grant-all is on', async () => {
+    process.env.RECALL_STUB_GRANT_ALL = 'true';
+    prisma.entitlement.findUnique.mockResolvedValue({
+      status: EntitlementStatus.inactive,
+      validUntil: null,
+      source: 'admin',
+      feature: EntitlementFeature.RECALL,
+      store: null,
+    });
+    const view = await service.getEntitlement('user_1');
+    expect(view.allowed).toBe(false);
+    expect(view.isPro).toBe(false);
+  });
+
   it('respects DB active entitlement', async () => {
     prisma.entitlement.findUnique.mockResolvedValue({
       status: EntitlementStatus.active,
