@@ -1,10 +1,12 @@
-import { EntitlementFeature, EntitlementStatus } from '@prisma/client';
+import { EntitlementStatus } from '@prisma/client';
 import { RevenueCatWebhookController } from './revenuecat-webhook.controller';
 
 describe('RevenueCatWebhookController', () => {
   const prisma = {
     user: { findUnique: jest.fn() },
-    entitlement: { upsert: jest.fn() },
+  };
+  const entitlements = {
+    recordBillingSnapshot: jest.fn(),
   };
   let controller: RevenueCatWebhookController;
   const previousSecret = process.env.REVENUECAT_WEBHOOK_AUTHORIZATION;
@@ -13,8 +15,11 @@ describe('RevenueCatWebhookController', () => {
     jest.clearAllMocks();
     process.env.REVENUECAT_WEBHOOK_AUTHORIZATION = 'Bearer test-secret';
     prisma.user.findUnique.mockResolvedValue({ id: 'internal-user-a' });
-    prisma.entitlement.upsert.mockResolvedValue({});
-    controller = new RevenueCatWebhookController(prisma as never);
+    entitlements.recordBillingSnapshot.mockResolvedValue('applied');
+    controller = new RevenueCatWebhookController(
+      prisma as never,
+      entitlements as never,
+    );
   });
 
   afterAll(() => {
@@ -30,6 +35,8 @@ describe('RevenueCatWebhookController', () => {
         type: 'INITIAL_PURCHASE',
         entitlement_ids: ['recall'],
         expiration_at_ms: Date.now() + 60_000,
+        store: 'PLAY_STORE',
+        product_id: 'kairos_pro',
       },
     });
 
@@ -37,18 +44,32 @@ describe('RevenueCatWebhookController', () => {
       where: { clerkUserId: 'clerk-user-a' },
       select: { id: true },
     });
-    expect(prisma.entitlement.upsert).toHaveBeenCalledWith(
+    expect(entitlements.recordBillingSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          userId_feature: {
-            userId: 'internal-user-a',
-            feature: EntitlementFeature.RECALL,
-          },
-        },
-        create: expect.objectContaining({
-          status: EntitlementStatus.active,
-          source: 'revenuecat',
-        }),
+        userId: 'internal-user-a',
+        status: EntitlementStatus.active,
+        source: 'revenuecat',
+        store: 'play_store',
+        productId: 'kairos_pro',
+      }),
+    );
+  });
+
+  it('records Stripe purchases as Pro with the stripe vendor', async () => {
+    await controller.receive('Bearer test-secret', {
+      event: {
+        app_user_id: 'clerk-user-a',
+        type: 'INITIAL_PURCHASE',
+        entitlement_ids: ['recall'],
+        expiration_at_ms: Date.now() + 60_000,
+        store: 'STRIPE',
+      },
+    });
+    expect(entitlements.recordBillingSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'stripe',
+        store: 'stripe',
+        status: EntitlementStatus.active,
       }),
     );
   });
@@ -62,10 +83,8 @@ describe('RevenueCatWebhookController', () => {
         expiration_at_ms: Date.now() - 60_000,
       },
     });
-    expect(prisma.entitlement.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        update: expect.objectContaining({ status: EntitlementStatus.inactive }),
-      }),
+    expect(entitlements.recordBillingSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ status: EntitlementStatus.inactive }),
     );
   });
 
@@ -78,10 +97,8 @@ describe('RevenueCatWebhookController', () => {
         expiration_at_ms: Date.now() + 60_000,
       },
     });
-    expect(prisma.entitlement.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        update: expect.objectContaining({ status: EntitlementStatus.active }),
-      }),
+    expect(entitlements.recordBillingSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ status: EntitlementStatus.active }),
     );
   });
 
@@ -101,7 +118,7 @@ describe('RevenueCatWebhookController', () => {
       },
     });
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
-    expect(prisma.entitlement.upsert).not.toHaveBeenCalled();
+    expect(entitlements.recordBillingSnapshot).not.toHaveBeenCalled();
   });
 
   it('ignores RevenueCat event types that do not change access', async () => {
@@ -113,6 +130,18 @@ describe('RevenueCatWebhookController', () => {
       },
     });
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
-    expect(prisma.entitlement.upsert).not.toHaveBeenCalled();
+    expect(entitlements.recordBillingSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('reports when a newer snapshot already won', async () => {
+    entitlements.recordBillingSnapshot.mockResolvedValue('stale');
+    const result = await controller.receive('Bearer test-secret', {
+      event: {
+        app_user_id: 'clerk-user-a',
+        type: 'EXPIRATION',
+        entitlement_ids: ['recall'],
+      },
+    });
+    expect(result).toEqual({ received: true, updated: false });
   });
 });

@@ -52,6 +52,43 @@ describe('EntitlementService', () => {
     await expect(service.isAllowed('user_1')).resolves.toBe(true);
   });
 
+  it('persists isPro and ignores an older billing event', async () => {
+    prisma.entitlement.findUnique.mockResolvedValueOnce({
+      lastEventAt: new Date('2026-09-30T12:00:00.000Z'),
+    });
+    const result = await service.recordBillingSnapshot({
+      userId: 'user_1',
+      status: EntitlementStatus.inactive,
+      validUntil: null,
+      source: 'revenuecat',
+      store: 'play_store',
+      productId: null,
+      eventAt: new Date('2026-09-29T12:00:00.000Z'),
+    });
+    expect(result).toBe('stale');
+    expect(prisma.entitlement.upsert).not.toHaveBeenCalled();
+  });
+
+  it('saves a Stripe grant as Pro', async () => {
+    prisma.entitlement.findUnique.mockResolvedValueOnce(null);
+    const result = await service.recordBillingSnapshot({
+      userId: 'user_1',
+      status: EntitlementStatus.active,
+      validUntil: new Date('2026-10-30T12:00:00.000Z'),
+      source: 'stripe',
+      store: 'stripe',
+      productId: 'kairos_pro_monthly',
+      eventAt: new Date('2026-09-30T12:00:00.000Z'),
+    });
+    expect(result).toBe('applied');
+    expect(prisma.entitlement.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ isPro: true, store: 'stripe', source: 'stripe' }),
+        update: expect.objectContaining({ isPro: true, store: 'stripe' }),
+      }),
+    );
+  });
+
   it('denies when feature disabled', async () => {
     process.env.RECALL_ENABLED = 'false';
     process.env.RECALL_STUB_GRANT_ALL = 'true';

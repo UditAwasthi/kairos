@@ -29,24 +29,37 @@ export function RecallPaywall({
 }) {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
-  const { offering, error, purchase, restorePurchases, refresh } =
+  const { offering, error, purchase, purchaseWithCard, restorePurchases, refresh } =
     useSubscription();
   const [busy, setBusy] = useState(false);
   const selected = offering?.availablePackages[0] ?? null;
 
-  const buy = async () => {
-    if (!selected || busy) return;
-    setBusy(true);
-    const outcome = await purchase(selected);
+  const finish = async (outcome: 'active' | 'inactive' | 'cancelled' | 'store_unavailable' | 'error') => {
     if (outcome === 'active') {
       await refresh();
       onUnlocked();
-    } else if (outcome === 'inactive') {
+      return;
+    }
+    if (outcome === 'inactive') {
       Alert.alert(
         'Kairos Pro',
         'The Recall entitlement is not active yet. Please try again shortly.',
       );
     }
+  };
+
+  const buy = async () => {
+    if (busy) return;
+    setBusy(true);
+    if (selected) {
+      const outcome = await purchase(selected);
+      if (outcome !== 'store_unavailable') {
+        await finish(outcome);
+        setBusy(false);
+        return;
+      }
+    }
+    await finish(await purchaseWithCard());
     setBusy(false);
   };
 
@@ -134,9 +147,9 @@ export function RecallPaywall({
             </ThemedText>
           ) : null}
           <ThemedButton
-            label={busy ? 'Please wait…' : 'Start Kairos Pro'}
+            label={busy ? 'Please wait…' : selected ? 'Start Kairos Pro' : 'Continue with card'}
             onPress={() => void buy()}
-            disabled={busy || !selected}
+            disabled={busy}
           />
           <ThemedButton
             label="Restore Purchases"
@@ -145,7 +158,9 @@ export function RecallPaywall({
             disabled={busy}
           />
           <ThemedText colorKey="textMuted" style={styles.note}>
-            Subscription and billing are managed by your app store.
+            {selected
+              ? 'Billed by the App Store or Google Play. Pro is saved to your Kairos account.'
+              : 'App Store and Google Play are not available here. Continue with card, billed through Stripe. Pro is saved to your Kairos account.'}
           </ThemedText>
         </ScrollView>
       </View>

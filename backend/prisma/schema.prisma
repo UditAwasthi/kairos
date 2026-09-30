@@ -152,7 +152,14 @@ model Entitlement {
   feature    EntitlementFeature
   status     EntitlementStatus @default(inactive)
   validUntil DateTime?
-  /// stub | admin | stripe | play | other
+  /// Persisted Pro flag. Recall access still re-checks validUntil on read.
+  isPro      Boolean           @default(false)
+  /// app_store | play_store | stripe | promotional | test_store | amazon | unknown
+  store      String?
+  productId  String?
+  /// RevenueCat event time, or the subscriber-sync time. Older events are ignored.
+  lastEventAt DateTime?
+  /// revenuecat | stripe | admin | stub
   source     String            @default("stub")
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt

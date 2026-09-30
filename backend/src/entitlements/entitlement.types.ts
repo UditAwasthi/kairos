@@ -7,8 +7,11 @@ export type EntitlementView = {
   feature: 'RECALL';
   status: EntitlementStatus;
   allowed: boolean;
+  /** Same as allowed. Stored on the Neon entitlement row as `isPro`. */
+  isPro: boolean;
   validUntil: string | null;
   source: string;
+  store: string | null;
 };
 
 export const RECALL_ENTITLEMENT_REQUIRED = 'RECALL_ENTITLEMENT_REQUIRED';
@@ -40,7 +43,7 @@ export function isEntitlementStatusAllowed(
   return true;
 }
 
-/** Billing provider abstraction — stub now, Stripe/Play later. */
+/** Billing provider abstraction. RevenueCat covers App Store, Play, and Stripe. */
 export interface EntitlementProvider {
   readonly name: string;
   /**

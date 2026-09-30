@@ -4,6 +4,7 @@ import Purchases, {
   type PurchasesPackage,
 } from 'react-native-purchases';
 import { useAuth } from '@clerk/expo';
+import * as WebBrowser from 'expo-web-browser';
 import {
   createContext,
   useCallback,
@@ -19,6 +20,17 @@ import {
   hasRecallEntitlement,
 } from '../lib/revenuecatEntitlements';
 import { selectRevenueCatApiKey } from '../lib/revenuecatApiKey';
+import { ApiError, createStripeCheckout, syncBilling } from '../lib/api';
+
+const STORE_UNAVAILABLE = new Set([
+  'STORE_PROBLEM_ERROR',
+  'PURCHASE_NOT_ALLOWED_ERROR',
+  'PRODUCT_NOT_AVAILABLE_FOR_PURCHASE_ERROR',
+  'CONFIGURATION_ERROR',
+  '2',
+  '3',
+  '5',
+]);
 
 type SubscriptionContextValue = {
   isLoading: boolean;
@@ -28,7 +40,8 @@ type SubscriptionContextValue = {
   error: string | null;
   purchase: (
     aPackage: PurchasesPackage,
-  ) => Promise<'active' | 'inactive' | 'cancelled' | 'error'>;
+  ) => Promise<'active' | 'inactive' | 'cancelled' | 'store_unavailable' | 'error'>;
+  purchaseWithCard: () => Promise<'active' | 'inactive' | 'cancelled' | 'error'>;
   restorePurchases: () => Promise<'active' | 'inactive' | 'error'>;
   refresh: () => Promise<void>;
   manageSubscriptions: () => Promise<void>;
@@ -51,8 +64,9 @@ export function SubscriptionProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { isLoaded, isSignedIn, userId } = useAuth();
+  const { isLoaded, isSignedIn, userId, getToken } = useAuth();
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
+  const [serverPro, setServerPro] = useState(false);
   const [offering, setOffering] = useState<PurchasesOffering | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +75,22 @@ export function SubscriptionProvider({
   const currentUser = useRef<string | null>(null);
   const desiredUser = useRef<string | null>(null);
   const configured = useRef(false);
+
+  const syncServer = useCallback(async () => {
+    const requestedUser = userId;
+    if (!requestedUser) return false;
+    try {
+      const token = await getToken();
+      if (!token || desiredUser.current !== requestedUser) return false;
+      const view = await syncBilling(token);
+      if (desiredUser.current !== requestedUser) return false;
+      const pro = view.isPro ?? view.allowed;
+      setServerPro(pro);
+      return pro;
+    } catch {
+      return false;
+    }
+  }, [getToken, userId]);
 
   const refresh = useCallback(async () => {
     const requestedUser = userId;
@@ -93,6 +123,7 @@ export function SubscriptionProvider({
     if (!isLoaded) return;
     desiredUser.current = userId ?? null;
     setCustomerInfo(null);
+    setServerPro(false);
     setOffering(null);
     setIsLoading(Boolean(isSignedIn));
     setError(null);
@@ -111,6 +142,7 @@ export function SubscriptionProvider({
           if (desiredUser.current !== userId) return;
           currentUser.current = null;
           setCustomerInfo(null);
+          setServerPro(false);
           setOffering(null);
           setIsLoading(false);
           return;
@@ -164,6 +196,11 @@ export function SubscriptionProvider({
   }, [isLoaded, isSignedIn, userId]);
 
   useEffect(() => {
+    if (!isSignedIn || !userId) return;
+    void syncServer();
+  }, [isSignedIn, syncServer, userId]);
+
+  useEffect(() => {
     if (!isConfigured) return;
     const appState = AppState.addEventListener('change', (state) => {
       if (state === 'active') void refresh();
@@ -184,20 +221,48 @@ export function SubscriptionProvider({
         if (desiredUser.current !== userId || currentUser.current !== userId)
           return 'error';
         setCustomerInfo(info);
-        return hasRecallEntitlement(info) ? 'active' : 'inactive';
+        if (hasRecallEntitlement(info)) {
+          void syncServer();
+          return 'active';
+        }
+        return 'inactive';
       } catch (cause) {
         const code = (cause as { userCancelled?: boolean; code?: string }).code;
         if (
           code === 'PURCHASE_CANCELLED_ERROR' ||
+          code === '1' ||
           (cause as { userCancelled?: boolean }).userCancelled
         )
           return 'cancelled';
+        if (code && STORE_UNAVAILABLE.has(code)) return 'store_unavailable';
         setError('Your purchase could not be completed. Please try again.');
         return 'error';
       }
     },
-    [userId],
+    [syncServer, userId],
   );
+
+  const purchaseWithCard = useCallback(async () => {
+    setError(null);
+    try {
+      const token = await getToken();
+      if (!token || desiredUser.current !== userId) return 'error';
+      const checkout = await createStripeCheckout(token);
+      const session = await WebBrowser.openAuthSessionAsync(checkout.url, 'kairos://billing');
+      const pro = await syncServer();
+      if (configured.current) await refresh();
+      if (pro) return 'active';
+      if (session.type === 'cancel' || session.type === 'dismiss') return 'cancelled';
+      return 'inactive';
+    } catch (cause) {
+      setError(
+        cause instanceof ApiError
+          ? cause.message
+          : 'Card checkout could not be opened. Please try again.',
+      );
+      return 'error';
+    }
+  }, [getToken, refresh, syncServer, userId]);
 
   const restorePurchases = useCallback(async () => {
     setError(null);
@@ -209,14 +274,15 @@ export function SubscriptionProvider({
       if (desiredUser.current !== userId || currentUser.current !== userId)
         return 'error';
       setCustomerInfo(info);
-      return hasRecallEntitlement(info) ? 'active' : 'inactive';
+      const pro = hasRecallEntitlement(info) || (await syncServer());
+      return pro ? 'active' : 'inactive';
     } catch {
       setError(
         'Purchases could not be restored. Check your connection and try again.',
       );
       return 'error';
     }
-  }, [userId]);
+  }, [syncServer, userId]);
 
   const manageSubscriptions = useCallback(async () => {
     try {
@@ -227,9 +293,7 @@ export function SubscriptionProvider({
     }
   }, [refresh]);
 
-  const hasRecallAccess = customerInfo
-    ? hasRecallEntitlement(customerInfo)
-    : false;
+  const hasRecallAccess = serverPro || (customerInfo ? hasRecallEntitlement(customerInfo) : false);
   const value = useMemo(
     () => ({
       isLoading: !isLoaded || isLoading,
@@ -238,6 +302,7 @@ export function SubscriptionProvider({
       offering,
       error,
       purchase,
+      purchaseWithCard,
       restorePurchases,
       refresh,
       manageSubscriptions,
@@ -250,6 +315,7 @@ export function SubscriptionProvider({
       manageSubscriptions,
       offering,
       purchase,
+      purchaseWithCard,
       refresh,
       restorePurchases,
     ],

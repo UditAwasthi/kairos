@@ -21,6 +21,7 @@ describe('production config safeguards', () => {
     process.env.S3_ACCESS_KEY_ID = 'id';
     process.env.S3_SECRET_ACCESS_KEY = 'secret';
     process.env.REVENUECAT_WEBHOOK_AUTHORIZATION = 'Bearer test-secret';
+    process.env.REVENUECAT_SECRET_API_KEY = 'sk_test';
     delete process.env.RECALL_STUB_GRANT_ALL;
     delete process.env.RECALL_STUB_DEFAULT_STATUS;
     delete process.env.SKIP_DB_CONNECT;
