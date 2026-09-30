@@ -33,6 +33,25 @@ npm run backend
 
 The API listens on `PORT` (default 3000).
 
+## Run with Docker
+
+This starts Postgres (with pgvector), the API on port 3000, and the web app on port 3001. Uploads stay on a local volume. The database URL inside Compose replaces whatever `DATABASE_URL` is in `backend/.env`.
+
+```bash
+cp backend/.env.example backend/.env
+cp .env.example .env
+```
+
+Fill `CLERK_SECRET_KEY` in both files, and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` in the root `.env`. Add `AI_API_KEY` to `backend/.env` when you want Ask, capture analysis, and embeddings. Then:
+
+```bash
+docker compose up --build
+```
+
+The API is at `http://localhost:3000`. The web app is at `http://localhost:3001`.
+
+The phone app still runs on the host. Point `EXPO_PUBLIC_API_URL` at `http://10.0.2.2:3000` for the Android emulator, or at your machine's LAN address for a physical device.
+
 ## Run the mobile app
 
 RevenueCat’s native SDK does not run in Expo Go. Use a development build.
