@@ -11,10 +11,10 @@
     "splash": {
       "image": "./assets/logo-light.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F6F1EA",
+      "backgroundColor": "#121212",
       "dark": {
         "image": "./assets/logo-dark.png",
-        "backgroundColor": "#100C12"
+        "backgroundColor": "#121212"
       }
     },
     "ios": {
@@ -38,7 +38,7 @@
         "android.permission.POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#F6F1EA",
+        "backgroundColor": "#121212",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -64,7 +64,7 @@
         "expo-notifications",
         {
           "icon": "./assets/android-icon-monochrome.png",
-          "color": "#4A2341",
+          "color": "#D71921",
           "defaultChannel": "kairos_updates"
         }
       ],

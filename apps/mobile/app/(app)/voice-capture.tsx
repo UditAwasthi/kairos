@@ -19,11 +19,9 @@ import Animated, {
   withDelay,
   withRepeat,
   withTiming,
-  ZoomIn,
 } from 'react-native-reanimated';
 
 import { ThemedText } from '../../components/ThemedText';
-import { DotBurst } from '../../components/ui/Motion';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { saveMessage } from '../../lib/engagement';
 import { GlassPanel } from '../../components/ui/Glass';
@@ -52,22 +50,24 @@ type VoiceState =
   | 'transcribe_failed'
   | 'failed';
 
-const RECORDING_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
-
 function PulseRing({ active, color, delay }: { active: boolean; color: string; delay: number }) {
-  const t = useSharedValue(0);
+  const progress = useSharedValue(0);
   useEffect(() => {
     if (active) {
-      t.value = 0;
-      t.value = withDelay(delay, withRepeat(withTiming(1, { duration: 1600, easing: Easing.out(Easing.quad) }), -1, false));
+      progress.value = 0;
+      progress.value = withDelay(
+        delay,
+        withRepeat(withTiming(1, { duration: 1600, easing: Easing.out(Easing.quad) }), -1, false),
+      );
     } else {
-      cancelAnimation(t);
-      t.value = withTiming(0, { duration: 200 });
+      cancelAnimation(progress);
+      progress.value = 0;
     }
-  }, [active, delay, t]);
+    return () => cancelAnimation(progress);
+  }, [active, delay, progress]);
   const style = useAnimatedStyle(() => ({
-    opacity: active ? 0.35 * (1 - t.value) : 0,
-    transform: [{ scale: 1 + t.value * 0.9 }],
+    opacity: progress.value === 0 ? 0 : 0.35 * (1 - progress.value),
+    transform: [{ scale: 1 + progress.value * 0.9 }],
   }));
   return <Animated.View pointerEvents="none" style={[styles.ring, { borderColor: color }, style]} />;
 }
@@ -83,25 +83,12 @@ export default function VoiceCaptureScreen() {
   const reduced = useReducedMotion();
   const { getToken, userId } = useAuth();
   const { refresh: refreshProgression } = useProgression();
-  const recorder = useAudioRecorder(RECORDING_OPTIONS);
-  const recorderState = useAudioRecorderState(recorder, 120);
-  const level = useSharedValue(0);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder);
   const [readyLine, setReadyLine] = useState('');
-  const orbStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: reduced ? 1 : 1 + level.value * 0.2 }],
-  }));
   const [state, setState] = useState<VoiceState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [observation, setObservation] = useState<ApiObservation | null>(null);
-
-  const metering = recorderState.metering;
-  useEffect(() => {
-    const next =
-      state === 'recording' && typeof metering === 'number'
-        ? Math.min(1, Math.max(0, (metering + 55) / 55))
-        : 0;
-    level.value = withTiming(next, { duration: 120 });
-  }, [level, metering, state]);
 
   useEffect(() => {
     if (state === 'ready') {
@@ -231,8 +218,6 @@ export default function VoiceCaptureScreen() {
         <View style={styles.orbStage}>
         <PulseRing active={state === 'recording' && !reduced} color={colors.accent} delay={0} />
         <PulseRing active={state === 'recording' && !reduced} color={colors.accent} delay={800} />
-        {state === 'ready' ? <DotBurst key={readyLine} color={colors.accent} size={160} /> : null}
-        <Animated.View style={orbStyle}>
         <Pressable
           onPress={() => {
             if (state === 'recording') {
@@ -261,9 +246,7 @@ export default function VoiceCaptureScreen() {
           {state === 'saving' ? (
             <ActivityIndicator color={colors.accent} />
           ) : state === 'ready' ? (
-            <Animated.View entering={ZoomIn.springify()}>
-              <Feather name="check" size={34} color={colors.accent} />
-            </Animated.View>
+            <Feather name="check" size={34} color={colors.accent} />
           ) : (
             <Feather
               name={state === 'recording' ? 'square' : 'mic'}
@@ -272,7 +255,6 @@ export default function VoiceCaptureScreen() {
             />
           )}
         </Pressable>
-        </Animated.View>
         </View>
         {state === 'recording' ? (
           <ThemedText colorKey="text" style={styles.timer}>

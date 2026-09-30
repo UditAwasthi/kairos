@@ -26,30 +26,22 @@
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
       android:layout_marginStart="8dp"
-      android:letterSpacing="0.22"
-      android:text="KAIROS"
-      android:textColor="#8A8174"
-      android:textSize="10sp" />
+      android:letterSpacing="0.18"
+      android:text="TODAY"
+      android:textColor="#8A8A8A"
+      android:textSize="11sp" />
   </LinearLayout>
-
-  <TextView
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="14dp"
-    android:text="Something I noticed"
-    android:textColor="#C4A574"
-    android:textSize="12sp" />
 
   <TextView
     android:id="@+id/kairos_widget_insight"
     android:layout_width="match_parent"
     android:layout_height="0dp"
-    android:layout_marginTop="6dp"
+    android:layout_marginTop="10dp"
     android:layout_weight="1"
     android:ellipsize="end"
     android:lineSpacingExtra="3dp"
     android:maxLines="3"
-    android:textColor="#F4EFE6"
+    android:textColor="#F0F0F0"
     android:textSize="16sp" />
 
   <LinearLayout
@@ -68,7 +60,7 @@
       android:focusable="true"
       android:gravity="center"
       android:text="Capture"
-      android:textColor="#E8E0D4"
+      android:textColor="#F0F0F0"
       android:textSize="13sp" />
 
     <TextView
@@ -82,7 +74,7 @@
       android:focusable="true"
       android:gravity="center"
       android:text="Ask"
-      android:textColor="#1A140E"
+      android:textColor="#FFFFFF"
       android:textSize="13sp" />
   </LinearLayout>
 </LinearLayout>

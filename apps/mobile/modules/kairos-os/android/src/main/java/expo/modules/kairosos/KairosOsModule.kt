@@ -1,7 +1,5 @@
 package expo.modules.kairosos
 
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Context
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.modules.Module
@@ -37,9 +35,7 @@ class KairosOsModule : Module() {
       if (!insight.isNullOrBlank()) {
         store.insightText = insight
       }
-      val manager = AppWidgetManager.getInstance(context)
-      val ids = manager.getAppWidgetIds(ComponentName(context, KairosWidgetProvider::class.java))
-      KairosWidgetProvider.updateAll(context, manager, ids, store.insightText)
+      refreshKairosWidgets(context, store.insightText)
     }
   }
 }
