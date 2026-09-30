@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import Animated from 'react-native-reanimated';
 
 import { ThemedText } from '../ThemedText';
@@ -36,17 +37,26 @@ export function TopicChip({
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={
+        onPress
+          ? () => {
+              void Haptics.selectionAsync();
+              onPress();
+            }
+          : undefined
+      }
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : undefined}
-      style={{
+      accessibilityState={onPress ? { selected: !!selected } : undefined}
+      style={({ pressed }) => ({
         paddingHorizontal: spacing['3'] + 4,
         paddingVertical: spacing['2'],
         borderRadius: radius.full,
         borderWidth: 1.5,
         borderColor: selected ? palette.accent : colors.border,
         backgroundColor: selected ? palette.accent : colors.surfaceElevated,
-      }}
+        transform: [{ scale: pressed ? 0.95 : 1 }],
+      })}
     >
       <ThemedText
         colorKey={selected ? 'inverseText' : 'text'}

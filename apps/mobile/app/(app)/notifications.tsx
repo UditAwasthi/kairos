@@ -1,8 +1,11 @@
 import { useAuth } from '@clerk/expo';
+import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { Breathe, PressScale } from '../../components/ui/Motion';
 import { SoftPage } from '../../components/ui/SoftScreen';
 import { GlassPanel } from '../../components/ui/Glass';
 import {
@@ -86,7 +89,7 @@ export default function NotificationsScreen() {
     }, [load]),
   );
 
-  if (loading && items.length === 0) return <LoadingSkeleton rows={6} />;
+  if (loading && items.length === 0) return <LoadingSkeleton rows={6} label="Checking for updates" />;
   if (error && items.length === 0) {
     return <ErrorState title="Unable to load" onRetry={() => void load()} />;
   }
@@ -94,7 +97,9 @@ export default function NotificationsScreen() {
     return (
       <SoftPage>
         <EmptyState
+          icon="notifications-none"
           title="All clear"
+          message="Updates about your captures will show up here."
           actionLabel="Capture something"
           onAction={() => router.push('/(app)/quick-capture')}
         />
@@ -106,26 +111,30 @@ export default function NotificationsScreen() {
     <FadeInContent>
       <SoftPage>
         {items.map((item) => (
-          <Pressable
+          <PressScale
             key={item.id}
-            onPress={() => router.push(item.href as `/${string}`)}
-            accessibilityRole="button"
-            style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
+            onPress={() => {
+              void Haptics.selectionAsync();
+              router.push(item.href as `/${string}`);
+            }}
+            accessibilityLabel={`${item.title}, ${item.body}`}
           >
             <GlassPanel padded={false} contentStyle={styles.row}>
-              <View
-                style={[
-                  styles.dot,
-                  {
-                    backgroundColor:
-                      item.tone === 'success'
-                        ? colors.success
-                        : item.tone === 'accent'
-                          ? colors.error
-                          : colors.accent,
-                  },
-                ]}
-              />
+              <Breathe active={item.tone === 'neutral'} amount={0.35} period={1400}>
+                <View
+                  style={[
+                    styles.dot,
+                    {
+                      backgroundColor:
+                        item.tone === 'success'
+                          ? colors.success
+                          : item.tone === 'accent'
+                            ? colors.error
+                            : colors.textMuted,
+                    },
+                  ]}
+                />
+              </Breathe>
               <View style={styles.copy}>
                 <ThemedText colorKey="text" style={styles.title} numberOfLines={1}>
                   {item.title}
@@ -134,8 +143,9 @@ export default function NotificationsScreen() {
                   {item.body}
                 </ThemedText>
               </View>
+              <Feather name="chevron-right" size={18} color={colors.textMuted} />
             </GlassPanel>
-          </Pressable>
+          </PressScale>
         ))}
       </SoftPage>
     </FadeInContent>

@@ -1,5 +1,6 @@
 import { useAuth } from '@clerk/expo';
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { useCallback, useEffect, useState } from 'react';
@@ -47,8 +48,10 @@ export default function DevicesScreen() {
       } else {
         const pushToken = await registerPushForSignedInUser(getToken);
         if (!pushToken) {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           setMessage('Notifications could not be enabled on this device. Check permission and try again.');
         } else {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           setRegistered(true);
         }
       }
@@ -66,8 +69,8 @@ export default function DevicesScreen() {
       <SurfaceCard style={styles.panel}>
         {/* Permission status row */}
         <View style={styles.infoRow}>
-          <View style={[styles.infoIcon, { backgroundColor: colors.primaryContainer }]}>
-            <Feather name="bell" size={16} color={colors.primary} />
+          <View style={[styles.infoIcon, { backgroundColor: colors.surfaceContainer }]}>
+            <Feather name="bell" size={16} color={colors.textSecondary} />
           </View>
           <View style={styles.infoText}>
             <ThemedText colorKey="text" style={styles.infoLabel}>Notification permission</ThemedText>
@@ -83,7 +86,7 @@ export default function DevicesScreen() {
 
         {/* Registration row */}
         <View style={styles.infoRow}>
-          <View style={[styles.infoIcon, { backgroundColor: registered ? colors.successSurface : colors.primaryContainer }]}>
+          <View style={[styles.infoIcon, { backgroundColor: registered ? colors.successSurface : colors.surfaceContainer }]}>
             <Feather name="check-circle" size={16} color={registered ? colors.success : colors.textMuted} />
           </View>
           <View style={styles.infoText}>
@@ -96,8 +99,8 @@ export default function DevicesScreen() {
 
         {/* Device row */}
         <View style={styles.infoRow}>
-          <View style={[styles.infoIcon, { backgroundColor: colors.primaryContainer }]}>
-            <Feather name="smartphone" size={16} color={colors.primary} />
+          <View style={[styles.infoIcon, { backgroundColor: colors.surfaceContainer }]}>
+            <Feather name="smartphone" size={16} color={colors.textSecondary} />
           </View>
           <View style={styles.infoText}>
             <ThemedText colorKey="text" style={styles.infoLabel}>This device</ThemedText>

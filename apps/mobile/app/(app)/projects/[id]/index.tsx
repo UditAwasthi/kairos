@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@clerk/expo';
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
@@ -12,8 +13,9 @@ import {
   LoadingSkeleton,
   SoftRefreshBar,
 } from '../../../../components/ui/EmptyState';
-import { GlassPanel } from '../../../../components/ui/Glass';
-import { SoftLinkList, SoftPage, SoftTitle } from '../../../../components/ui/SoftScreen';
+import { CollectionHeader } from '../../../../components/ui/CollectionHeader';
+import { ListRow } from '../../../../components/ui/ListRow';
+import { SoftLinkList, SoftPage } from '../../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../../components/ui/ThemedButton';
 import { useAsync } from '../../../../hooks/useAsync';
 import {
@@ -22,6 +24,7 @@ import {
   fetchProject,
   removeObservationFromProject,
 } from '../../../../lib/api';
+import { relativeMemoryLabel } from '../../../../lib/searchHints';
 import { useAppTheme } from '../../../../providers/ThemeProvider';
 
 export default function ProjectDetailScreen() {
@@ -111,13 +114,13 @@ export default function ProjectDetailScreen() {
     <FadeInContent>
       <SoftRefreshBar active={refreshing} />
       <SoftPage>
-        <SoftTitle>{data.name}</SoftTitle>
-
-        <GlassPanel padded={false} contentStyle={styles.metaRow}>
-          <ThemedText colorKey="textMuted" style={styles.meta}>
-            {data.observationCount}
-          </ThemedText>
-        </GlassPanel>
+        <CollectionHeader
+          kicker="Project"
+          title={data.name}
+          description={data.description}
+          count={data.observationCount}
+          dates={data.observations.map((observation) => observation.capturedAt)}
+        />
 
         <SoftLinkList
           items={[
@@ -144,7 +147,7 @@ export default function ProjectDetailScreen() {
                 }),
             },
             {
-              label: 'Add',
+              label: 'Add memories',
               icon: 'plus',
               onPress: () => router.push(`/(app)/projects/${data.id}/add`),
             },
@@ -152,30 +155,34 @@ export default function ProjectDetailScreen() {
         />
 
         <ThemedText colorKey="textMuted" style={styles.kicker}>
-          Observations
+          Memories
         </ThemedText>
 
         {data.observations.length === 0 ? (
           <EmptyState
-            title="None yet"
-            actionLabel="Add"
+            icon="folder-open"
+            title="An empty project is a fresh start"
+            message="Add a few memories and Kairos can answer questions across all of them."
+            actionLabel="Add memories"
             onAction={() => router.push(`/(app)/projects/${data.id}/add`)}
           />
         ) : (
-          data.observations.map((observation) => (
+          data.observations.map((observation, index) => (
             <View key={observation.id} style={styles.obsRow}>
+              <View style={styles.obsMain}>
+                <ListRow
+                  title={observation.filename}
+                  subtitle={relativeMemoryLabel(observation.capturedAt)}
+                  titleLines={2}
+                  index={index}
+                  onPress={() => router.push(`/(app)/observation/${observation.id}`)}
+                />
+              </View>
               <Pressable
-                onPress={() => router.push(`/(app)/observation/${observation.id}`)}
-                style={({ pressed }) => [{ flex: 1, opacity: pressed ? 0.88 : 1 }]}
-              >
-                <GlassPanel padded={false} contentStyle={styles.row}>
-                  <ThemedText colorKey="text" style={styles.rowTitle} numberOfLines={2}>
-                    {observation.filename}
-                  </ThemedText>
-                </GlassPanel>
-              </Pressable>
-              <Pressable
-                onPress={() => removeObservation(observation.id, observation.filename)}
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  removeObservation(observation.id, observation.filename);
+                }}
                 disabled={busy}
                 accessibilityLabel="Remove from project"
                 style={({ pressed }) => [
@@ -201,11 +208,6 @@ export default function ProjectDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  metaRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  meta: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
   kicker: {
     fontFamily: 'Roboto_500Medium',
     fontSize: 11,
@@ -218,11 +220,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  row: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  rowTitle: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
+  obsMain: { flex: 1 },
   removeBtn: {
     width: 44,
     height: 44,

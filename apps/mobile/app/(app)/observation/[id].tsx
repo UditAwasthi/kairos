@@ -1,4 +1,6 @@
 import { useAuth } from '@clerk/expo';
+import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -8,6 +10,7 @@ import { ThemedText } from '../../../components/ThemedText';
 import { ErrorState, FadeInContent, LoadingSkeleton } from '../../../components/ui/EmptyState';
 import { Badge } from '../../../components/ui/MetricCard';
 import { GlassPanel } from '../../../components/ui/Glass';
+import { Breathe } from '../../../components/ui/Motion';
 import { SoftLinkList, SoftPage, SoftTitle } from '../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { ThemedInput } from '../../../components/ui/ThemedInput';
@@ -270,6 +273,7 @@ export default function ObservationDetailScreen() {
   const onRetry = async () => {
     try {
       setRetrying(true);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const token = await getToken();
       if (!token) return;
       const api = await reprocessObservation(token, String(id));
@@ -316,7 +320,9 @@ export default function ObservationDetailScreen() {
       setData(mapApiObservation(updated));
       writeQueryCache(cacheKey, updated);
       setEditing(false);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setData(previous.data);
       setApiObs(previous.apiObs);
       Alert.alert(
@@ -329,6 +335,7 @@ export default function ObservationDetailScreen() {
   };
 
   const onDelete = () => {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     Alert.alert(
       'Delete?',
       data?.title ?? 'Observation',
@@ -416,11 +423,53 @@ export default function ObservationDetailScreen() {
 
   const showImage = apiObs?.type === 'IMAGE' && fileToken;
 
+  const topicCount = data.topics?.length ?? 0;
+  const entityCount = data.entities?.length ?? 0;
+  const connections = ready
+    ? [
+        topicCount ? `${topicCount} ${topicCount === 1 ? 'topic' : 'topics'}` : '',
+        entityCount ? `${entityCount} ${entityCount === 1 ? 'entity' : 'entities'}` : '',
+      ].filter(Boolean).join(' and ')
+    : '';
+
+  const stickyActions: Array<{ icon: React.ComponentProps<typeof Feather>['name']; label: string; a11y: string; onPress: () => void }> = [
+    {
+      icon: 'message-circle',
+      label: 'Ask',
+      a11y: 'Ask about this memory',
+      onPress: () => router.push({ pathname: '/(app)/(tabs)/ask', params: { scopeType: 'observation', scopeId: String(id), scopeName: data.title } }),
+    },
+    {
+      icon: 'folder-plus',
+      label: 'Project',
+      a11y: 'Add this memory to a project',
+      onPress: () => router.push({ pathname: '/(app)/observation/projects', params: { id: String(id) } }),
+    },
+    {
+      icon: editing ? 'x' : 'edit-3',
+      label: editing ? 'Cancel' : 'Edit',
+      a11y: editing ? 'Cancel editing memory' : 'Edit memory',
+      onPress: editing ? cancelEdit : beginEdit,
+    },
+    {
+      icon: 'more-horizontal',
+      label: 'More',
+      a11y: 'More memory actions',
+      onPress: () => Alert.alert('More actions', undefined, [
+        { text: 'Reprocess', onPress: () => void onRetry() },
+        { text: 'Delete', style: 'destructive', onPress: () => void onDelete() },
+        { text: 'Cancel', style: 'cancel' },
+      ]),
+    },
+  ];
+
   return (
     <FadeInContent>
       <SoftPage tabBar>
         <View style={styles.titleBlock}>
-          <Badge label={headline} tone={statusTone(data.status)} />
+          <Breathe active={processing} amount={0.05} period={1600} style={styles.badgeWrap}>
+            <Badge label={headline} tone={statusTone(data.status)} />
+          </Breathe>
           {editing ? (
             <ThemedInput
               value={draftTitle}
@@ -434,6 +483,14 @@ export default function ObservationDetailScreen() {
           <ThemedText colorKey="textMuted" style={styles.meta}>
             {SOURCE_TYPE_LABELS[data.sourceType]} · {captured}
           </ThemedText>
+          {connections ? (
+            <View style={styles.connections}>
+              <Feather name="share-2" size={12} color={colors.primary} />
+              <ThemedText colorKey="textSecondary" style={styles.meta}>
+                Linked to {connections}
+              </ThemedText>
+            </View>
+          ) : null}
         </View>
 
         {showImage ? (
@@ -636,7 +693,7 @@ export default function ObservationDetailScreen() {
                 if (!matchedSnippet) return extracted;
                 const index = extracted.toLocaleLowerCase().indexOf(matchedSnippet.toLocaleLowerCase());
                 if (index < 0) return extracted;
-                return <>{extracted.slice(0, index)}<Text style={styles.highlight}>{extracted.slice(index, index + matchedSnippet.length)}</Text>{extracted.slice(index + matchedSnippet.length)}</>;
+                return <>{extracted.slice(0, index)}<Text style={[styles.highlight, { backgroundColor: colors.primaryContainer, color: colors.text }]}>{extracted.slice(index, index + matchedSnippet.length)}</Text>{extracted.slice(index + matchedSnippet.length)}</>;
               })()}
             </ThemedText>
           )}
@@ -657,15 +714,25 @@ export default function ObservationDetailScreen() {
           />
         )}
       </SoftPage>
-      <View style={[styles.stickyActions, { backgroundColor: colors.surfaceElevated, paddingBottom: Math.max(insets.bottom, 8) }]}>
-        <Pressable onPress={() => router.push({ pathname: '/(app)/(tabs)/ask', params: { scopeType: 'observation', scopeId: String(id), scopeName: data.title } })} accessibilityRole="button" accessibilityLabel="Ask about this memory" style={styles.stickyButton}><ThemedText colorKey="text">Ask this</ThemedText></Pressable>
-        <Pressable onPress={() => router.push({ pathname: '/(app)/observation/projects', params: { id: String(id) } })} accessibilityRole="button" accessibilityLabel="Add this memory to a project" style={styles.stickyButton}><ThemedText colorKey="text">Project</ThemedText></Pressable>
-        <Pressable onPress={editing ? cancelEdit : beginEdit} accessibilityRole="button" accessibilityLabel={editing ? 'Cancel editing memory' : 'Edit memory'} style={styles.stickyButton}><ThemedText colorKey="text">{editing ? 'Cancel' : 'Edit'}</ThemedText></Pressable>
-        <Pressable onPress={() => Alert.alert('More actions', undefined, [
-          { text: 'Reprocess', onPress: () => void onRetry() },
-          { text: 'Delete', style: 'destructive', onPress: () => void onDelete() },
-          { text: 'Cancel', style: 'cancel' },
-        ])} accessibilityRole="button" accessibilityLabel="More memory actions" style={styles.stickyButton}><ThemedText colorKey="text">More</ThemedText></Pressable>
+      <View style={[styles.stickyActions, { backgroundColor: colors.surfaceElevated, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 8) }]}>
+        {stickyActions.map((action) => (
+          <Pressable
+            key={action.label}
+            onPress={() => {
+              void Haptics.selectionAsync();
+              action.onPress();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={action.a11y}
+            style={({ pressed }) => [
+              styles.stickyButton,
+              pressed && { backgroundColor: colors.surfaceContainer, transform: [{ scale: 0.94 }] },
+            ]}
+          >
+            <Feather name={action.icon} size={18} color={colors.text} />
+            <ThemedText colorKey="textSecondary" style={styles.stickyLabel}>{action.label}</ThemedText>
+          </Pressable>
+        ))}
       </View>
     </FadeInContent>
   );
@@ -681,9 +748,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   body: { fontFamily: 'Roboto_400Regular', fontSize: 14, lineHeight: 21 },
-  highlight: { fontFamily: 'Roboto_500Medium', textDecorationLine: 'underline', backgroundColor: 'rgba(255, 204, 0, 0.25)' },
-  stickyActions: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingTop: 10, paddingHorizontal: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#888' },
-  stickyButton: { minWidth: 64, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, paddingHorizontal: 8 },
+  highlight: { fontFamily: 'Roboto_500Medium', textDecorationLine: 'underline' },
+  badgeWrap: { alignSelf: 'flex-start' },
+  connections: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stickyActions: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingTop: 8, paddingHorizontal: 8, borderTopWidth: StyleSheet.hairlineWidth },
+  stickyButton: { minWidth: 64, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 2, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 },
+  stickyLabel: { fontFamily: 'Roboto_500Medium', fontSize: 11 },
   placeholder: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
   sourceTitle: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

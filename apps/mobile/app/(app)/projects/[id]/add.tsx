@@ -1,7 +1,8 @@
 import { useAuth } from '@clerk/expo';
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '../../../../components/ThemedText';
 import {
@@ -11,7 +12,9 @@ import {
   LoadingSkeleton,
   SoftRefreshBar,
 } from '../../../../components/ui/EmptyState';
+import { Checkbox } from '../../../../components/ui/Checkbox';
 import { GlassPanel } from '../../../../components/ui/Glass';
+import { PressScale } from '../../../../components/ui/Motion';
 import { SoftPage, SoftTitle } from '../../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../../components/ui/ThemedButton';
 import { useAsync } from '../../../../hooks/useAsync';
@@ -21,6 +24,7 @@ import {
   fetchObservations,
   fetchProject,
 } from '../../../../lib/api';
+import { relativeMemoryLabel } from '../../../../lib/searchHints';
 import { useAppTheme } from '../../../../providers/ThemeProvider';
 
 export default function AddProjectObservationsScreen() {
@@ -86,6 +90,7 @@ export default function AddProjectObservationsScreen() {
           observationId,
         });
       }
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch (err) {
       Alert.alert(
@@ -98,7 +103,11 @@ export default function AddProjectObservationsScreen() {
   };
 
   const addLabel =
-    saving ? 'Adding…' : selected.size > 0 ? `Add (${selected.size})` : 'Add';
+    saving
+      ? 'Adding…'
+      : selected.size > 0
+        ? `Add ${selected.size} ${selected.size === 1 ? 'memory' : 'memories'}`
+        : 'Select memories to add';
 
   return (
     <FadeInContent>
@@ -107,31 +116,38 @@ export default function AddProjectObservationsScreen() {
         <SoftTitle>{data.project.name}</SoftTitle>
 
         {candidates.length === 0 ? (
-          <EmptyState title="None yet" />
+          <EmptyState
+            icon="done-all"
+            title="Everything is already here"
+            message="All your ready memories are in this project. New ones can be added once they finish processing."
+          />
         ) : (
           candidates.map((observation) => {
             const isOn = selected.has(observation.id);
             return (
-              <Pressable
+              <PressScale
                 key={observation.id}
-                onPress={() => toggle(observation.id)}
-                style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
+                onPress={() => {
+                  void Haptics.selectionAsync();
+                  toggle(observation.id);
+                }}
+                accessibilityLabel={`${isOn ? 'Deselect' : 'Select'} ${observation.filename}`}
               >
-                <GlassPanel padded={false} contentStyle={styles.row}>
-                  <View
-                    style={[
-                      styles.check,
-                      {
-                        borderColor: colors.textMuted,
-                        backgroundColor: isOn ? colors.accent : 'transparent',
-                      },
-                    ]}
-                  />
-                  <ThemedText colorKey="text" style={styles.title} numberOfLines={2}>
-                    {observation.filename}
-                  </ThemedText>
+                <GlassPanel
+                  padded={false}
+                  contentStyle={[styles.row, isOn && { backgroundColor: colors.primaryContainer }]}
+                >
+                  <Checkbox checked={isOn} />
+                  <View style={styles.copy}>
+                    <ThemedText colorKey="text" style={styles.title} numberOfLines={2}>
+                      {observation.filename}
+                    </ThemedText>
+                    <ThemedText colorKey="textMuted" style={styles.meta}>
+                      {relativeMemoryLabel(observation.capturedAt)}
+                    </ThemedText>
+                  </View>
                 </GlassPanel>
-              </Pressable>
+              </PressScale>
             );
           })
         )}
@@ -154,11 +170,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  check: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    borderWidth: 1.5,
-  },
-  title: { flex: 1, fontFamily: 'Roboto_500Medium', fontSize: 15 },
+  copy: { flex: 1, gap: 2 },
+  title: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
+  meta: { fontFamily: 'Roboto_400Regular', fontSize: 12 },
 });

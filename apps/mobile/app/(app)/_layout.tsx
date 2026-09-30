@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, StyleSheet, View } from 'react-native';
 
 import { OfflineBanner } from '../../components/ui/NetworkStatus';
+import { RewardToast } from '../../components/ui/RewardToast';
 import { ApiError, fetchDashboard } from '../../lib/api';
 import { flushCaptureQueue, resumeCaptureQueue } from '../../lib/capture';
 import { listPendingCaptures } from '../../lib/captureQueue';
@@ -268,6 +269,7 @@ export default function AppLayout() {
       <Stack.Screen name="about" options={{ title: 'About' }} />
     </Stack>
     <OfflineBanner />
+    <RewardToast />
     </View>
     </ProgressionProvider>
   );

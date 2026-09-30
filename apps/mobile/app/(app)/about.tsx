@@ -1,11 +1,15 @@
+import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '../../components/ThemedText';
+import { Breathe } from '../../components/ui/Motion';
 import { SurfaceCard } from '../../components/ui/SectionHeader';
 import { SoftPage } from '../../components/ui/SoftScreen';
 import { ThemedButton } from '../../components/ui/ThemedButton';
 import { useAppTheme } from '../../providers/ThemeProvider';
+
+const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 
 export default function AboutScreen() {
   const router = useRouter();
@@ -14,10 +18,11 @@ export default function AboutScreen() {
   return (
     <SoftPage>
       <SurfaceCard style={styles.heroCard}>
-        {/* Brand orb */}
-        <View style={[styles.orb, { backgroundColor: colors.primaryContainer }]}>
-          <ThemedText colorKey="primary" style={styles.orbGlyph}>K</ThemedText>
-        </View>
+        <Breathe amount={0.05} period={3600}>
+          <View style={[styles.orb, { backgroundColor: colors.primaryContainer }]}>
+            <ThemedText colorKey="primary" style={styles.orbGlyph}>K</ThemedText>
+          </View>
+        </Breathe>
         <ThemedText colorKey="text" style={styles.brand}>Kairos</ThemedText>
         <ThemedText colorKey="textMuted" style={styles.meta}>Personal memory intelligence</ThemedText>
         <ThemedText colorKey="textSecondary" style={styles.body}>
@@ -25,8 +30,8 @@ export default function AboutScreen() {
           what you actually saved — building a living record of everything you've
           learned and done.
         </ThemedText>
-        <View style={[styles.versionBadge, { backgroundColor: colors.primaryContainer }]}>
-          <ThemedText colorKey="primary" style={styles.versionText}>v1.0.0</ThemedText>
+        <View style={[styles.versionBadge, { backgroundColor: colors.surfaceContainer }]}>
+          <ThemedText colorKey="textSecondary" style={styles.versionText}>v{APP_VERSION}</ThemedText>
         </View>
       </SurfaceCard>
 

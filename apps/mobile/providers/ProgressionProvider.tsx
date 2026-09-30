@@ -8,7 +8,7 @@ import { readCache, writeCache } from '../lib/persistentCache';
 
 const CACHE_KEY = 'progression';
 
-type RewardNotice = { xp: number; keeps: number; bonus: boolean } | null;
+type RewardNotice = { xp: number; keeps: number; bonus: boolean; levelUp: number | null; id: number } | null;
 type ProgressionContextValue = {
   progression: ProgressionView | null;
   lastReward: RewardNotice;
@@ -40,10 +40,11 @@ export function ProgressionProvider({ children }: { children: React.ReactNode })
       if (before) {
         const xp = Math.max(0, next.xp - before.xp);
         const keeps = Math.max(0, next.keeps - before.keeps);
-        if (xp || keeps || next.level > before.level) {
-          setLastReward({ xp, keeps, bonus: Boolean(next.lastEvent?.bonus) });
+        const levelUp = next.level > before.level ? next.level : null;
+        if (xp || keeps || levelUp) {
+          setLastReward({ xp, keeps, bonus: Boolean(next.lastEvent?.bonus), levelUp, id: Date.now() });
           if (rewardTimeout.current) clearTimeout(rewardTimeout.current);
-          rewardTimeout.current = setTimeout(() => setLastReward(null), 2600);
+          rewardTimeout.current = setTimeout(() => setLastReward(null), levelUp ? 4200 : 3000);
         }
       }
       previous.current = next;

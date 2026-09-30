@@ -7,11 +7,25 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withTiming,
+  ZoomIn,
+} from 'react-native-reanimated';
 
 import { ThemedText } from '../../components/ThemedText';
+import { DotBurst } from '../../components/ui/Motion';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { saveMessage } from '../../lib/engagement';
 import { GlassPanel } from '../../components/ui/Glass';
 import { SoftPage, SoftTitle } from '../../components/ui/SoftScreen';
 import { ThemedButton } from '../../components/ui/ThemedButton';
@@ -38,16 +52,65 @@ type VoiceState =
   | 'transcribe_failed'
   | 'failed';
 
+const RECORDING_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
+
+function PulseRing({ active, color, delay }: { active: boolean; color: string; delay: number }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    if (active) {
+      t.value = 0;
+      t.value = withDelay(delay, withRepeat(withTiming(1, { duration: 1600, easing: Easing.out(Easing.quad) }), -1, false));
+    } else {
+      cancelAnimation(t);
+      t.value = withTiming(0, { duration: 200 });
+    }
+  }, [active, delay, t]);
+  const style = useAnimatedStyle(() => ({
+    opacity: active ? 0.35 * (1 - t.value) : 0,
+    transform: [{ scale: 1 + t.value * 0.9 }],
+  }));
+  return <Animated.View pointerEvents="none" style={[styles.ring, { borderColor: color }, style]} />;
+}
+
+function formatDuration(ms: number): string {
+  const total = Math.floor(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
 export default function VoiceCaptureScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
+  const reduced = useReducedMotion();
   const { getToken, userId } = useAuth();
   const { refresh: refreshProgression } = useProgression();
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const recorderState = useAudioRecorderState(recorder);
+  const recorder = useAudioRecorder(RECORDING_OPTIONS);
+  const recorderState = useAudioRecorderState(recorder, 120);
+  const level = useSharedValue(0);
+  const [readyLine, setReadyLine] = useState('');
+  const orbStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: reduced ? 1 : 1 + level.value * 0.2 }],
+  }));
   const [state, setState] = useState<VoiceState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [observation, setObservation] = useState<ApiObservation | null>(null);
+
+  const metering = recorderState.metering;
+  useEffect(() => {
+    const next =
+      state === 'recording' && typeof metering === 'number'
+        ? Math.min(1, Math.max(0, (metering + 55) / 55))
+        : 0;
+    level.value = withTiming(next, { duration: 120 });
+  }, [level, metering, state]);
+
+  useEffect(() => {
+    if (state === 'ready') {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setReadyLine(saveMessage());
+    } else if (state === 'failed' || state === 'transcribe_failed') {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }, [state]);
 
   useEffect(() => {
     return () => {
@@ -78,6 +141,7 @@ export default function VoiceCaptureScreen() {
       if (!allowed) return;
       await recorder.prepareToRecordAsync();
       recorder.record();
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setState('recording');
     } catch {
       setState('failed');
@@ -98,6 +162,7 @@ export default function VoiceCaptureScreen() {
   };
 
   const saveRecording = async () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setState('saving');
     setError(null);
     try {
@@ -163,6 +228,11 @@ export default function VoiceCaptureScreen() {
       </ThemedText>
 
       <GlassPanel contentStyle={styles.orbWrap}>
+        <View style={styles.orbStage}>
+        <PulseRing active={state === 'recording' && !reduced} color={colors.accent} delay={0} />
+        <PulseRing active={state === 'recording' && !reduced} color={colors.accent} delay={800} />
+        {state === 'ready' ? <DotBurst key={readyLine} color={colors.accent} size={160} /> : null}
+        <Animated.View style={orbStyle}>
         <Pressable
           onPress={() => {
             if (state === 'recording') {
@@ -171,6 +241,8 @@ export default function VoiceCaptureScreen() {
             }
             if (
               state === 'idle' ||
+              state === 'ready' ||
+              state === 'queued' ||
               state === 'failed' ||
               state === 'transcribe_failed' ||
               state === 'permission_denied'
@@ -188,19 +260,28 @@ export default function VoiceCaptureScreen() {
         >
           {state === 'saving' ? (
             <ActivityIndicator color={colors.accent} />
+          ) : state === 'ready' ? (
+            <Animated.View entering={ZoomIn.springify()}>
+              <Feather name="check" size={34} color={colors.accent} />
+            </Animated.View>
           ) : (
             <Feather
-              name="mic"
-              size={32}
+              name={state === 'recording' ? 'square' : 'mic'}
+              size={state === 'recording' ? 26 : 32}
               color={state === 'recording' ? colors.inverseText : colors.accent}
             />
           )}
         </Pressable>
+        </Animated.View>
+        </View>
+        {state === 'recording' ? (
+          <ThemedText colorKey="text" style={styles.timer}>
+            {formatDuration(recorderState.durationMillis ?? 0)}
+          </ThemedText>
+        ) : null}
         <ThemedText colorKey="text" style={styles.status}>
           {state === 'recording'
-            ? recorderState.durationMillis
-              ? `Recording… ${Math.round(recorderState.durationMillis / 1000)}s`
-              : 'Recording…'
+            ? 'Listening. Tap to save.'
             : state === 'saving'
               ? 'Saving…'
               : state === 'saved'
@@ -210,14 +291,14 @@ export default function VoiceCaptureScreen() {
                     ? observationStageLabel(observation)
                     : 'Transcribing…'
                   : state === 'ready'
-                    ? 'Memory ready'
+                    ? readyLine || 'Memory ready'
                     : state === 'transcribe_failed'
                       ? "Couldn't transcribe"
                     : state === 'queued'
                       ? 'Saved on this device. Will sync when you are online.'
                       : state === 'permission_denied'
                         ? 'Microphone blocked'
-                        : 'Tap to record'}
+                        : 'Tap and start talking'}
         </ThemedText>
       </GlassPanel>
 
@@ -282,7 +363,16 @@ export default function VoiceCaptureScreen() {
 
 const styles = StyleSheet.create({
   lead: { fontFamily: 'Roboto_400Regular', fontSize: 15 },
-  orbWrap: { alignItems: 'center', gap: 16, paddingVertical: 28 },
+  orbWrap: { alignItems: 'center', gap: 16, paddingVertical: 36 },
+  orbStage: { width: 160, height: 160, alignItems: 'center', justifyContent: 'center' },
+  ring: {
+    position: 'absolute',
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 2,
+  },
+  timer: { fontFamily: 'Roboto_600SemiBold', fontSize: 28, letterSpacing: 1, fontVariant: ['tabular-nums'] },
   orb: {
     width: 88,
     height: 88,

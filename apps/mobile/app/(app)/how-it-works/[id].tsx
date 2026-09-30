@@ -1,10 +1,12 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { ThemedText } from '../../../components/ThemedText';
 import { ErrorState, FadeInContent } from '../../../components/ui/EmptyState';
 import { FeatureIllustration } from '../../../components/ui/FeatureIllustration';
 import { GlassPanel } from '../../../components/ui/Glass';
+import { itemEntering } from '../../../components/ui/Motion';
 import { SoftPage, SoftTitle } from '../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { howItWorksFeature } from '../../../lib/howItWorks';
@@ -38,14 +40,14 @@ export default function HowItWorksFeatureScreen() {
           </ThemedText>
           <View style={styles.steps}>
             {feature.steps.map((step, index) => (
-              <View key={step} style={styles.step}>
+              <Animated.View key={step} entering={itemEntering(index + 2)} style={styles.step}>
                 <ThemedText colorKey="accent" style={styles.stepIndex}>
                   {String(index + 1).padStart(2, '0')}
                 </ThemedText>
                 <ThemedText colorKey="text" style={styles.stepText}>
                   {step}
                 </ThemedText>
-              </View>
+              </Animated.View>
             ))}
           </View>
         </GlassPanel>

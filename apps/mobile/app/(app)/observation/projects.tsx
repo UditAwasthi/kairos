@@ -1,7 +1,8 @@
 import { useAuth } from '@clerk/expo';
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '../../../components/ThemedText';
 import {
@@ -11,7 +12,9 @@ import {
   LoadingSkeleton,
   SoftRefreshBar,
 } from '../../../components/ui/EmptyState';
+import { Checkbox } from '../../../components/ui/Checkbox';
 import { GlassPanel } from '../../../components/ui/Glass';
+import { PressScale } from '../../../components/ui/Motion';
 import { SoftPage } from '../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { useAsync } from '../../../hooks/useAsync';
@@ -91,9 +94,13 @@ export default function ManageObservationProjectsScreen() {
       <SoftPage>
         {data.projects.length === 0 ? (
           <>
-            <EmptyState title="None yet" />
+            <EmptyState
+              icon="folder-open"
+              title="No projects yet"
+              message="Create one to keep this memory together with related ones."
+            />
             <ThemedButton
-              label="New"
+              label="New project"
               onPress={() => router.push('/(app)/projects/new')}
             />
           </>
@@ -102,33 +109,33 @@ export default function ManageObservationProjectsScreen() {
             const isMember = memberIds.has(project.id);
             const busy = busyId === project.id;
             return (
-              <Pressable
+              <PressScale
                 key={project.id}
                 disabled={busy}
-                onPress={() => void toggle(project.id, isMember)}
-                style={({ pressed }) => [{ opacity: busy ? 0.5 : pressed ? 0.88 : 1 }]}
+                onPress={() => {
+                  void Haptics.selectionAsync();
+                  void toggle(project.id, isMember);
+                }}
+                accessibilityLabel={`${isMember ? 'Remove from' : 'Add to'} ${project.name}`}
+                style={busy ? styles.busy : undefined}
               >
-                <GlassPanel padded={false} contentStyle={styles.row}>
-                  <View
-                    style={[
-                      styles.check,
-                      {
-                        borderColor: colors.textMuted,
-                        backgroundColor: isMember ? colors.accent : 'transparent',
-                      },
-                    ]}
-                  />
+                <GlassPanel
+                  padded={false}
+                  contentStyle={[styles.row, isMember && { backgroundColor: colors.primaryContainer }]}
+                >
+                  <Checkbox checked={isMember} />
                   <View style={styles.flex}>
                     <ThemedText colorKey="text" style={styles.title} numberOfLines={1}>
                       {project.name}
                     </ThemedText>
                     <ThemedText colorKey="textMuted" style={styles.meta}>
-                      {project.observationCount}
-                      {busy ? ' · …' : ''}
+                      {busy
+                        ? isMember ? 'Removing…' : 'Adding…'
+                        : `${project.observationCount} ${project.observationCount === 1 ? 'memory' : 'memories'}`}
                     </ThemedText>
                   </View>
                 </GlassPanel>
-              </Pressable>
+              </PressScale>
             );
           })
         )}
@@ -145,12 +152,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  check: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    borderWidth: 1.5,
-  },
+  busy: { opacity: 0.6 },
   flex: { flex: 1 },
   title: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
   meta: { fontFamily: 'Roboto_400Regular', fontSize: 12, marginTop: 2 },

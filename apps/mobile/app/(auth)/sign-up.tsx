@@ -1,4 +1,5 @@
 import { useAuth, useSignUp } from '@clerk/expo';
+import * as Haptics from 'expo-haptics';
 import { Redirect, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
@@ -25,6 +26,14 @@ export default function SignUpScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+
+  useEffect(() => {
+    if (errorMessage) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  }, [errorMessage]);
+
+  useEffect(() => {
+    if (isVerifying) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [isVerifying]);
 
   useEffect(() => {
     if (isSignedIn) {

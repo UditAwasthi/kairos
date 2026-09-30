@@ -1,10 +1,14 @@
 import { useAuth } from '@clerk/expo';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '../../../components/ThemedText';
 import { GlassPanel } from '../../../components/ui/Glass';
+import { PressScale } from '../../../components/ui/Motion';
+
+const EXAMPLES = ['Side project', 'Reading notes', 'Trip planning', 'Health', 'Work ideas'];
 import { SoftPage } from '../../../components/ui/SoftScreen';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { ThemedInput } from '../../../components/ui/ThemedInput';
@@ -36,8 +40,10 @@ export default function NewProjectScreen() {
         name: trimmed,
         description: description.trim() || null,
       });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace(`/(app)/projects/${project.id}`);
     } catch (err) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(err instanceof ApiError ? err.message : 'Could not save');
     } finally {
       setSaving(false);
@@ -46,10 +52,16 @@ export default function NewProjectScreen() {
 
   return (
     <SoftPage>
+      <ThemedText colorKey="textMuted" style={styles.lead}>
+        A project keeps related memories together so you can ask about all of them at once.
+      </ThemedText>
       <GlassPanel contentStyle={styles.form}>
         <ThemedInput
           value={name}
-          onChangeText={setName}
+          onChangeText={(text) => {
+            setName(text);
+            if (error) setError(null);
+          }}
           placeholder="Name"
           accessibilityLabel="Project name"
           maxLength={120}
@@ -65,14 +77,35 @@ export default function NewProjectScreen() {
         />
       </GlassPanel>
 
+      {name.trim().length === 0 ? (
+        <View style={styles.examples}>
+          {EXAMPLES.map((example) => (
+            <PressScale
+              key={example}
+              onPress={() => {
+                void Haptics.selectionAsync();
+                setName(example);
+              }}
+              accessibilityLabel={`Use ${example}`}
+            >
+              <View style={[styles.example, { borderColor: colors.border }]}>
+                <ThemedText colorKey="textSecondary" style={styles.exampleText}>
+                  {example}
+                </ThemedText>
+              </View>
+            </PressScale>
+          ))}
+        </View>
+      ) : null}
+
       {error ? (
-        <ThemedText colorKey="text" style={[styles.error, { color: colors.accent }]}>
+        <ThemedText colorKey="error" style={styles.error}>
           {error}
         </ThemedText>
       ) : null}
 
       <ThemedButton
-        label={saving ? '…' : 'Save'}
+        label={saving ? 'Creating…' : 'Create project'}
         disabled={saving || name.trim().length === 0}
         onPress={() => {
           void save().catch((err) => {
@@ -85,7 +118,11 @@ export default function NewProjectScreen() {
 }
 
 const styles = StyleSheet.create({
+  lead: { fontFamily: 'Roboto_400Regular', fontSize: 14, lineHeight: 20 },
   form: { gap: 12 },
+  examples: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  example: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+  exampleText: { fontFamily: 'Roboto_500Medium', fontSize: 13 },
   noteInput: { minHeight: 72, textAlignVertical: 'top' },
   error: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
 });

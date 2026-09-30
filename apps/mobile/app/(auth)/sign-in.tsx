@@ -1,6 +1,7 @@
 import { useAuth, useSignIn } from '@clerk/expo';
+import * as Haptics from 'expo-haptics';
 import { Redirect, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { AuthScreenLayout } from '../../components/auth/AuthScreenLayout';
@@ -22,6 +23,10 @@ export default function SignInScreen() {
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (errorMessage) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  }, [errorMessage]);
 
   if (!isLoaded) {
     return (

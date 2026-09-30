@@ -1,9 +1,8 @@
 import { useAuth } from '@clerk/expo';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { SoftPage } from '../../../components/ui/SoftScreen';
-import { GlassPanel } from '../../../components/ui/Glass';
 import {
   EmptyState,
   ErrorState,
@@ -11,6 +10,7 @@ import {
   LoadingSkeleton,
   SoftRefreshBar,
 } from '../../../components/ui/EmptyState';
+import { ListRow } from '../../../components/ui/ListRow';
 import { ThemedText } from '../../../components/ThemedText';
 import { useAsync } from '../../../hooks/useAsync';
 import { fetchTopics } from '../../../lib/api';
@@ -24,37 +24,45 @@ export default function TopicsScreen() {
     return fetchTopics({ token, limit: 100 });
   }, [getToken], { cacheKey: 'topics' });
 
-  if (loading && !data) return <LoadingSkeleton rows={8} />;
+  if (loading && !data) return <LoadingSkeleton rows={8} label="Gathering your topics" />;
   if (error && !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }
   if (!data || data.items.length === 0) {
     return (
       <SoftPage>
-        <EmptyState title="None yet" />
+        <EmptyState
+          icon="sell"
+          title="Topics appear on their own"
+          message="As you save memories, Kairos groups them by what they are about."
+          actionLabel="Capture something"
+          onAction={() => router.push('/(app)/quick-capture')}
+        />
       </SoftPage>
     );
   }
+
+  const items = [...data.items].sort((a, b) => b.observationCount - a.observationCount);
+  const max = Math.max(1, items[0]?.observationCount ?? 1);
 
   return (
     <FadeInContent>
       <SoftRefreshBar active={refreshing} />
       <SoftPage>
-        {data.items.map((topic) => (
-          <Pressable
+        <ThemedText colorKey="textMuted" style={styles.lead}>
+          {items.length} {items.length === 1 ? 'topic' : 'topics'} across your memories. The longest bar is what
+          you return to most.
+        </ThemedText>
+        {items.map((topic, index) => (
+          <ListRow
             key={topic.id}
+            title={topic.name}
+            count={topic.observationCount}
+            weight={topic.observationCount / max}
+            lead={index === 0}
+            index={index}
             onPress={() => router.push(`/(app)/topics/${topic.id}`)}
-            style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
-          >
-            <GlassPanel padded={false} contentStyle={styles.row}>
-              <ThemedText colorKey="text" style={styles.title} numberOfLines={1}>
-                {topic.name}
-              </ThemedText>
-              <ThemedText colorKey="textMuted" style={styles.meta}>
-                {topic.observationCount}
-              </ThemedText>
-            </GlassPanel>
-          </Pressable>
+          />
         ))}
       </SoftPage>
     </FadeInContent>
@@ -62,13 +70,5 @@ export default function TopicsScreen() {
 }
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 12,
-  },
-  title: { flex: 1, fontFamily: 'Roboto_500Medium', fontSize: 15 },
-  meta: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
+  lead: { fontFamily: 'Roboto_400Regular', fontSize: 14, lineHeight: 20 },
 });

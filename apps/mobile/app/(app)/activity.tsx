@@ -1,6 +1,10 @@
 import { useAuth } from '@clerk/expo';
+import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
+import { StyleSheet } from 'react-native';
+
+import { ThemedText } from '../../components/ThemedText';
 
 import { SoftPage } from '../../components/ui/SoftScreen';
 import {
@@ -38,6 +42,12 @@ export default function ActivityScreen() {
       const token = await getToken();
       if (!token) throw new Error('Sign in required');
       const data = await fetchObservations(token);
+      const wasProcessing = new Set(
+        observationsRef.current.filter((o) => isProcessingObservationStatus(o.status)).map((o) => o.id),
+      );
+      if (data.some((o) => o.status === 'COMPLETED' && wasProcessing.has(o.id))) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
       setObservations(data);
       hasDataRef.current = true;
     } catch {
@@ -91,7 +101,7 @@ export default function ActivityScreen() {
     }
   };
 
-  if (loading && observations.length === 0) return <LoadingSkeleton rows={8} />;
+  if (loading && observations.length === 0) return <LoadingSkeleton rows={8} label="Checking what is processing" />;
   if (error && observations.length === 0) {
     return <ErrorState title="Unable to load" onRetry={() => void load()} />;
   }
@@ -99,7 +109,9 @@ export default function ActivityScreen() {
     return (
       <SoftPage>
         <EmptyState
-          title="Quiet"
+          icon="check-circle-outline"
+          title="All caught up"
+          message="Nothing is processing right now. New captures show their progress here."
           actionLabel="Capture something"
           onAction={() => router.push('/(app)/quick-capture')}
         />
@@ -107,22 +119,47 @@ export default function ActivityScreen() {
     );
   }
 
+  const summary = [
+    active.length ? `${active.length} processing` : '',
+    failed.length ? `${failed.length} need${failed.length === 1 ? 's' : ''} a retry` : '',
+    !active.length && !failed.length ? 'Everything is ready' : '',
+  ].filter(Boolean).join(' · ');
+
+  const card = (observation: ApiObservation) => (
+    <ObservationStatusCard
+      key={observation.id}
+      observation={observation}
+      retrying={retryingId === observation.id}
+      onPress={() => router.push(`/(app)/observation/${observation.id}`)}
+      onRetry={
+        observation.status === 'FAILED'
+          ? () => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              void onRetry(observation.id);
+            }
+          : undefined
+      }
+    />
+  );
+
   return (
     <FadeInContent>
       <SoftPage>
-        {visible.map((observation) => (
-          <ObservationStatusCard
-            key={observation.id}
-            observation={observation}
-            retrying={retryingId === observation.id}
-            onPress={() => router.push(`/(app)/observation/${observation.id}`)}
-            onRetry={
-              observation.status === 'FAILED'
-                ? () => void onRetry(observation.id)
-                : undefined
-            }
-          />
-        ))}
+        <ThemedText colorKey="textSecondary" style={styles.summary}>
+          {summary}
+        </ThemedText>
+        {active.length > 0 ? (
+          <ThemedText colorKey="textMuted" style={styles.kicker}>In progress</ThemedText>
+        ) : null}
+        {active.map(card)}
+        {failed.length > 0 ? (
+          <ThemedText colorKey="textMuted" style={styles.kicker}>Needs attention</ThemedText>
+        ) : null}
+        {failed.map(card)}
+        {recentReady.length > 0 ? (
+          <ThemedText colorKey="textMuted" style={styles.kicker}>Recently ready</ThemedText>
+        ) : null}
+        {recentReady.map(card)}
 
         <ThemedButton
           label="Capture something"
@@ -132,3 +169,14 @@ export default function ActivityScreen() {
     </FadeInContent>
   );
 }
+
+const styles = StyleSheet.create({
+  summary: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
+  kicker: {
+    fontFamily: 'Roboto_500Medium',
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
+});

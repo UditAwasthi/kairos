@@ -1,12 +1,14 @@
 import { useAuth } from '@clerk/expo';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeInDown, FadeOutUp, ReduceMotion } from 'react-native-reanimated';
 
 import { ThemedText } from '../../../components/ThemedText';
-import { ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
+import { EmptyState, ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
 import { FLOATING_TAB_BAR_CONTENT } from '../../../components/FloatingTabBar';
 import {
   addObservationsToProjectBulk,
@@ -37,7 +39,7 @@ import { useAppTheme } from '../../../providers/ThemeProvider';
 import { readQueryCache, writeQueryCache } from '../../../hooks/useAsync';
 import { isStale } from '../../../lib/freshness';
 import { isNetworkError, onReconnect } from '../../../lib/network';
-import { PressScale } from '../../../components/ui/Motion';
+import { PressScale, itemEntering } from '../../../components/ui/Motion';
 import { invalidateObservationCaches } from '../../../lib/persistentCache';
 
 const CACHE = {
@@ -238,8 +240,12 @@ export default function LibraryScreen() {
     }
   };
 
-  const toggle = (id: string) =>
+  const toggle = (id: string, entering = false) => {
+    void (entering
+      ? Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+      : Haptics.selectionAsync());
     setSelected((old) => (old.includes(id) ? old.filter((item) => item !== id) : [...old, id]));
+  };
 
   const bulkDelete = () =>
     Alert.alert('Delete memories?', `Delete ${selected.length} selected memories?`, [
@@ -286,7 +292,7 @@ export default function LibraryScreen() {
     }
   };
 
-  const memoryRow = (item: ApiObservation | ApiSemanticSearchResult) => {
+  const memoryRow = (item: ApiObservation | ApiSemanticSearchResult, index: number) => {
     const isSearch = 'chunkId' in item;
     const id = isSearch ? item.observationId : item.id;
     const title = isSearch ? item.observation.filename : item.filename;
@@ -294,8 +300,8 @@ export default function LibraryScreen() {
     const iconName = MEM_ICONS[memType] ?? 'description';
 
     return (
+      <Animated.View key={`${id}-${isSearch ? item.chunkId : ''}`} entering={itemEntering(index)}>
       <Pressable
-        key={`${id}-${isSearch ? item.chunkId : ''}`}
         onPress={() =>
           selected.length
             ? toggle(id)
@@ -304,15 +310,16 @@ export default function LibraryScreen() {
                 params: { id, ...(isSearch ? { chunkId: item.chunkId, snippet: item.content } : {}) },
               })
         }
-        onLongPress={() => toggle(id)}
+        onLongPress={() => toggle(id, selected.length === 0)}
         accessibilityRole="button"
         accessibilityLabel={`${selected.includes(id) ? 'Deselect' : 'Open'} ${title}`}
-        style={[
+        style={({ pressed }) => [
           styles.rowCard,
           {
-            backgroundColor: colors.surfaceElevated,
+            backgroundColor: selected.includes(id) ? colors.primaryContainer : colors.surfaceElevated,
             borderColor: selected.includes(id) ? colors.primary : colors.border,
             borderRadius: radius.lg,
+            transform: [{ scale: pressed ? 0.98 : 1 }],
           },
         ]}
       >
@@ -337,6 +344,7 @@ export default function LibraryScreen() {
         </View>
         <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
       </Pressable>
+      </Animated.View>
     );
   };
 
@@ -418,6 +426,7 @@ export default function LibraryScreen() {
           <Pressable
             key={label}
             onPress={() => {
+              if (view !== label) void Haptics.selectionAsync();
               setView(label);
               setSearchResults(null);
               setSelected([]);
@@ -475,12 +484,14 @@ export default function LibraryScreen() {
 
       {/* Bulk actions header */}
       {selected.length ? (
-        <View
+        <Animated.View
+          entering={FadeInDown.springify().damping(16).reduceMotion(ReduceMotion.System)}
+          exiting={FadeOutUp.duration(160).reduceMotion(ReduceMotion.System)}
           style={[
             styles.actions,
             {
               backgroundColor: colors.surfaceElevated,
-              borderColor: colors.border,
+              borderColor: colors.borderAccent,
               borderRadius: radius.lg,
             },
           ]}
@@ -503,7 +514,10 @@ export default function LibraryScreen() {
               Delete
             </ThemedText>
           </Pressable>
-        </View>
+          <Pressable onPress={() => setSelected([])} accessibilityRole="button" accessibilityLabel="Clear selection" hitSlop={8}>
+            <MaterialIcons name="close" size={18} color={colors.textMuted} />
+          </Pressable>
+        </Animated.View>
       ) : null}
 
       {/* Content area */}
@@ -515,16 +529,40 @@ export default function LibraryScreen() {
         <FlatList<ApiObservation | ApiSemanticSearchResult>
           data={searchResults ?? items}
           keyExtractor={(item, index) => ('chunkId' in item ? `${item.chunkId}-${index}` : item.id)}
-          renderItem={({ item }) => memoryRow(item)}
+          renderItem={({ item, index }) => memoryRow(item, index)}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + FLOATING_TAB_BAR_CONTENT + 24, gap: 8 }}
           onEndReached={() => {
             if (!searchResults && cursor) void load(true);
           }}
           onEndReachedThreshold={0.6}
+          ListHeaderComponent={
+            items.length > 0 && !searchResults && !hasFilters ? (
+              <ThemedText colorKey="textMuted" style={styles.countLine}>
+                {items.length}
+                {cursor ? '+' : ''} {items.length === 1 ? 'memory' : 'memories'} kept
+              </ThemedText>
+            ) : null
+          }
           ListEmptyComponent={
-            <ThemedText colorKey="textMuted" style={styles.empty}>
-              No matching memories found.
-            </ThemedText>
+            searchResults || hasFilters ? (
+              <EmptyState
+                icon="search-off"
+                title="Nothing matches yet"
+                message="Try fewer words, or ask Kairos in plain language."
+                actionLabel="Ask Kairos"
+                onAction={() =>
+                  router.push({ pathname: '/(app)/(tabs)/ask', params: query.trim() ? { q: query.trim() } : {} })
+                }
+              />
+            ) : (
+              <EmptyState
+                icon="auto-stories"
+                title="Your library starts here"
+                message="Every note, link, and voice memo you save lands here, connected by topic and time."
+                actionLabel="Capture something"
+                onAction={() => router.push('/(app)/quick-capture')}
+              />
+            )
           }
         />
       ) : (
@@ -538,7 +576,20 @@ export default function LibraryScreen() {
           }
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + FLOATING_TAB_BAR_CONTENT + 24, gap: 8 }}
-          renderItem={({ item }) => {
+          ListEmptyComponent={
+            <EmptyState
+              icon={view === 'Topics' ? 'sell' : view === 'Projects' ? 'folder-open' : 'hub'}
+              title={view === 'Projects' ? 'No projects yet' : `No ${view.toLowerCase()} yet`}
+              message={
+                view === 'Projects'
+                  ? 'Group related memories into a project to ask about them together.'
+                  : 'Kairos finds these on its own as you capture more.'
+              }
+              actionLabel={view === 'Projects' ? 'New project' : 'Capture something'}
+              onAction={() => router.push(view === 'Projects' ? '/(app)/projects/new' : '/(app)/quick-capture')}
+            />
+          }
+          renderItem={({ item, index }) => {
             const title = item.name;
             const meta = 'observationCount' in item ? `${item.observationCount} memories` : '';
             const route =
@@ -558,6 +609,7 @@ export default function LibraryScreen() {
                     : 'category';
 
             return (
+              <Animated.View entering={itemEntering(index)}>
               <PressScale onPress={() => router.push(route as never)} accessibilityLabel={`Open ${title}`}>
                 <View
                   style={[
@@ -596,6 +648,7 @@ export default function LibraryScreen() {
                   </Pressable>
                 </View>
               </PressScale>
+              </Animated.View>
             );
           }}
         />
@@ -851,10 +904,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  empty: {
-    textAlign: 'center',
-    padding: 32,
-    fontFamily: 'Roboto_400Regular',
+  countLine: {
+    fontFamily: 'Roboto_500Medium',
+    fontSize: 12,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    paddingHorizontal: 4,
+    paddingBottom: 4,
   },
   scrim: {
     flex: 1,

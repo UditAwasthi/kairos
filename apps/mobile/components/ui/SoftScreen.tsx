@@ -17,7 +17,7 @@ import { useAppTheme } from '../../providers/ThemeProvider';
 import { AmbientBackground } from './system/AmbientBackground';
 import { FLOATING_TAB_BAR_CONTENT } from '../FloatingTabBar';
 import { SurfaceCard } from './SectionHeader';
-import { itemEntering, pageEntering, PressScale } from './Motion';
+import { fadeEntering, itemEntering, pageEntering, PressScale } from './Motion';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
 
@@ -60,14 +60,21 @@ export function SoftPage({
 
   return (
     <AmbientBackground style={style}>
-      <Animated.View entering={pageEntering()} style={{ flex: 1 }}>
+      <Animated.View entering={scroll ? fadeEntering() : pageEntering()} style={{ flex: 1 }}>
         {scroll ? (
           <ScrollView
             contentContainerStyle={pad}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {children}
+            {React.Children.toArray(children).map((child, index) => (
+              <Animated.View
+                key={React.isValidElement(child) && child.key != null ? child.key : index}
+                entering={itemEntering(index)}
+              >
+                {child}
+              </Animated.View>
+            ))}
           </ScrollView>
         ) : (
           <View style={[{ flex: 1 }, pad]}>{children}</View>

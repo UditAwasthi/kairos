@@ -1,7 +1,8 @@
 import { useAuth } from '@clerk/expo';
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '../../components/ThemedText';
 import {
@@ -13,6 +14,7 @@ import {
 } from '../../components/ui/EmptyState';
 import { GlassPanel } from '../../components/ui/Glass';
 import { EvidenceRow } from '../../components/ui/InsightCard';
+import { PressScale } from '../../components/ui/Motion';
 import { SoftPage, SoftTitle } from '../../components/ui/SoftScreen';
 import { useAsync } from '../../hooks/useAsync';
 import { fetchPredictions, type PredictionItem } from '../../lib/api';
@@ -42,7 +44,7 @@ export default function PredictionsScreen() {
     return fetchPredictions(token);
   }, [getToken], { cacheKey: 'predictions' });
 
-  if (loading && !data) return <LoadingSkeleton rows={6} />;
+  if (loading && !data) return <LoadingSkeleton rows={6} label="Looking for patterns" />;
   if (error && !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }
@@ -50,7 +52,9 @@ export default function PredictionsScreen() {
     return (
       <SoftPage>
         <EmptyState
-          title="No patterns yet"
+          icon="insights"
+          title="Patterns need a little history"
+          message="After a week or so of memories, Kairos can suggest what to revisit and what is emerging."
           actionLabel="Capture something"
           onAction={() => router.push('/(app)/quick-capture')}
         />
@@ -73,17 +77,27 @@ export default function PredictionsScreen() {
               ? `/(app)/topics/${item.topicId}`
               : '/(app)/quick-capture';
           return (
-            <Pressable
+            <PressScale
               key={`${item.kind}-${index}`}
-              onPress={() => router.push(href)}
-              accessibilityRole="button"
+              onPress={() => {
+                void Haptics.selectionAsync();
+                router.push(href);
+              }}
               accessibilityLabel={item.title}
-              style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
             >
               <GlassPanel>
                 <View style={styles.header}>
-                  <View style={[styles.icon, { backgroundColor: colors.accentGlow }]}>
-                    <Feather name={iconForKind(item.kind)} size={16} color={colors.accent} />
+                  <View
+                    style={[
+                      styles.icon,
+                      { backgroundColor: index === 0 ? colors.accentGlow : colors.surfaceContainer },
+                    ]}
+                  >
+                    <Feather
+                      name={iconForKind(item.kind)}
+                      size={16}
+                      color={index === 0 ? colors.accent : colors.textSecondary}
+                    />
                   </View>
                   <ThemedText colorKey="text" style={styles.title}>
                     {item.title}
@@ -103,12 +117,15 @@ export default function PredictionsScreen() {
                   />
                 ))}
                 {item.evidence.length > 0 ? (
-                  <ThemedText colorKey="accent" style={styles.explore}>
-                    Explore related memories
-                  </ThemedText>
+                  <View style={styles.exploreRow}>
+                    <ThemedText colorKey="accent" style={styles.explore}>
+                      Explore related memories
+                    </ThemedText>
+                    <Feather name="arrow-right" size={14} color={colors.accent} />
+                  </View>
                 ) : null}
               </GlassPanel>
-            </Pressable>
+            </PressScale>
           );
         })}
       </SoftPage>
@@ -129,5 +146,6 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontFamily: 'Roboto_600SemiBold', fontSize: 16, letterSpacing: -0.2 },
   body: { fontFamily: 'Roboto_400Regular', fontSize: 14, lineHeight: 21 },
   why: { fontFamily: 'Roboto_400Regular', fontSize: 12, marginTop: 10 },
-  explore: { fontFamily: 'Roboto_500Medium', fontSize: 13, marginTop: 12 },
+  exploreRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
+  explore: { fontFamily: 'Roboto_500Medium', fontSize: 13 },
 });

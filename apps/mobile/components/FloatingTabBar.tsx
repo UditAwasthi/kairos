@@ -1,6 +1,5 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Feather } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
@@ -76,7 +75,6 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
       canPreventDefault: true,
     });
     if (!event.defaultPrevented) {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       navigation.navigate(route.name, route.params);
     }
   };

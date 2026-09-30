@@ -34,7 +34,7 @@ import { TabScreenSwipe } from '../../../components/TabScreenSwipe';
 import { FadeInContent, LoadingSkeleton, SoftRefreshBar } from '../../../components/ui/EmptyState';
 import { ScreenGradient } from '../../../components/ui/Glass';
 import { AskBubble } from '../../../components/ui/MemoryCards';
-import { itemEntering, PressScale } from '../../../components/ui/Motion';
+import { Breathe, itemEntering, PressScale } from '../../../components/ui/Motion';
 import { Mascot } from '../../../components/ui/system/Mascot';
 import { TopBar } from '../../../components/ui/system/TopBar';
 import { mascotSize } from '../../../theme';
@@ -525,7 +525,9 @@ export default function AskScreen() {
 
               {emptyThread ? (
                 <Animated.View entering={FadeIn.duration(280)} style={styles.empty}>
-                  <Mascot state="thinking" size={mascotSize.lg} />
+                  <Breathe amount={0.06} period={3000}>
+                    <Mascot state="thinking" size={mascotSize.lg} />
+                  </Breathe>
                   <Text style={[styles.hero, { color: colors.text }]}>
                     Ask Kairos
                   </Text>

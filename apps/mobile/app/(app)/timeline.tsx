@@ -9,7 +9,12 @@ import {
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@clerk/expo';
+import { MaterialIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated from 'react-native-reanimated';
+
+import { itemEntering } from '../../components/ui/Motion';
 
 import {
   EmptyState,
@@ -369,7 +374,9 @@ export default function TimelineScreen() {
 
       {observations.length === 0 ? (
         <EmptyState
-          title="No memories yet"
+          icon="timeline"
+          title="Your timeline starts with one memory"
+          message="Everything you save appears here in order, grouped by day."
           actionLabel="Capture something"
           onAction={() => router.push('/(app)/quick-capture')}
         />
@@ -387,9 +394,18 @@ export default function TimelineScreen() {
                 <ActivityIndicator color={colors.accent} />
               </View>
             ) : endReached ? (
-              <ThemedText colorKey="textMuted" style={styles.end}>
-                End of timeline
-              </ThemedText>
+              <View style={styles.endBlock}>
+                <MaterialIcons name="flag" size={18} color={colors.primary} />
+                <ThemedText colorKey="text" style={styles.endTitle}>
+                  You reached the beginning
+                </ThemedText>
+                <ThemedText colorKey="textMuted" style={styles.end}>
+                  {observations.length} {observations.length === 1 ? 'memory' : 'memories'} kept
+                  {observations.length > 0
+                    ? ` since ${new Date(observations[observations.length - 1].capturedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+                    : ''}
+                </ThemedText>
+              </View>
             ) : null
           }
           refreshControl={
@@ -397,6 +413,7 @@ export default function TimelineScreen() {
               refreshing={refreshing}
               tintColor={colors.text}
               onRefresh={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setRefreshing(true);
                 nextCursorRef.current = null;
                 void loadPage('reset')
@@ -423,7 +440,7 @@ export default function TimelineScreen() {
                     day: 'numeric',
                   });
             return (
-              <>
+              <Animated.View entering={itemEntering(index)}>
                 {showDay ? (
                   <View style={[styles.dayBadge, { backgroundColor: colors.primaryContainer, borderRadius: 999 }]}>
                     <ThemedText colorKey="primary" style={styles.day}>
@@ -441,7 +458,7 @@ export default function TimelineScreen() {
                       : undefined
                   }
                 />
-              </>
+              </Animated.View>
             );
           }}
         />
@@ -456,11 +473,20 @@ const styles = StyleSheet.create({
   filters: { gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
   list: { paddingHorizontal: 16, paddingBottom: 24 },
   footer: { paddingVertical: 16, alignItems: 'center' },
+  endBlock: {
+    alignItems: 'center',
+    gap: 4,
+    paddingTop: 28,
+    paddingBottom: 16,
+  },
+  endTitle: {
+    fontFamily: 'Roboto_600SemiBold',
+    fontSize: 15,
+  },
   end: {
     fontFamily: 'Roboto_400Regular',
-    fontSize: 12,
+    fontSize: 13,
     textAlign: 'center',
-    paddingVertical: 16,
   },
   dayBadge: {
     alignSelf: 'flex-start',

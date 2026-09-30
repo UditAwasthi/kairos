@@ -1,9 +1,8 @@
 import { useAuth } from '@clerk/expo';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { SoftPage } from '../../../components/ui/SoftScreen';
-import { GlassPanel } from '../../../components/ui/Glass';
 import {
   EmptyState,
   ErrorState,
@@ -11,9 +10,9 @@ import {
   LoadingSkeleton,
   SoftRefreshBar,
 } from '../../../components/ui/EmptyState';
+import { ListRow } from '../../../components/ui/ListRow';
 import { ThemedButton } from '../../../components/ui/ThemedButton';
 import { InsightCard as SuggestionCard } from '../../../components/ui/system/InsightCard';
-import { ThemedText } from '../../../components/ThemedText';
 import { useAsync } from '../../../hooks/useAsync';
 import { fetchProjects } from '../../../lib/api';
 
@@ -26,10 +25,13 @@ export default function ProjectsScreen() {
     return fetchProjects({ token, limit: 100 });
   }, [getToken], { cacheKey: 'projects' });
 
-  if (loading && !data) return <LoadingSkeleton rows={8} />;
+  if (loading && !data) return <LoadingSkeleton rows={8} label="Opening your projects" />;
   if (error && !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }
+
+  const items = data?.items ?? [];
+  const max = Math.max(1, ...items.map((project) => project.observationCount));
 
   return (
     <FadeInContent>
@@ -37,35 +39,31 @@ export default function ProjectsScreen() {
       <SoftPage>
         <SuggestionCard message="Group related memories into a project Kairos can revisit." />
         <ThemedButton
-          label="New"
+          label="New project"
           onPress={() => router.push('/(app)/projects/new')}
           style={styles.newBtn}
         />
 
-        {!data || data.items.length === 0 ? (
+        {items.length === 0 ? (
           <EmptyState
-            title="None yet"
-            actionLabel="New"
+            icon="folder-open"
+            title="Start your first project"
+            message="A trip, a thesis, a side project. Anything you want Kairos to keep together."
+            actionLabel="New project"
             onAction={() => router.push('/(app)/projects/new')}
           />
         ) : (
-          data.items.map((project) => (
-            <Pressable
+          items.map((project, index) => (
+            <ListRow
               key={project.id}
+              icon="folder"
+              title={project.name}
+              count={project.observationCount}
+              weight={project.observationCount / max}
+              lead={project.observationCount === max}
+              index={index}
               onPress={() => router.push(`/(app)/projects/${project.id}`)}
-              style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
-            >
-              <GlassPanel padded={false} contentStyle={styles.row}>
-                <View style={styles.copy}>
-                  <ThemedText colorKey="text" style={styles.title} numberOfLines={1}>
-                    {project.name}
-                  </ThemedText>
-                </View>
-                <ThemedText colorKey="textMuted" style={styles.meta}>
-                  {project.observationCount}
-                </ThemedText>
-              </GlassPanel>
-            </Pressable>
+            />
           ))
         )}
       </SoftPage>
@@ -75,14 +73,4 @@ export default function ProjectsScreen() {
 
 const styles = StyleSheet.create({
   newBtn: { alignSelf: 'flex-start', minWidth: 88, paddingHorizontal: 18 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 12,
-  },
-  copy: { flex: 1 },
-  title: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
-  meta: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
 });

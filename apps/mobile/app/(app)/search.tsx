@@ -1,8 +1,12 @@
 import { useAuth } from '@clerk/expo';
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+
+import { itemEntering, PressScale } from '../../components/ui/Motion';
 
 import { SoftPage } from '../../components/ui/SoftScreen';
 import { GlassPanel } from '../../components/ui/Glass';
@@ -37,6 +41,8 @@ import {
 } from '../../lib/searchFilters';
 import { InsightCard as SuggestionCard } from '../../components/ui/system/InsightCard';
 import { useAppTheme } from '../../providers/ThemeProvider';
+
+const EXAMPLE_QUERIES = ['last week', 'ideas I had', 'books', 'meetings yesterday'];
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -170,6 +176,21 @@ export default function SearchScreen() {
           <SuggestionCard message="Search notes, topics, and projects Kairos already remembers." />
         ) : null}
 
+        {!searched ? (
+          <View style={styles.examples}>
+            {EXAMPLE_QUERIES.map((example) => (
+              <TopicChip
+                key={example}
+                label={example}
+                onPress={() => {
+                  setQuery(example);
+                  void runSearch(example);
+                }}
+              />
+            ))}
+          </View>
+        ) : null}
+
         <View style={styles.filterLaunch}>
           <TopicChip
             label={source ? searchSourceLabel(source) : 'Source'}
@@ -299,7 +320,7 @@ export default function SearchScreen() {
         </ScrollView>
 
         <SoftRefreshBar active={loading && !!result} />
-        {loading && !result ? <LoadingSkeleton rows={4} /> : null}
+        {loading && !result ? <LoadingSkeleton rows={4} label="Searching your memories" /> : null}
 
         {error ? (
           <GlassPanel>
@@ -312,28 +333,33 @@ export default function SearchScreen() {
 
         {searched && !loading && result && result.results.length === 0 ? (
           <EmptyState
+            icon="search-off"
             title="Nothing matched that memory"
-            actionLabel="Capture something"
-            onAction={() => router.push('/(app)/quick-capture')}
+            message="Try fewer words, or let Kairos answer from everything you have saved."
+            actionLabel="Ask Kairos instead"
+            onAction={() => router.push({ pathname: '/(app)/(tabs)/ask', params: { q: query.trim() } })}
           />
         ) : null}
 
         {result && result.results.length > 0 ? (
           <View style={{ opacity: loading ? 0.72 : 1, gap: 12 }}>
-            {result.results.map((item) => (
-              <Pressable
-                key={item.chunkId}
-                onPress={() =>
+            <ThemedText colorKey="textMuted" style={styles.count}>
+              {result.results.length} {result.results.length === 1 ? 'match' : 'matches'}
+            </ThemedText>
+            {result.results.map((item, index) => (
+              <Animated.View key={item.chunkId} entering={itemEntering(index)}>
+              <PressScale
+                onPress={() => {
+                  void Haptics.selectionAsync();
                   router.push({
                     pathname: '/(app)/observation/[id]',
                     params: {
                       id: item.observationId,
                       highlight: item.content.slice(0, 240),
                     },
-                  })
-                }
-                accessibilityRole="button"
-                style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
+                  });
+                }}
+                accessibilityLabel={item.observation.filename}
               >
                 <GlassPanel padded={false} contentStyle={styles.result}>
                   <ThemedText colorKey="textMuted" style={styles.meta}>
@@ -347,7 +373,8 @@ export default function SearchScreen() {
                     {item.content}
                   </ThemedText>
                 </GlassPanel>
-              </Pressable>
+              </PressScale>
+              </Animated.View>
             ))}
           </View>
         ) : null}
@@ -391,4 +418,6 @@ const styles = StyleSheet.create({
   title: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
   snippet: { fontFamily: 'Roboto_400Regular', fontSize: 13, lineHeight: 18, marginTop: 4 },
   error: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
+  count: { fontFamily: 'Roboto_500Medium', fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase' },
+  examples: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });

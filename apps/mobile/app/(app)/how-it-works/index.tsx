@@ -1,6 +1,11 @@
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+
+import { PressScale } from '../../../components/ui/Motion';
+import { useReducedMotion } from '../../../hooks/useReducedMotion';
 
 import { ThemedText } from '../../../components/ThemedText';
 import { FadeInContent } from '../../../components/ui/EmptyState';
@@ -13,9 +18,19 @@ import {
 } from '../../../lib/howItWorks';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 
+const FLOW = ['Capture', 'Remember', 'Ask'] as const;
+
 export default function HowItWorksScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
+  const reduced = useReducedMotion();
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    if (reduced) return;
+    const timer = setInterval(() => setStep((current) => (current + 1) % FLOW.length), 1400);
+    return () => clearInterval(timer);
+  }, [reduced]);
 
   return (
     <FadeInContent>
@@ -27,17 +42,26 @@ export default function HowItWorksScreen() {
 
         <GlassPanel>
           <View style={styles.flow}>
-            {['Capture', 'Remember', 'Ask'].map((label, index) => (
+            {FLOW.map((label, index) => {
+              const lit = reduced || index === step;
+              return (
               <View key={label} style={styles.flowItem}>
-                <View style={[styles.flowDot, { backgroundColor: colors.accent }]} />
-                <ThemedText colorKey="text" style={styles.flowLabel}>
+                <View
+                  style={[
+                    styles.flowDot,
+                    { backgroundColor: lit ? colors.accent : colors.textMuted },
+                    lit && !reduced && styles.flowDotLit,
+                  ]}
+                />
+                <ThemedText colorKey={lit ? 'text' : 'textMuted'} style={styles.flowLabel}>
                   {label}
                 </ThemedText>
                 {index < 2 ? (
                   <Feather name="arrow-right" size={14} color={colors.textMuted} />
                 ) : null}
               </View>
-            ))}
+              );
+            })}
           </View>
           <ThemedText colorKey="textSecondary" style={styles.flowCopy}>
             Saved, then processing, then ready. Offline notes wait on this device.
@@ -54,12 +78,13 @@ export default function HowItWorksScreen() {
             </ThemedText>
             {HOW_IT_WORKS_FEATURES.filter((feature) => feature.group === group.id).map(
               (feature) => (
-                <Pressable
+                <PressScale
                   key={feature.id}
-                  onPress={() => router.push(`/(app)/how-it-works/${feature.id}`)}
-                  accessibilityRole="button"
+                  onPress={() => {
+                    void Haptics.selectionAsync();
+                    router.push(`/(app)/how-it-works/${feature.id}`);
+                  }}
                   accessibilityLabel={feature.title}
-                  style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
                 >
                   <GlassPanel padded={false} contentStyle={styles.card}>
                     <FeatureIllustration id={feature.id} />
@@ -73,7 +98,7 @@ export default function HowItWorksScreen() {
                     </View>
                     <Feather name="chevron-right" size={16} color={colors.textMuted} />
                   </GlassPanel>
-                </Pressable>
+                </PressScale>
               ),
             )}
           </View>
@@ -101,6 +126,7 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
   },
+  flowDotLit: { transform: [{ scale: 1.6 }] },
   flowLabel: {
     fontFamily: 'Roboto_500Medium',
     fontSize: 13,

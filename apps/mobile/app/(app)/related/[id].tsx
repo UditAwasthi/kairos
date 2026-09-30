@@ -1,6 +1,7 @@
 import { useAuth } from '@clerk/expo';
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Pressable, StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '../../../components/ThemedText';
 import {
@@ -11,10 +12,12 @@ import {
   SoftRefreshBar,
 } from '../../../components/ui/EmptyState';
 import { GlassPanel } from '../../../components/ui/Glass';
+import { PressScale } from '../../../components/ui/Motion';
 import { SoftPage, SoftTitle } from '../../../components/ui/SoftScreen';
 import { useAsync } from '../../../hooks/useAsync';
 import { fetchRelatedMemories } from '../../../lib/api';
 import { relativeMemoryLabel } from '../../../lib/searchHints';
+import { useAppTheme } from '../../../providers/ThemeProvider';
 
 const REASON_LABEL = {
   similar: 'Similar meaning',
@@ -27,6 +30,7 @@ const REASON_LABEL = {
 export default function RelatedMemoriesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { colors } = useAppTheme();
   const { getToken } = useAuth();
   const { data, error, loading, refreshing, reload } = useAsync(
     async () => {
@@ -38,7 +42,7 @@ export default function RelatedMemoriesScreen() {
     { resetKey: String(id), cacheKey: 'related' },
   );
 
-  if (loading && !data) return <LoadingSkeleton rows={6} />;
+  if (loading && !data) return <LoadingSkeleton rows={6} label="Tracing connections" />;
   if (error && !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }
@@ -46,7 +50,9 @@ export default function RelatedMemoriesScreen() {
     return (
       <SoftPage>
         <EmptyState
-          title="No related memories yet"
+          icon="hub"
+          title="No connections yet"
+          message="As you save more, Kairos links memories that share ideas, people or moments."
           actionLabel="Search"
           onAction={() => router.push('/(app)/search')}
         />
@@ -59,18 +65,20 @@ export default function RelatedMemoriesScreen() {
       <SoftRefreshBar active={refreshing} />
       <SoftPage>
         <SoftTitle>Related memories</SoftTitle>
+        <ThemedText colorKey="textMuted" style={styles.lead}>
+          {data.length} {data.length === 1 ? 'memory connects' : 'memories connect'} to this one.
+        </ThemedText>
         {data.map((item) => (
-          <Pressable
+          <PressScale
             key={item.observationId}
-            onPress={() =>
+            onPress={() => {
+              void Haptics.selectionAsync();
               router.push({
                 pathname: '/(app)/observation/[id]',
                 params: { id: item.observationId, highlight: item.snippet },
-              })
-            }
-            accessibilityRole="button"
+              });
+            }}
             accessibilityLabel={item.filename}
-            style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
           >
             <GlassPanel>
               <ThemedText colorKey="textMuted" style={styles.when}>
@@ -82,11 +90,23 @@ export default function RelatedMemoriesScreen() {
               <ThemedText colorKey="textMuted" style={styles.snippet} numberOfLines={3}>
                 {item.snippet}
               </ThemedText>
-              <ThemedText colorKey="textMuted" style={styles.reasons}>
-                {item.reasons.map((reason) => REASON_LABEL[reason]).join(' · ')}
-              </ThemedText>
+              <View style={styles.reasons}>
+                {item.reasons.map((reason, index) => (
+                  <View
+                    key={reason}
+                    style={[
+                      styles.reason,
+                      { backgroundColor: index === 0 ? colors.primaryContainer : colors.surfaceContainer },
+                    ]}
+                  >
+                    <ThemedText colorKey={index === 0 ? 'primary' : 'textSecondary'} style={styles.reasonText}>
+                      {REASON_LABEL[reason]}
+                    </ThemedText>
+                  </View>
+                ))}
+              </View>
             </GlassPanel>
-          </Pressable>
+          </PressScale>
         ))}
       </SoftPage>
     </FadeInContent>
@@ -94,8 +114,11 @@ export default function RelatedMemoriesScreen() {
 }
 
 const styles = StyleSheet.create({
+  lead: { fontFamily: 'Roboto_400Regular', fontSize: 14, lineHeight: 20 },
   when: { fontFamily: 'Roboto_400Regular', fontSize: 12, marginBottom: 6 },
   title: { fontFamily: 'Roboto_500Medium', fontSize: 16 },
   snippet: { fontFamily: 'Roboto_400Regular', fontSize: 14, lineHeight: 21, marginTop: 6 },
-  reasons: { fontFamily: 'Roboto_400Regular', fontSize: 12, marginTop: 8 },
+  reasons: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  reason: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  reasonText: { fontFamily: 'Roboto_500Medium', fontSize: 11 },
 });

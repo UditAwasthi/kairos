@@ -1,6 +1,7 @@
 import { useAuth } from '@clerk/expo';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { ThemedText } from '../../components/ThemedText';
 import { CaptureHeatmap, CaptureHistogram } from '../../components/ui/CaptureCharts';
@@ -20,11 +21,14 @@ import {
 } from '../../components/ui/EmptyState';
 import { AccentGradient, GlassPanel } from '../../components/ui/Glass';
 import { InsightCard } from '../../components/ui/InsightCard';
+import { ListRow } from '../../components/ui/ListRow';
+import { PressScale } from '../../components/ui/Motion';
 import { SoftPage, SoftTitle } from '../../components/ui/SoftScreen';
 import { HeroStatusWidget } from '../../components/ui/system/HeroStatusWidget';
 import { InsightCard as SuggestionCard } from '../../components/ui/system/InsightCard';
 import { useAsync } from '../../hooks/useAsync';
 import { fetchDashboard } from '../../lib/api';
+import { paceState } from '../../lib/engagement';
 import { useAppTheme } from '../../providers/ThemeProvider';
 
 export default function DashboardScreen() {
@@ -37,7 +41,7 @@ export default function DashboardScreen() {
     return fetchDashboard(token);
   }, [getToken], { cacheKey: 'dashboard' });
 
-  if (loading && !data) return <LoadingSkeleton rows={8} />;
+  if (loading && !data) return <LoadingSkeleton rows={8} label="Tallying your memories" />;
   if (error && !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }
@@ -73,7 +77,10 @@ export default function DashboardScreen() {
             onPress={() => router.push('/(app)/brief')}
           />
         ) : null}
-        <ThemedText colorKey="textMuted" style={styles.day}>
+        <ThemedText colorKey="textSecondary" style={styles.day}>
+          {paceState(data.habit.todayProgress, data.habit.dailyGoal).message}
+        </ThemedText>
+        <ThemedText colorKey="textMuted" style={styles.dayMeta}>
           {data.weekCount} this week · {data.totalCount} remembered
         </ThemedText>
 
@@ -124,36 +131,29 @@ export default function DashboardScreen() {
         </ThemedText>
         {data.recent.length === 0 ? (
           <EmptyState
-            title="Nothing yet"
+            icon="history"
+            title="Your recent memories land here"
             actionLabel="Capture something"
             onAction={() => router.push('/(app)/quick-capture')}
           />
         ) : (
-          data.recent.map((item) => (
-            <Pressable
+          data.recent.map((item, index) => (
+            <ListRow
               key={item.id}
+              title={item.filename}
+              subtitle={`${item.sourceLabel}${item.summary ? ` · ${item.summary}` : ''}`}
+              index={index}
               onPress={() => router.push(`/(app)/observation/${item.id}`)}
-              accessibilityRole="button"
-              accessibilityLabel={item.filename}
-              style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
-            >
-              <GlassPanel padded={false} contentStyle={styles.recentRow}>
-                <ThemedText colorKey="text" style={styles.recentTitle} numberOfLines={1}>
-                  {item.filename}
-                </ThemedText>
-                <ThemedText colorKey="textMuted" style={styles.recentMeta} numberOfLines={1}>
-                  {item.sourceLabel}
-                  {item.summary ? ` · ${item.summary}` : ''}
-                </ThemedText>
-              </GlassPanel>
-            </Pressable>
+            />
           ))
         )}
 
         {data.processingCount > 0 ? (
-          <Pressable
-            onPress={() => router.push('/(app)/activity')}
-            accessibilityRole="button"
+          <PressScale
+            onPress={() => {
+              void Haptics.selectionAsync();
+              router.push('/(app)/activity');
+            }}
             accessibilityLabel="Current activity"
           >
             <GlassPanel>
@@ -164,12 +164,14 @@ export default function DashboardScreen() {
                 {data.processingCount} {data.processingCount === 1 ? 'memory' : 'memories'} still settling
               </ThemedText>
             </GlassPanel>
-          </Pressable>
+          </PressScale>
         ) : null}
 
-        <Pressable
-          onPress={() => router.push('/(app)/(tabs)/ask')}
-          accessibilityRole="button"
+        <PressScale
+          onPress={() => {
+            void Haptics.selectionAsync();
+            router.push('/(app)/(tabs)/ask');
+          }}
           accessibilityLabel="Ask Kairos"
         >
           <AccentGradient style={[styles.askCard, { borderRadius: radius.xl }]}>
@@ -180,14 +182,15 @@ export default function DashboardScreen() {
               What was I working on…
             </ThemedText>
           </AccentGradient>
-        </Pressable>
+        </PressScale>
       </SoftPage>
     </FadeInContent>
   );
 }
 
 const styles = StyleSheet.create({
-  day: { fontFamily: 'Roboto_400Regular', fontSize: 15, marginBottom: 4 },
+  day: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
+  dayMeta: { fontFamily: 'Roboto_400Regular', fontSize: 13, marginBottom: 4 },
   section: {
     fontFamily: 'Roboto_500Medium',
     fontSize: 12,
@@ -196,9 +199,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   kicker: { fontFamily: 'Roboto_500Medium', fontSize: 13, marginBottom: 6 },
-  recentRow: { paddingHorizontal: 16, paddingVertical: 16, gap: 4 },
   recentTitle: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
-  recentMeta: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
   askCard: { paddingHorizontal: 20, paddingVertical: 18, gap: 4 },
   askTitle: { fontFamily: 'Roboto_600SemiBold', fontSize: 17 },
   askHint: { fontFamily: 'Roboto_400Regular', fontSize: 14, opacity: 0.86 },

@@ -11,7 +11,9 @@ import Recall from 'kairos-recall';
 import { SoftPage } from '../../components/ui/SoftScreen';
 import { itemEntering, PressScale } from '../../components/ui/Motion';
 import { useAppTheme } from '../../providers/ThemeProvider';
+import { useProgression } from '../../providers/ProgressionProvider';
 import { ThemedText } from '../../components/ThemedText';
+import { levelTitle } from '../../lib/engagement';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -70,7 +72,10 @@ function SettingsRow({
   return (
     <Animated.View entering={itemEntering(index)}>
       <PressScale
-        onPress={item.onPress}
+        onPress={() => {
+          void Haptics.selectionAsync();
+          item.onPress();
+        }}
         accessibilityLabel={item.label}
         style={[
           styles.row,
@@ -83,10 +88,10 @@ function SettingsRow({
         <View
           style={[
             styles.rowIcon,
-            { backgroundColor: colors.primaryContainer, borderRadius: radius.full },
+            { backgroundColor: colors.surfaceContainer, borderRadius: radius.full },
           ]}
         >
-          <MaterialIcons name={item.icon} size={20} color={colors.primary} />
+          <MaterialIcons name={item.icon} size={20} color={colors.textSecondary} />
         </View>
         <Text style={[styles.rowLabel, { color: colors.text }]} numberOfLines={1}>
           {item.label}
@@ -113,6 +118,9 @@ export default function SettingsScreen() {
     user?.primaryEmailAddress?.emailAddress?.split('@')[0] ||
     'Account';
   const email = user?.primaryEmailAddress?.emailAddress;
+  const { progression } = useProgression();
+  const level = progression?.level ?? 1;
+  const streak = progression?.currentStreak ?? 0;
 
   const setLight = () => {
     if (!isLight) {
@@ -228,6 +236,21 @@ export default function SettingsScreen() {
                 Manage your account
               </Text>
             )}
+            <View style={styles.accountBadges}>
+              <View style={[styles.accountBadge, { backgroundColor: colors.primaryContainer }]}>
+                <Text style={[styles.accountBadgeText, { color: colors.primary }]}>
+                  Level {level} · {levelTitle(level)}
+                </Text>
+              </View>
+              {streak > 0 ? (
+                <View style={[styles.accountBadge, { backgroundColor: colors.surfaceContainer }]}>
+                  <MaterialIcons name="local-fire-department" size={12} color={colors.textSecondary} />
+                  <Text style={[styles.accountBadgeText, { color: colors.textSecondary }]}>
+                    {streak}-day streak
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           </View>
           <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
         </View>
@@ -403,6 +426,24 @@ const styles = StyleSheet.create({
   accountEmail: {
     fontFamily: 'Roboto_400Regular',
     fontSize: 14,
+  },
+  accountBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  accountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  accountBadgeText: {
+    fontFamily: 'Roboto_600SemiBold',
+    fontSize: 11,
   },
   appearance: {
     flexDirection: 'row',

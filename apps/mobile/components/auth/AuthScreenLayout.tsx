@@ -1,4 +1,7 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect, useState } from 'react';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+
+import { itemEntering } from '../ui/Motion';
 import {
   Image,
   KeyboardAvoidingView,
@@ -11,6 +14,13 @@ import {
 import { useAppTheme } from '../../providers/ThemeProvider';
 import { ThemeToggleButton } from '../ThemeToggleButton';
 import { ThemedText } from '../ThemedText';
+
+const VALUE_LINES = [
+  'Remember what matters.',
+  'Ask your past anything.',
+  'See your patterns over time.',
+  'Private by design.',
+] as const;
 
 type AuthScreenLayoutProps = {
   title: string;
@@ -26,6 +36,12 @@ export function AuthScreenLayout({
   footer,
 }: AuthScreenLayoutProps) {
   const { toggleTheme, spacing, isLight, colors, typography, radius } = useAppTheme();
+  const [line, setLine] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setLine((n) => (n + 1) % VALUE_LINES.length), 3200);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -51,7 +67,7 @@ export function AuthScreenLayout({
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.header}>
+          <Animated.View entering={itemEntering(0)} style={styles.header}>
             <View style={[styles.markBadge, { backgroundColor: colors.primaryContainer, borderRadius: radius.full }]}>
               <ThemedText colorKey="primary" style={styles.markBadgeText}>
                 WELCOME TO KAIROS
@@ -74,11 +90,20 @@ export function AuthScreenLayout({
                 {subtitle}
               </ThemedText>
             ) : null}
-          </View>
+            <View style={styles.valueSlot}>
+              <Animated.View key={line} entering={FadeIn.duration(360)} exiting={FadeOut.duration(200)}>
+                <ThemedText colorKey="primary" style={styles.valueLine}>
+                  {VALUE_LINES[line]}
+                </ThemedText>
+              </Animated.View>
+            </View>
+          </Animated.View>
 
-          <View style={styles.formCard}>{children}</View>
+          <Animated.View entering={itemEntering(1)} style={styles.formCard}>
+            {children}
+          </Animated.View>
 
-          {footer}
+          <Animated.View entering={itemEntering(2)}>{footer}</Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -132,5 +157,14 @@ const styles = StyleSheet.create({
   },
   formCard: {
     gap: 14,
+  },
+  valueSlot: {
+    height: 22,
+    justifyContent: 'center',
+  },
+  valueLine: {
+    fontFamily: 'Roboto_500Medium',
+    fontSize: 14,
+    textAlign: 'center',
   },
 });

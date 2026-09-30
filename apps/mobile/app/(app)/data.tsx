@@ -1,4 +1,5 @@
 import { useAuth } from '@clerk/expo';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, StyleSheet } from 'react-native';
@@ -6,7 +7,9 @@ import { Alert, StyleSheet } from 'react-native';
 import { SoftPage, SoftRow } from '../../components/ui/SoftScreen';
 import { ThemedButton } from '../../components/ui/ThemedButton';
 import { ThemedText } from '../../components/ThemedText';
-import { ApiError, deleteMyData } from '../../lib/api';
+import { readQueryCache } from '../../hooks/useAsync';
+import { ApiError, deleteMyData, type DashboardSummary } from '../../lib/api';
+import { useProgression } from '../../providers/ProgressionProvider';
 import { pauseCaptureQueue, resumeCaptureQueue } from '../../lib/capture';
 import { clearCaptureQueue } from '../../lib/captureQueue';
 import { clearCache } from '../../lib/persistentCache';
@@ -17,11 +20,21 @@ export default function DataScreen() {
   const router = useRouter();
   const { getToken, signOut, userId } = useAuth();
   const { resetOnboarding } = useOnboarding();
+  const { progression } = useProgression();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  const memoryCount = readQueryCache<DashboardSummary>('dashboard')?.totalCount ?? null;
+  const streak = progression?.currentStreak ?? 0;
+  const losses = [
+    memoryCount != null ? `${memoryCount} ${memoryCount === 1 ? 'memory' : 'memories'}` : 'every memory',
+    'all topics, projects and insights',
+    streak > 0 ? `your ${streak}-day streak` : '',
+  ].filter(Boolean);
+
   const onDeleteMyData = () => {
-    Alert.alert('Delete all data?', undefined, [
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert('Delete all data?', `This permanently removes ${losses.join(', ')}. It cannot be undone.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -41,7 +54,7 @@ export default function DataScreen() {
                 queuePaused = true;
               }
               const result = await deleteMyData(token);
-              setMessage(`Deleted ${result.deletedObservations}`);
+              setMessage(`Deleted ${result.deletedObservations} memories`);
               if (userId) await clearCaptureQueue(userId);
               await clearCache();
               await signOut();
@@ -67,8 +80,13 @@ export default function DataScreen() {
       <SoftRow icon="download" label="Export" meta="Soon" />
       <SoftRow icon="trash-2" label="Delete everything" />
 
+      <ThemedText colorKey="textMuted" style={styles.warning}>
+        Deleting removes {losses.join(', ')} from Kairos and this device.
+      </ThemedText>
+
       <ThemedButton
-        label={busy ? '…' : 'Delete my data'}
+        label={busy ? 'Deleting…' : 'Delete my data'}
+        variant="outline"
         disabled={busy}
         onPress={onDeleteMyData}
       />
@@ -83,6 +101,12 @@ export default function DataScreen() {
 }
 
 const styles = StyleSheet.create({
+  warning: {
+    fontFamily: 'Roboto_400Regular',
+    fontSize: 13,
+    lineHeight: 19,
+    paddingHorizontal: 4,
+  },
   message: {
     fontFamily: 'Roboto_400Regular',
     fontSize: 13,

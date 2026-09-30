@@ -12,6 +12,34 @@ import { ThemedButton } from '../../components/ui/ThemedButton';
 import { fetchLeaderboard, updateProgression, buyStreakFreeze, type LeaderboardView, type ProgressionView } from '../../lib/api';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import { useProgression } from '../../providers/ProgressionProvider';
+import { CountUp, itemEntering } from '../../components/ui/Motion';
+import { levelTitle, nextMilestone } from '../../lib/engagement';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
+
+function FillBar({
+  progress,
+  color,
+  track,
+  height = 10,
+  delay = 200,
+}: {
+  progress: number;
+  color: string;
+  track: string;
+  height?: number;
+  delay?: number;
+}) {
+  const width = useSharedValue(0);
+  useEffect(() => {
+    width.value = withDelay(delay, withTiming(Math.max(0.02, Math.min(1, progress)), { duration: 900, easing: Easing.out(Easing.cubic) }));
+  }, [delay, progress, width]);
+  const fillStyle = useAnimatedStyle(() => ({ width: `${width.value * 100}%` }));
+  return (
+    <View style={[styles.track, { backgroundColor: track, height, borderRadius: height / 2 }]}>
+      <Animated.View style={[styles.fill, { backgroundColor: color, borderRadius: height / 2 }, fillStyle]} />
+    </View>
+  );
+}
 
 const COSMETICS = [
   { key: 'title.present', label: 'Present', kind: 'title', streak: 3 },
@@ -97,31 +125,25 @@ export default function ProgressScreen() {
               <View style={styles.levelRow}>
                 <View style={[styles.levelBadge, { backgroundColor: colors.primaryContainer }]}>
                   <ThemedText colorKey="primary" style={styles.levelText}>
-                    Level {progression.level}
+                    Level {progression.level} · {levelTitle(progression.level)}
                   </ThemedText>
                 </View>
-                <ThemedText colorKey="textMuted" style={styles.streakText}>
-                  🔥 {progression.currentStreak} day streak
-                </ThemedText>
+                <View style={styles.streakInline}>
+                  <MaterialIcons name="local-fire-department" size={16} color={progression.currentStreak > 0 ? colors.primary : colors.textMuted} />
+                  <ThemedText colorKey="textMuted" style={styles.streakText}>
+                    {progression.currentStreak} day streak
+                  </ThemedText>
+                </View>
               </View>
 
-              <ThemedText colorKey="text" style={styles.xp}>
-                {progression.xp.toLocaleString()} <ThemedText colorKey="textMuted" style={styles.xpUnit}>XP</ThemedText>
-              </ThemedText>
-
-              <View style={[styles.track, { backgroundColor: colors.primaryContainer }]}>
-                <View
-                  style={[
-                    styles.fill,
-                    {
-                      backgroundColor: colors.primary,
-                      width: `${Math.max(2, Math.min(100, progression.progress * 100))}%`,
-                    },
-                  ]}
-                />
+              <View style={styles.xpRow}>
+                <CountUp value={progression.xp} duration={900} style={[styles.xp, { color: colors.text }]} />
+                <ThemedText colorKey="textMuted" style={styles.xpUnit}> XP</ThemedText>
               </View>
+
+              <FillBar progress={progression.progress} color={colors.primary} track={colors.primaryContainer} />
               <ThemedText colorKey="textMuted" style={styles.xpLabel}>
-                {progression.intoLevel.toLocaleString()} / {(progression.nextLevelXp - (progression.xp - progression.intoLevel)).toLocaleString()} XP to next level
+                {Math.max(0, progression.nextLevelXp - progression.xp).toLocaleString()} XP to level {progression.level + 1} · {levelTitle(progression.level + 1)}
               </ThemedText>
 
               <View style={styles.statsRow}>
@@ -129,14 +151,27 @@ export default function ProgressScreen() {
                   <Feather name="star" size={14} color={colors.primary} />
                   <ThemedText colorKey="text" style={styles.chipText}>{progression.keeps} keeps</ThemedText>
                 </View>
-                <View style={[styles.statChip, { backgroundColor: colors.successSurface }]}>
-                  <Feather name="shield" size={14} color={colors.success} />
+                <View style={[styles.statChip, { backgroundColor: colors.surfaceContainer }]}>
+                  <Feather name="shield" size={14} color={colors.textSecondary} />
                   <ThemedText colorKey="text" style={styles.chipText}>{progression.freezeTokens} freezes</ThemedText>
                 </View>
-                <View style={[styles.statChip, { backgroundColor: colors.tintYellow }]}>
-                  <Feather name="award" size={14} color={colors.warning} />
+                <View style={[styles.statChip, { backgroundColor: colors.surfaceContainer }]}>
+                  <Feather name="award" size={14} color={colors.textSecondary} />
                   <ThemedText colorKey="text" style={styles.chipText}>{progression.longestStreak} best</ThemedText>
                 </View>
+              </View>
+
+              <View style={[styles.milestone, { borderTopColor: colors.borderSubtle }]}>
+                <ThemedText colorKey="text" style={styles.milestoneTitle}>
+                  Next mark: {nextMilestone(progression.currentStreak)} days
+                </ThemedText>
+                <FillBar
+                  progress={progression.currentStreak / nextMilestone(progression.currentStreak)}
+                  color={colors.text}
+                  track={colors.surfaceContainer}
+                  height={6}
+                  delay={400}
+                />
               </View>
 
               <Pressable
@@ -169,11 +204,12 @@ export default function ProgressScreen() {
             <View style={styles.heading}>
               <ThemedText colorKey="text" style={styles.sectionTitle}>Titles &amp; Auras</ThemedText>
             </View>
-            {COSMETICS.filter((item) => item.kind !== 'freeze').map((item) => {
+            {COSMETICS.filter((item) => item.kind !== 'freeze').map((item, index) => {
               const unlocked = progression.unlocks.find((unlock) => unlock.key === item.key)?.available ?? false;
               const equipped = item.kind === 'title' ? progression.equippedTitle === item.key : progression.equippedAura === item.key;
               return (
-                <SurfaceCard key={item.key} style={styles.cosmeticCard}>
+                <Animated.View key={item.key} entering={itemEntering(index + 1)}>
+                <SurfaceCard style={[styles.cosmeticCard, equipped ? { borderColor: colors.borderAccent } : {}]}>
                   <View style={styles.cosmeticInner}>
                     <View style={[styles.cosmeticIcon, { backgroundColor: unlocked ? colors.primaryContainer : colors.surfaceContainerHigh }]}>
                       <Feather name={item.kind === 'title' ? 'tag' : 'sun'} size={18} color={unlocked ? colors.primary : colors.textMuted} />
@@ -181,8 +217,21 @@ export default function ProgressScreen() {
                     <View style={{ flex: 1 }}>
                       <ThemedText colorKey="text" style={styles.cosmeticLabel}>{item.label} {item.kind}</ThemedText>
                       <ThemedText colorKey="textMuted" style={styles.cosmeticSub}>
-                        {unlocked ? 'Unlocked ✓' : `Unlock at ${item.streak} day streak`}
+                        {unlocked
+                          ? 'Unlocked'
+                          : `${Math.max(0, item.streak - progression.currentStreak)} more ${item.streak - progression.currentStreak === 1 ? 'day' : 'days'} to unlock`}
                       </ThemedText>
+                      {!unlocked ? (
+                        <View style={{ marginTop: 6 }}>
+                          <FillBar
+                            progress={progression.currentStreak / item.streak}
+                            color={colors.primary}
+                            track={colors.surfaceContainer}
+                            height={4}
+                            delay={300 + index * 80}
+                          />
+                        </View>
+                      ) : null}
                     </View>
                     <Pressable
                       disabled={!unlocked || equipped}
@@ -203,6 +252,7 @@ export default function ProgressScreen() {
                     </Pressable>
                   </View>
                 </SurfaceCard>
+                </Animated.View>
               );
             })}
 
@@ -262,8 +312,8 @@ export default function ProgressScreen() {
             {leaderboard ? leaderboard.rows.map((row) => (
               <SurfaceCard key={row.userId} style={[styles.rankCard, row.self ? { borderColor: colors.borderActive, borderWidth: 1.5 } : {}]}>
                 <View style={styles.rankRow}>
-                  <View style={[styles.rankBadge, { backgroundColor: row.rank <= 3 ? '#FEF3C7' : colors.primaryContainer }]}>
-                    <ThemedText colorKey="text" style={[styles.rankNum, { color: row.rank <= 3 ? '#D97706' : colors.primary }]}>
+                  <View style={[styles.rankBadge, { backgroundColor: row.rank <= 3 ? colors.primary : colors.primaryContainer }]}>
+                    <ThemedText colorKey="text" style={[styles.rankNum, { color: row.rank <= 3 ? colors.onPrimary : colors.primary }]}>
                       #{row.rank}
                     </ThemedText>
                   </View>
@@ -332,10 +382,14 @@ const styles = StyleSheet.create({
   levelBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
   levelText: { fontFamily: 'Roboto_700Bold', fontSize: 13 },
   streakText: { fontFamily: 'Roboto_500Medium', fontSize: 13 },
+  streakInline: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  xpRow: { flexDirection: 'row', alignItems: 'baseline' },
   xp: { fontFamily: 'Roboto_700Bold', fontSize: 36, letterSpacing: -0.5 },
   xpUnit: { fontFamily: 'Roboto_400Regular', fontSize: 20 },
-  track: { height: 10, borderRadius: 8, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 8 },
+  track: { overflow: 'hidden' },
+  fill: { height: '100%' },
+  milestone: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 8 },
+  milestoneTitle: { fontFamily: 'Roboto_600SemiBold', fontSize: 14 },
   xpLabel: { fontFamily: 'Roboto_400Regular', fontSize: 13, marginTop: -4 },
   statsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   statChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },

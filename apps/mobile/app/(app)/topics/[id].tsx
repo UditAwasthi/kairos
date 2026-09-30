@@ -1,8 +1,9 @@
 import { useAuth } from '@clerk/expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Pressable, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { ThemedText } from '../../../components/ThemedText';
+import { CollectionHeader } from '../../../components/ui/CollectionHeader';
 import {
   EmptyState,
   ErrorState,
@@ -10,10 +11,11 @@ import {
   LoadingSkeleton,
   SoftRefreshBar,
 } from '../../../components/ui/EmptyState';
-import { GlassPanel } from '../../../components/ui/Glass';
-import { SoftLinkList, SoftPage, SoftTitle } from '../../../components/ui/SoftScreen';
+import { ListRow } from '../../../components/ui/ListRow';
+import { SoftLinkList, SoftPage } from '../../../components/ui/SoftScreen';
 import { useAsync } from '../../../hooks/useAsync';
 import { fetchTopic } from '../../../lib/api';
+import { relativeMemoryLabel } from '../../../lib/searchHints';
 
 export default function TopicDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,18 +40,17 @@ export default function TopicDetailScreen() {
     <FadeInContent>
       <SoftRefreshBar active={refreshing} />
       <SoftPage>
-        <SoftTitle>{data.name}</SoftTitle>
-
-        <GlassPanel padded={false} contentStyle={styles.metaRow}>
-          <ThemedText colorKey="textMuted" style={styles.meta}>
-            {data.observationCount}
-          </ThemedText>
-        </GlassPanel>
+        <CollectionHeader
+          kicker="Topic"
+          title={data.name}
+          count={data.observationCount}
+          dates={data.observations.map((observation) => observation.capturedAt)}
+        />
 
         <SoftLinkList
           items={[
             {
-              label: 'Ask',
+              label: `Ask about ${data.name}`,
               icon: 'message-circle',
               onPress: () =>
                 router.push({
@@ -58,7 +59,7 @@ export default function TopicDetailScreen() {
                 }),
             },
             {
-              label: 'Search',
+              label: 'Search within topic',
               icon: 'search',
               onPress: () =>
                 router.push({
@@ -70,24 +71,25 @@ export default function TopicDetailScreen() {
         />
 
         <ThemedText colorKey="textMuted" style={styles.kicker}>
-          Observations
+          Memories
         </ThemedText>
 
         {data.observations.length === 0 ? (
-          <EmptyState title="None yet" />
+          <EmptyState
+            icon="sell"
+            title="Nothing filed here yet"
+            message="New memories about this topic will land here automatically."
+          />
         ) : (
-          data.observations.map((observation) => (
-            <Pressable
+          data.observations.map((observation, index) => (
+            <ListRow
               key={observation.id}
+              title={observation.filename}
+              subtitle={relativeMemoryLabel(observation.capturedAt)}
+              titleLines={2}
+              index={index}
               onPress={() => router.push(`/(app)/observation/${observation.id}`)}
-              style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
-            >
-              <GlassPanel padded={false} contentStyle={styles.row}>
-                <ThemedText colorKey="text" style={styles.rowTitle} numberOfLines={2}>
-                  {observation.filename}
-                </ThemedText>
-              </GlassPanel>
-            </Pressable>
+            />
           ))
         )}
       </SoftPage>
@@ -96,11 +98,6 @@ export default function TopicDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  metaRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  meta: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
   kicker: {
     fontFamily: 'Roboto_500Medium',
     fontSize: 11,
@@ -108,9 +105,4 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginTop: 4,
   },
-  row: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  rowTitle: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
 });

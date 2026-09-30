@@ -61,7 +61,7 @@ const STEPS = [
   },
 ] as const;
 
-const easeOut = Easing.out(Easing.cubic);
+const easeOut = Easing.bezier(0.22, 1, 0.36, 1);
 
 type Step = (typeof STEPS)[number];
 
@@ -91,8 +91,10 @@ function OnboardingPage({
     return {
       opacity: interpolate(dist, [0, 1], [1, 0.28], Extrapolation.CLAMP),
       transform: [
-        { translateX: shift * width * -0.2 },
-        { scale: interpolate(dist, [0, 1], [1, 0.86], Extrapolation.CLAMP) },
+        { translateX: shift * width * -0.28 },
+        { translateY: dist * 28 },
+        { rotate: `${interpolate(shift, [-1, 0, 1], [8, 0, -8], Extrapolation.CLAMP)}deg` },
+        { scale: interpolate(dist, [0, 1], [1, 0.74], Extrapolation.CLAMP) },
       ],
     };
   });
@@ -100,10 +102,11 @@ function OnboardingPage({
   const titleStyle = useAnimatedStyle(() => {
     const shift = pageShift(translateX.value, index, width);
     return {
-      opacity: interpolate(Math.abs(shift), [0, 0.65], [1, 0], Extrapolation.CLAMP),
+      opacity: interpolate(Math.abs(shift), [0, 0.7], [1, 0], Extrapolation.CLAMP),
       transform: [
-        { translateY: interpolate(shift, [-1, 0, 1], [22, 0, 22], Extrapolation.CLAMP) },
-        { scale: interpolate(Math.abs(shift), [0, 1], [1, 0.96], Extrapolation.CLAMP) },
+        { translateX: interpolate(shift, [-1, 0, 1], [28, 0, -28], Extrapolation.CLAMP) },
+        { translateY: interpolate(shift, [-1, 0, 1], [36, 0, 48], Extrapolation.CLAMP) },
+        { scale: interpolate(Math.abs(shift), [0, 1], [1, 0.94], Extrapolation.CLAMP) },
       ],
     };
   });
@@ -111,15 +114,24 @@ function OnboardingPage({
   const bodyStyle = useAnimatedStyle(() => {
     const shift = pageShift(translateX.value, index, width);
     return {
-      opacity: interpolate(Math.abs(shift), [0, 0.45], [1, 0], Extrapolation.CLAMP),
-      transform: [{ translateY: interpolate(shift, [-1, 0, 1], [36, 0, 36], Extrapolation.CLAMP) }],
+      opacity: interpolate(Math.abs(shift), [0, 0.42], [1, 0], Extrapolation.CLAMP),
+      transform: [
+        { translateX: interpolate(shift, [-1, 0, 1], [42, 0, -42], Extrapolation.CLAMP) },
+        { translateY: interpolate(shift, [-1, 0, 1], [56, 0, 72], Extrapolation.CLAMP) },
+      ],
     };
   });
 
   return (
     <View style={[styles.page, { width, paddingHorizontal: spacing['6'] }]}>
       <Animated.View style={[styles.artWell, artStyle]}>
-        <OnboardingArt id={step.id as OnboardingArtId} active={active} />
+        <OnboardingArt
+          id={step.id as OnboardingArtId}
+          active={active}
+          index={index}
+          width={width}
+          translateX={translateX}
+        />
       </Animated.View>
       <Animated.Text
         accessibilityRole="header"
@@ -207,7 +219,17 @@ function PageDot({
   );
 }
 
-function AmbientWash({ colors }: { colors: readonly [string, string, string] }) {
+function AmbientWash({
+  colors,
+  accent,
+  translateX,
+  width,
+}: {
+  colors: readonly [string, string, string];
+  accent: string;
+  translateX: SharedValue<number>;
+  width: number;
+}) {
   const reducedMotion = useReducedMotion();
   const drift = useSharedValue(0);
 
@@ -229,25 +251,70 @@ function AmbientWash({ colors }: { colors: readonly [string, string, string] }) 
     };
   }, [drift, reducedMotion]);
 
-  const style = useAnimatedStyle(() => ({
-    opacity: interpolate(drift.value, [0, 1], [0.92, 1]),
-    transform: [
-      { translateX: interpolate(drift.value, [0, 1], [-16, 16]) },
-      { translateY: interpolate(drift.value, [0, 1], [8, -12]) },
-      { scale: interpolate(drift.value, [0, 1], [1.02, 1.08]) },
-    ],
-  }));
+  const washStyle = useAnimatedStyle(() => {
+    const page = -translateX.value / Math.max(width, 1);
+    return {
+      opacity: interpolate(drift.value, [0, 1], [0.7, 1]),
+      transform: [
+        { translateX: interpolate(drift.value, [0, 1], [-40, 40]) - page * 24 },
+        { translateY: interpolate(drift.value, [0, 1], [20, -32]) },
+        { scale: interpolate(drift.value, [0, 1], [1.05, 1.18]) },
+      ],
+    };
+  });
+
+  const orbA = useAnimatedStyle(() => {
+    const page = -translateX.value / Math.max(width, 1);
+    return {
+      opacity: 0.1 + drift.value * 0.12,
+      transform: [
+        { translateX: -24 + drift.value * 56 - page * 26 },
+        { translateY: 16 - drift.value * 40 },
+        { scale: 1 + drift.value * 0.16 },
+      ],
+    };
+  });
+
+  const orbB = useAnimatedStyle(() => {
+    const page = -translateX.value / Math.max(width, 1);
+    return {
+      opacity: 0.07 + (1 - drift.value) * 0.1,
+      transform: [
+        { translateX: 20 - drift.value * 48 + page * 32 },
+        { translateY: -10 + drift.value * 36 },
+        { scale: 1.1 - drift.value * 0.12 },
+      ],
+    };
+  });
+
+  const orbC = useAnimatedStyle(() => {
+    const page = -translateX.value / Math.max(width, 1);
+    return {
+      opacity: 0.05 + Math.sin(drift.value * Math.PI) * 0.1,
+      transform: [
+        { translateX: drift.value * 30 - page * 46 },
+        { translateY: 24 - drift.value * 52 },
+      ],
+    };
+  });
 
   return (
-    <Animated.View pointerEvents="none" style={[styles.wash, style]}>
-      <LinearGradient
-        colors={colors}
-        locations={[0, 0.34, 0.62]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-    </Animated.View>
+    <>
+      <Animated.View pointerEvents="none" style={[styles.wash, washStyle]}>
+        <LinearGradient
+          colors={colors}
+          locations={[0, 0.34, 0.62]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <Animated.View style={[styles.orb, styles.orbA, { backgroundColor: accent }, orbA]} />
+        <Animated.View style={[styles.orb, styles.orbB, { backgroundColor: accent }, orbB]} />
+        <Animated.View style={[styles.orb, styles.orbC, { backgroundColor: accent }, orbC]} />
+      </View>
+    </>
   );
 }
 
@@ -278,7 +345,7 @@ export function OnboardingCarousel({ onToggleTheme, onComplete }: OnboardingCaro
     const clamped = Math.max(0, Math.min(nextIndex, STEPS.length - 1));
     setIndex(clamped);
     translateX.value = withTiming(-clamped * width, {
-      duration: motion.page,
+      duration: 460,
       easing: easeOut,
     });
     triggerHaptic();
@@ -318,7 +385,7 @@ export function OnboardingCarousel({ onToggleTheme, onComplete }: OnboardingCaro
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <AmbientWash colors={wash} />
+      <AmbientWash colors={wash} accent={colors.primary} translateX={translateX} width={width} />
 
       <Animated.View
         entering={FadeIn.duration(motion.smooth).reduceMotion(ReduceMotion.System)}
@@ -368,7 +435,7 @@ export function OnboardingCarousel({ onToggleTheme, onComplete }: OnboardingCaro
         </View>
         <Animated.View
           key={isLast ? 'start' : 'next'}
-          entering={FadeIn.duration(motion.fast).reduceMotion(ReduceMotion.System)}
+          entering={FadeInUp.duration(motion.normal).reduceMotion(ReduceMotion.System)}
         >
           <ThemedButton
             label={isLast ? 'Get Started' : 'Continue'}
@@ -388,10 +455,32 @@ const styles = StyleSheet.create({
   },
   wash: {
     position: 'absolute',
-    width: '130%',
-    height: '120%',
-    left: '-15%',
-    top: '-8%',
+    width: '140%',
+    height: '128%',
+    left: '-20%',
+    top: '-12%',
+  },
+  orb: {
+    position: 'absolute',
+    borderRadius: 999,
+  },
+  orbA: {
+    width: 220,
+    height: 220,
+    top: '8%',
+    left: '-12%',
+  },
+  orbB: {
+    width: 160,
+    height: 160,
+    top: '34%',
+    right: '-8%',
+  },
+  orbC: {
+    width: 92,
+    height: 92,
+    top: '18%',
+    left: '46%',
   },
   dot: {
     height: 6,

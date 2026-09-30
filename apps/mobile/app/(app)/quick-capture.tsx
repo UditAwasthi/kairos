@@ -1,9 +1,10 @@
 import { useAuth } from '@clerk/expo';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, ReduceMotion, ZoomIn } from 'react-native-reanimated';
 
 import { ThemedText } from '../../components/ThemedText';
 import { SurfaceCard } from '../../components/ui/SectionHeader';
@@ -11,8 +12,10 @@ import { SoftPage, SoftTitle } from '../../components/ui/SoftScreen';
 import { ThemedButton } from '../../components/ui/ThemedButton';
 import { CircularControl } from '../../components/ui/system/CircularControl';
 import { ThemedInput } from '../../components/ui/ThemedInput';
+import { DotBurst } from '../../components/ui/Motion';
 import { ApiError } from '../../lib/api';
 import { submitCapture } from '../../lib/capture';
+import { saveMessage } from '../../lib/engagement';
 import { useAppTheme } from '../../providers/ThemeProvider';
 import { useProgression } from '../../providers/ProgressionProvider';
 
@@ -29,7 +32,9 @@ export default function QuickCaptureScreen() {
     url?: string;
     title?: string;
     source?: string;
+    prompt?: string;
   }>();
+  const prompt = params.prompt ? String(params.prompt) : null;
 
   const initialMode: Mode = params.mode === 'voice' ? 'voice' : 'text';
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -37,7 +42,9 @@ export default function QuickCaptureScreen() {
   const [url, setUrl] = useState(params.url || '');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [savedCount, setSavedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
 
   useEffect(() => {
     if (params.text) setText(String(params.text));
@@ -73,14 +80,17 @@ export default function QuickCaptureScreen() {
         title: params.title ? String(params.title) : undefined,
       });
       if (!result.queued) void refreshProgression();
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setSavedCount((count) => count + 1);
       if (result.queued) {
         setMessage('Saved on this device. Will sync when you are online.');
       } else {
-        setMessage('Saved! Kairos is remembering this…');
+        setMessage(saveMessage());
         setText('');
         setUrl('');
       }
     } catch (err) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(err instanceof ApiError ? err.message : 'Could not save that capture.');
     } finally {
       setBusy(false);
@@ -113,15 +123,49 @@ export default function QuickCaptureScreen() {
         />
       </View>
 
-      <ThemedInput
-        value={text}
-        onChangeText={setText}
-        placeholder="Type a thought, reflection, or note…"
-        multiline
-        autoFocus
-        accessibilityLabel="Capture text"
-        style={styles.note}
-      />
+      {prompt ? (
+        <Animated.View entering={FadeInDown.duration(320).reduceMotion(ReduceMotion.System)}>
+          <SurfaceCard style={{ borderColor: colors.borderAccent, backgroundColor: colors.primaryContainer }}>
+            <ThemedText colorKey="primary" style={styles.promptKicker}>
+              TODAY’S REFLECTION
+            </ThemedText>
+            <ThemedText colorKey="text" style={styles.promptText}>
+              {prompt}
+            </ThemedText>
+          </SurfaceCard>
+        </Animated.View>
+      ) : null}
+
+      <View>
+        <ThemedInput
+          value={text}
+          onChangeText={(next) => {
+            setText(next);
+            if (message) setMessage(null);
+            if (error) setError(null);
+          }}
+          placeholder={prompt ? 'A sentence is enough…' : 'Type a thought, reflection, or note…'}
+          multiline
+          autoFocus
+          accessibilityLabel={prompt ? `Answer: ${prompt}` : 'Capture text'}
+          style={styles.note}
+        />
+        {words > 0 ? (
+          <Animated.View entering={FadeIn.duration(200)} style={styles.depthRow}>
+            <View style={[styles.depthTrack, { backgroundColor: colors.surfaceContainer }]}>
+              <View
+                style={[
+                  styles.depthFill,
+                  { backgroundColor: colors.primary, width: `${Math.min(100, (words / 20) * 100)}%` },
+                ]}
+              />
+            </View>
+            <ThemedText colorKey={words >= 20 ? 'primary' : 'textMuted'} style={styles.depthText}>
+              {words >= 20 ? 'Rich detail. Easy to find later.' : words >= 8 ? 'Good. A little more context helps.' : `${words} ${words === 1 ? 'word' : 'words'}`}
+            </ThemedText>
+          </Animated.View>
+        ) : null}
+      </View>
       <ThemedInput
         value={url}
         onChangeText={setUrl}
@@ -140,13 +184,23 @@ export default function QuickCaptureScreen() {
       ) : null}
 
       {message ? (
-        <Animated.View entering={ZoomIn.duration(200)}>
-          <SurfaceCard style={{ borderColor: colors.success, backgroundColor: colors.tintGreen }}>
+        <Animated.View key={savedCount} entering={ZoomIn.springify().damping(14).reduceMotion(ReduceMotion.System)}>
+          <SurfaceCard style={{ borderColor: colors.success, backgroundColor: colors.tintGreen, overflow: 'visible' }}>
             <View style={styles.successRow}>
-              <MaterialIcons name="check-circle" size={22} color={colors.success} />
-              <ThemedText colorKey="text" style={{ flex: 1, fontWeight: '600' }}>
-                {message}
-              </ThemedText>
+              <View style={styles.successIcon}>
+                <DotBurst color={colors.success} size={90} />
+                <MaterialIcons name="check-circle" size={22} color={colors.success} />
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <ThemedText colorKey="text" style={{ fontWeight: '600' }}>
+                  {message}
+                </ThemedText>
+                {savedCount > 1 ? (
+                  <ThemedText colorKey="textSecondary" style={styles.sessionText}>
+                    {savedCount} kept this session.
+                  </ThemedText>
+                ) : null}
+              </View>
             </View>
           </SurfaceCard>
         </Animated.View>
@@ -219,6 +273,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  successIcon: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sessionText: {
+    fontFamily: 'Roboto_400Regular',
+    fontSize: 13,
+  },
+  promptKicker: {
+    fontFamily: 'Roboto_700Bold',
+    fontSize: 11,
+    letterSpacing: 0.8,
+  },
+  promptText: {
+    fontFamily: 'Roboto_500Medium',
+    fontSize: 19,
+    lineHeight: 26,
+  },
+  depthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  depthTrack: {
+    width: 56,
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  depthFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  depthText: {
+    fontFamily: 'Roboto_500Medium',
+    fontSize: 12,
   },
   error: {
     fontFamily: 'Roboto_500Medium',

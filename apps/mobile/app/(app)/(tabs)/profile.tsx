@@ -1,7 +1,7 @@
 import { useAuth, useUser } from '@clerk/expo';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Image, Platform, StyleSheet, View } from 'react-native';
 
 import { ThemeToggleButton } from '../../../components/ThemeToggleButton';
@@ -19,8 +19,27 @@ import {
 } from '../../../lib/syncStatus';
 import { useOnboarding } from '../../../providers/OnboardingProvider';
 import { useAppTheme } from '../../../providers/ThemeProvider';
+import { useProgression } from '../../../providers/ProgressionProvider';
 import { useSubscription } from '../../../providers/SubscriptionProvider';
+import { CountUp, PressScale } from '../../../components/ui/Motion';
+import { readQueryCache } from '../../../hooks/useAsync';
+import type { DashboardSummary } from '../../../lib/api';
+import { levelTitle, nextMilestone } from '../../../lib/engagement';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import Recall from 'kairos-recall';
+
+function LevelBar({ progress, color, track }: { progress: number; color: string; track: string }) {
+  const width = useSharedValue(0);
+  useEffect(() => {
+    width.value = withDelay(250, withTiming(Math.max(0.02, Math.min(1, progress)), { duration: 900, easing: Easing.out(Easing.cubic) }));
+  }, [progress, width]);
+  const fillStyle = useAnimatedStyle(() => ({ width: `${width.value * 100}%` }));
+  return (
+    <View style={[styles.levelTrack, { backgroundColor: track }]}>
+      <Animated.View style={[styles.levelFill, { backgroundColor: color }, fillStyle]} />
+    </View>
+  );
+}
 
 export default function ProfileScreen() {
   const { user } = useUser();
@@ -28,7 +47,9 @@ export default function ProfileScreen() {
   const { resetOnboarding } = useOnboarding();
   const { colors, themeProgress, toggleTheme, radius } = useAppTheme();
   const subscription = useSubscription();
+  const { progression } = useProgression();
   const router = useRouter();
+  const [memoryCount, setMemoryCount] = useState(() => readQueryCache<DashboardSummary>('dashboard')?.totalCount ?? null);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [syncCopy, setSyncCopy] = useState(() => profileSyncCopy(0));
 
@@ -42,9 +63,14 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshQueue();
+      setMemoryCount(readQueryCache<DashboardSummary>('dashboard')?.totalCount ?? null);
       return subscribeCaptureSync(refreshQueue);
     }, [refreshQueue]),
   );
+
+  const level = progression?.level ?? 1;
+  const streak = progression?.currentStreak ?? 0;
+  const milestone = nextMilestone(streak);
 
   const name = user?.fullName || user?.firstName || 'Kairos User';
   const email = user?.primaryEmailAddress?.emailAddress;
@@ -95,14 +121,17 @@ export default function ProfileScreen() {
             <ThemeToggleButton themeProgress={themeProgress} onToggle={toggleTheme} />
           </View>
 
-          {/* Gamified stats strip */}
-          <View style={[styles.statsStrip, { borderTopColor: colors.borderSubtle }]}>
+          <PressScale
+            onPress={() => router.push('/(app)/progress')}
+            accessibilityLabel={`Level ${level}, ${levelTitle(level)}. ${streak} day streak. View progress`}
+            style={[styles.statsStrip, { borderTopColor: colors.borderSubtle }]}
+          >
             <View style={styles.statItem}>
-              <View style={[styles.statIconBadge, { backgroundColor: '#FEF3C7' }]}>
-                <Feather name="zap" size={14} color="#D97706" />
+              <View style={[styles.statIconBadge, { backgroundColor: colors.primaryContainer }]}>
+                <Feather name="zap" size={14} color={colors.primary} />
               </View>
-              <ThemedText colorKey="text" style={styles.statValue}>4</ThemedText>
-              <ThemedText colorKey="textMuted" style={styles.statLabel}>Day Streak</ThemedText>
+              <CountUp value={streak} style={[styles.statValue, { color: colors.text }]} />
+              <ThemedText colorKey="textMuted" style={styles.statLabel}>Day streak</ThemedText>
             </View>
 
             <View style={[styles.statDivider, { backgroundColor: colors.borderSubtle }]} />
@@ -111,20 +140,38 @@ export default function ProfileScreen() {
               <View style={[styles.statIconBadge, { backgroundColor: colors.primaryContainer }]}>
                 <Feather name="award" size={14} color={colors.primary} />
               </View>
-              <ThemedText colorKey="text" style={styles.statValue}>Level 3</ThemedText>
-              <ThemedText colorKey="textMuted" style={styles.statLabel}>Explorer</ThemedText>
+              <ThemedText colorKey="text" style={styles.statValue}>Level {level}</ThemedText>
+              <ThemedText colorKey="textMuted" style={styles.statLabel}>{levelTitle(level)}</ThemedText>
             </View>
 
             <View style={[styles.statDivider, { backgroundColor: colors.borderSubtle }]} />
 
             <View style={styles.statItem}>
-              <View style={[styles.statIconBadge, { backgroundColor: colors.successSurface }]}>
-                <Feather name="layers" size={14} color={colors.success} />
+              <View style={[styles.statIconBadge, { backgroundColor: colors.surfaceContainer }]}>
+                <Feather name="layers" size={14} color={colors.textSecondary} />
               </View>
-              <ThemedText colorKey="text" style={styles.statValue}>28</ThemedText>
+              {memoryCount != null ? (
+                <CountUp value={memoryCount} style={[styles.statValue, { color: colors.text }]} />
+              ) : (
+                <ThemedText colorKey="text" style={styles.statValue}>–</ThemedText>
+              )}
               <ThemedText colorKey="textMuted" style={styles.statLabel}>Memories</ThemedText>
             </View>
-          </View>
+          </PressScale>
+
+          {progression ? (
+            <View style={styles.levelBlock}>
+              <LevelBar progress={progression.progress} color={colors.primary} track={colors.surfaceContainer} />
+              <View style={styles.levelMeta}>
+                <ThemedText colorKey="textMuted" style={styles.levelMetaText}>
+                  {Math.round(progression.progress * 100)}% to level {level + 1}
+                </ThemedText>
+                <ThemedText colorKey="textMuted" style={styles.levelMetaText}>
+                  {milestone - streak} {milestone - streak === 1 ? 'day' : 'days'} to {milestone}-day mark
+                </ThemedText>
+              </View>
+            </View>
+          ) : null}
         </SurfaceCard>
 
         {/* Subscription section */}
@@ -293,6 +340,26 @@ const styles = StyleSheet.create({
     width: 1,
     height: 36,
     opacity: 0.6,
+  },
+  levelBlock: {
+    gap: 8,
+  },
+  levelTrack: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  levelFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  levelMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  levelMetaText: {
+    fontFamily: 'Roboto_500Medium',
+    fontSize: 12,
   },
   sectionWrap: {
     gap: 8,

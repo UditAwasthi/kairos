@@ -11,8 +11,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import Svg, { Circle } from 'react-native-svg';
+import Animated from 'react-native-reanimated';
 
 import { ThemedText } from '../../../components/ThemedText';
 import { EmptyState, ErrorState, LoadingSkeleton } from '../../../components/ui/EmptyState';
@@ -44,8 +43,10 @@ import { NetworkErrorScreen } from '../../../components/ui/NetworkStatus';
 import { dedupeRequest, readQueryCache, writeQueryCache } from '../../../hooks/useAsync';
 import { isStale } from '../../../lib/freshness';
 import { onReconnect, useNetworkStatus } from '../../../lib/network';
-import { PressScale } from '../../../components/ui/Motion';
+import { Breathe, CountUp, DotBurst, PressScale, ProgressRing, itemEntering } from '../../../components/ui/Motion';
+import { Mascot } from '../../../components/ui/system/Mascot';
 import { ActionArt, type ActionArtId } from '../../../components/home/ActionArt';
+import { dailyReflection, greetingFor, paceState, streakNudge } from '../../../lib/engagement';
 
 /** Shared with the Dashboard / Brief / Predictions / Today screens so either side warms the other. */
 const CACHE = {
@@ -59,13 +60,6 @@ const FOCUS_REFRESH_MS = 30_000;
 
 function withoutExtractedText(observation: ApiObservation): ApiObservation {
   return { ...observation, extractedText: null };
-}
-
-function getGreetingTime(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
 }
 
 const HOME_ACTIONS: Array<{ id: ActionArtId; label: string; route: string }> = [
@@ -97,7 +91,7 @@ export default function TodayScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, radius } = useAppTheme();
-  const { progression, lastReward } = useProgression();
+  const { progression } = useProgression();
   const { online } = useNetworkStatus();
   const [dashboard, setDashboard] = useState(() => readQueryCache<DashboardSummary>(CACHE.dashboard));
   const [brief, setBrief] = useState(() => readQueryCache<DailyBrief>(CACHE.brief));
@@ -159,7 +153,8 @@ export default function TodayScreen() {
   useEffect(() => onReconnect(() => void load()), [load]);
 
   const firstName = user?.firstName || user?.fullName?.split(' ')[0] || 'Friend';
-  const greeting = getGreetingTime();
+  const greeting = greetingFor();
+  const reflection = dailyReflection();
   const todayLabel = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -186,19 +181,15 @@ export default function TodayScreen() {
 
   const todayProgress = dashboard?.habit.todayProgress ?? memories.length;
   const dailyGoal = dashboard?.habit.dailyGoal ?? 5;
-  const isGoalReached = todayProgress >= dailyGoal;
   const streakDays = dashboard?.streak.current ?? progression?.currentStreak ?? 0;
+  const capturedToday = dashboard?.streak.capturedToday ?? todayProgress > 0;
   const insightMessage = (todayInsight && !todayInsight.empty ? todayInsight.body : brief?.noticed.body) || '';
-  const paceNote = isGoalReached
-    ? 'Today’s pace is already met.'
-    : `${Math.max(0, dailyGoal - todayProgress)} more to reach today’s pace.`;
+  const pace = paceState(todayProgress, dailyGoal);
+  const nudge = streakNudge(streakDays, capturedToday);
   const settling = memories.filter((memory) => !['COMPLETED', 'FAILED'].includes(memory.status));
-  const ring = 84;
-  const stroke = 7;
-  const ringRadius = (ring - stroke) / 2;
-  const circumference = 2 * Math.PI * ringRadius;
-  const paceRatio = dailyGoal > 0 ? Math.max(0, Math.min(1, todayProgress / dailyGoal)) : 0;
-  const ringCenter = ring / 2;
+  const todayIndex = dashboard?.habit.week ? dashboard.habit.week.length - 1 : -1;
+  const openCapture = (prompt?: string) =>
+    router.push(prompt ? { pathname: '/(app)/quick-capture', params: { prompt } } : '/(app)/quick-capture');
 
   return (
     <TabScreenSwipe>
@@ -221,7 +212,7 @@ export default function TodayScreen() {
           />
         }
       >
-        <View style={styles.header}>
+        <Animated.View entering={itemEntering(0)} style={styles.header}>
           <View style={styles.headerCopy}>
             <View style={styles.greetingRow}>
               <Text style={[styles.kicker, { color: colors.textMuted }]}>{greeting}</Text>
@@ -233,102 +224,164 @@ export default function TodayScreen() {
           </View>
           <PressScale
             onPress={() => router.push('/(app)/progress')}
-            accessibilityLabel="View progress and streaks"
+            accessibilityLabel={
+              progression ? `Level ${progression.level}. View progress and streaks` : 'View progress and streaks'
+            }
             style={[
               styles.progressButton,
               { backgroundColor: colors.surfaceElevated, borderColor: colors.border, borderRadius: radius.md },
             ]}
           >
-            <MaterialIcons name="emoji-events" size={20} color={colors.primary} />
+            {progression ? (
+              <ProgressRing
+                size={40}
+                stroke={3}
+                progress={progression.progress}
+                color={colors.primary}
+                track={colors.surfaceContainer}
+                delay={500}
+              >
+                <Text style={[styles.levelText, { color: colors.text }]}>{progression.level}</Text>
+              </ProgressRing>
+            ) : (
+              <MaterialIcons name="emoji-events" size={20} color={colors.primary} />
+            )}
           </PressScale>
-        </View>
+        </Animated.View>
 
-        {lastReward ? (
-          <Animated.View
-            entering={lastReward.bonus ? FadeIn.duration(240) : undefined}
-            style={[
-              styles.rewardPill,
-              { backgroundColor: colors.primaryContainer, borderColor: colors.borderAccent },
-            ]}
-          >
-            <MaterialIcons name="auto-awesome" size={16} color={colors.primary} />
-            <ThemedText colorKey="primary" style={styles.rewardText}>
-              {lastReward.bonus ? 'Momentum bonus' : 'Signal recorded'}
-              {lastReward.xp ? ` · +${lastReward.xp} XP` : ''}
-              {lastReward.keeps ? ` · +${lastReward.keeps} keeps` : ''}
-            </ThemedText>
-          </Animated.View>
-        ) : null}
-
-        <View
+        <Animated.View
+          entering={itemEntering(1)}
           accessibilityRole="summary"
-          accessibilityLabel={`${todayProgress} of ${dailyGoal} captured today, ${streakDays} day streak`}
+          accessibilityLabel={`${todayProgress} of ${dailyGoal} captured today, ${streakDays} day streak. ${pace.message}`}
           style={[
             styles.hero,
-            { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.xl },
+            {
+              backgroundColor: colors.surface,
+              borderColor: pace.reached ? colors.borderAccent : colors.border,
+              borderRadius: radius.xl,
+            },
           ]}
         >
           <View style={styles.heroTop}>
-            <View style={{ width: ring, height: ring }}>
-              <Svg width={ring} height={ring}>
-                <Circle
-                  cx={ringCenter}
-                  cy={ringCenter}
-                  r={ringRadius}
-                  stroke={colors.surfaceContainer}
-                  strokeWidth={stroke}
-                  fill="none"
-                />
-                <Circle
-                  cx={ringCenter}
-                  cy={ringCenter}
-                  r={ringRadius}
-                  stroke={colors.primary}
-                  strokeWidth={stroke}
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeDasharray={`${circumference} ${circumference}`}
-                  strokeDashoffset={circumference * (1 - paceRatio)}
-                  transform={`rotate(-90 ${ringCenter} ${ringCenter})`}
-                />
-              </Svg>
-              <View style={styles.ringCenter}>
-                <Text style={[styles.ringValue, { color: colors.text }]}>{todayProgress}</Text>
-              </View>
+            <View>
+              {pace.reached ? <DotBurst key={`burst-${todayProgress}`} color={colors.primary} size={150} /> : null}
+              <ProgressRing
+                size={84}
+                stroke={7}
+                progress={pace.ratio}
+                color={colors.primary}
+                track={colors.surfaceContainer}
+              >
+                <CountUp value={todayProgress} style={[styles.ringValue, { color: colors.text }]} />
+              </ProgressRing>
             </View>
             <View style={styles.heroCopy}>
               <Text style={[styles.heroLabel, { color: colors.textSecondary }]}>of {dailyGoal} today</Text>
-              <Text style={[styles.heroNote, { color: colors.textMuted }]}>{paceNote}</Text>
+              <Text style={[styles.heroNote, { color: pace.reached ? colors.primary : colors.textMuted }]}>
+                {pace.message}
+              </Text>
             </View>
             <View style={[styles.metricRule, { backgroundColor: colors.border }]} />
             <View style={styles.streak}>
-              <Text style={[styles.streakValue, { color: colors.text }]}>{streakDays}</Text>
+              <View style={styles.streakValueRow}>
+                <CountUp value={streakDays} style={[styles.streakValue, { color: colors.text }]} />
+                <Breathe active={nudge.tone === 'keep'} amount={0.14} period={1800}>
+                  <MaterialIcons
+                    name="local-fire-department"
+                    size={22}
+                    color={capturedToday && streakDays > 0 ? colors.primary : colors.textMuted}
+                  />
+                </Breathe>
+              </View>
               <Text style={[styles.heroLabel, { color: colors.textSecondary }]}>day streak</Text>
             </View>
           </View>
+
+          <PressScale
+            onPress={() => (nudge.tone === 'keep' || nudge.tone === 'start' ? openCapture() : router.push('/(app)/progress'))}
+            accessibilityLabel={`${nudge.title}. ${nudge.detail}`}
+            style={[
+              styles.nudge,
+              {
+                backgroundColor: nudge.tone === 'keep' ? colors.primaryContainer : colors.surfaceContainerLow,
+                borderRadius: radius.md,
+              },
+            ]}
+          >
+            <Mascot
+              state={nudge.tone === 'milestone' ? 'celebrating' : nudge.tone === 'safe' ? 'happy' : 'idle'}
+              size={24}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.nudgeTitle, { color: nudge.tone === 'keep' ? colors.primary : colors.text }]}>
+                {nudge.title}
+              </Text>
+              <Text style={[styles.nudgeDetail, { color: colors.textSecondary }]}>{nudge.detail}</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+          </PressScale>
+
           {dashboard?.habit.week ? (
             <View style={styles.weekDotsRow}>
-              {dashboard.habit.week.map((day, index) => (
-                <View key={`${day.date}-${index}`} style={styles.dayDotCol}>
+              {dashboard.habit.week.map((day, index) => {
+                const isToday = index === todayIndex;
+                const dot = (
                   <View
                     style={[
                       styles.dayDot,
                       {
                         backgroundColor: day.done ? colors.primary : colors.surfaceContainer,
-                        borderColor: day.done ? colors.primary : colors.border,
+                        borderColor: day.done || isToday ? colors.primary : colors.border,
+                        borderWidth: isToday && !day.done ? 2 : 1,
                       },
                     ]}
                   />
-                  <Text style={[styles.dayLabel, { color: day.done ? colors.text : colors.textMuted }]}>
-                    {day.label}
-                  </Text>
-                </View>
-              ))}
+                );
+                return (
+                  <View key={`${day.date}-${index}`} style={styles.dayDotCol}>
+                    {isToday && !day.done ? <Breathe amount={0.2} period={2000}>{dot}</Breathe> : dot}
+                    <Text
+                      style={[
+                        styles.dayLabel,
+                        { color: day.done || isToday ? colors.text : colors.textMuted },
+                        isToday && styles.dayLabelToday,
+                      ]}
+                    >
+                      {day.label}
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
           ) : null}
-        </View>
+        </Animated.View>
 
-        <View
+        <Animated.View entering={itemEntering(2)}>
+          <PressScale
+            onPress={() => openCapture(reflection.prompt)}
+            accessibilityLabel={`Daily reflection. ${reflection.prompt}`}
+            style={[
+              styles.reflection,
+              { backgroundColor: colors.surfaceElevated, borderColor: colors.border, borderRadius: radius.xl },
+            ]}
+          >
+            <View style={styles.reflectionHead}>
+              <View style={[styles.reflectionBadge, { backgroundColor: colors.primaryContainer, borderRadius: radius.full }]}>
+                <MaterialIcons name="wb-twilight" size={14} color={colors.primary} />
+                <Text style={[styles.reflectionBadgeText, { color: colors.primary }]}>TODAY’S REFLECTION</Text>
+              </View>
+            </View>
+            <Text style={[styles.reflectionLead, { color: colors.textSecondary }]}>{reflection.lead}</Text>
+            <Text style={[styles.reflectionPrompt, { color: colors.text }]}>{reflection.prompt}</Text>
+            <View style={styles.reflectionCta}>
+              <Text style={[styles.reflectionCtaText, { color: colors.primary }]}>Answer in a line</Text>
+              <MaterialIcons name="arrow-forward" size={16} color={colors.primary} />
+            </View>
+          </PressScale>
+        </Animated.View>
+
+        <Animated.View
+          entering={itemEntering(3)}
           style={[
             styles.actionBand,
             { backgroundColor: colors.primaryContainer, borderColor: colors.borderAccent, borderWidth: 1, borderRadius: radius.xl },
@@ -337,7 +390,7 @@ export default function TodayScreen() {
           <ThemedButton
             label="Capture"
             icon={<ActionArt id="capture" size={22} color={colors.buttonText} accent={colors.buttonText} />}
-            onPress={() => router.push('/(app)/quick-capture')}
+            onPress={() => openCapture()}
           />
           <View style={styles.shortcutRow}>
             {HOME_ACTIONS.map((action) => (
@@ -365,7 +418,7 @@ export default function TodayScreen() {
               </PressScale>
             ))}
           </View>
-        </View>
+        </Animated.View>
 
         {insightMessage ? (
           <View style={styles.sectionPad}>
@@ -518,15 +571,15 @@ export default function TodayScreen() {
             title="Your memory is still growing"
             message="Start capturing moments, thoughts, or links, and Kairos will build understanding from there."
             actionLabel="Capture something"
-            onAction={() => router.push('/(app)/quick-capture')}
+            onAction={() => openCapture()}
           />
         ) : (
           <View style={styles.memoriesList}>
-            {memories.slice(0, 6).map((memory) => {
+            {memories.slice(0, 6).map((memory, index) => {
               const iconName = MEMORY_TYPE_ICONS[memory.type] ?? 'edit-note';
               return (
+                <Animated.View key={memory.id} entering={itemEntering(index + 4)}>
                 <PressScale
-                  key={memory.id}
                   onPress={() => router.push(`/(app)/observation/${memory.id}`)}
                   accessibilityLabel={`Open memory ${memory.filename}`}
                 >
@@ -559,6 +612,7 @@ export default function TodayScreen() {
                     <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
                   </View>
                 </PressScale>
+                </Animated.View>
               );
             })}
           </View>
@@ -615,21 +669,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginTop: 4,
   },
-  rewardPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    alignSelf: 'flex-start',
-    marginHorizontal: 28,
-    marginBottom: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  rewardText: {
-    fontFamily: 'Roboto_600SemiBold',
-    fontSize: 15,
+  levelText: {
+    fontFamily: 'Roboto_700Bold',
+    fontSize: 14,
   },
   hero: {
     marginHorizontal: 28,
@@ -643,11 +685,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  ringCenter: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   ringValue: {
     fontFamily: 'Roboto_700Bold',
@@ -678,11 +715,79 @@ const styles = StyleSheet.create({
     gap: 2,
     minWidth: 72,
   },
+  streakValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
   streakValue: {
     fontFamily: 'Roboto_700Bold',
     fontSize: 40,
     lineHeight: 46,
     letterSpacing: -0.6,
+  },
+  nudge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  nudgeTitle: {
+    fontFamily: 'Roboto_600SemiBold',
+    fontSize: 16,
+  },
+  nudgeDetail: {
+    fontFamily: 'Roboto_400Regular',
+    fontSize: 14,
+    marginTop: 1,
+  },
+  dayLabelToday: {
+    fontFamily: 'Roboto_700Bold',
+  },
+  reflection: {
+    marginHorizontal: 28,
+    marginTop: 24,
+    borderWidth: 1,
+    padding: 20,
+    gap: 8,
+  },
+  reflectionHead: {
+    flexDirection: 'row',
+  },
+  reflectionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  reflectionBadgeText: {
+    fontFamily: 'Roboto_700Bold',
+    fontSize: 11,
+    letterSpacing: 0.8,
+  },
+  reflectionLead: {
+    fontFamily: 'Roboto_400Regular',
+    fontSize: 15,
+    lineHeight: 21,
+    marginTop: 4,
+  },
+  reflectionPrompt: {
+    fontFamily: 'Roboto_500Medium',
+    fontSize: 22,
+    lineHeight: 30,
+    letterSpacing: -0.2,
+  },
+  reflectionCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  reflectionCtaText: {
+    fontFamily: 'Roboto_600SemiBold',
+    fontSize: 15,
   },
   weekDotsRow: {
     flexDirection: 'row',
@@ -705,7 +810,7 @@ const styles = StyleSheet.create({
   },
   actionBand: {
     marginHorizontal: 28,
-    marginTop: 48,
+    marginTop: 24,
     paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 20,

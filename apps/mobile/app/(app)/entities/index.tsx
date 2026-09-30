@@ -1,9 +1,10 @@
 import { useAuth } from '@clerk/expo';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import type { ComponentProps } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { SoftPage } from '../../../components/ui/SoftScreen';
-import { GlassPanel } from '../../../components/ui/Glass';
 import {
   EmptyState,
   ErrorState,
@@ -11,6 +12,7 @@ import {
   LoadingSkeleton,
   SoftRefreshBar,
 } from '../../../components/ui/EmptyState';
+import { ListRow } from '../../../components/ui/ListRow';
 import { ThemedText } from '../../../components/ThemedText';
 import { useAsync } from '../../../hooks/useAsync';
 import { fetchEntities, type ApiEntitySummary } from '../../../lib/api';
@@ -22,7 +24,9 @@ function groupByType(items: ApiEntitySummary[]) {
     list.push(item);
     map.set(item.type, list);
   }
-  return [...map.entries()];
+  return [...map.entries()]
+    .map(([type, list]) => [type, list.sort((a, b) => b.observationCount - a.observationCount)] as const)
+    .sort((a, b) => b[1].length - a[1].length);
 }
 
 function typeLabel(type: string): string {
@@ -44,6 +48,25 @@ function typeLabel(type: string): string {
   }
 }
 
+function typeIcon(type: string): ComponentProps<typeof Feather>['name'] {
+  switch (type) {
+    case 'TECHNOLOGY':
+      return 'cpu';
+    case 'PERSON':
+      return 'user';
+    case 'ORGANIZATION':
+      return 'briefcase';
+    case 'PRODUCT':
+      return 'package';
+    case 'LOCATION':
+      return 'map-pin';
+    case 'CONCEPT':
+      return 'zap';
+    default:
+      return 'circle';
+  }
+}
+
 export default function EntitiesScreen() {
   const router = useRouter();
   const { getToken } = useAuth();
@@ -53,19 +76,26 @@ export default function EntitiesScreen() {
     return fetchEntities({ token, limit: 100 });
   }, [getToken], { cacheKey: 'entities' });
 
-  if (loading && !data) return <LoadingSkeleton rows={8} />;
+  if (loading && !data) return <LoadingSkeleton rows={8} label="Finding people, places and ideas" />;
   if (error && !data) {
     return <ErrorState title="Unable to load" onRetry={reload} />;
   }
   if (!data || data.items.length === 0) {
     return (
       <SoftPage>
-        <EmptyState title="None yet" />
+        <EmptyState
+          icon="hub"
+          title="People, places and ideas show up here"
+          message="Kairos picks them out of your memories so you can revisit everything about one of them."
+          actionLabel="Capture something"
+          onAction={() => router.push('/(app)/quick-capture')}
+        />
       </SoftPage>
     );
   }
 
   const groups = groupByType(data.items);
+  const max = Math.max(1, ...data.items.map((item) => item.observationCount));
 
   return (
     <FadeInContent>
@@ -73,24 +103,25 @@ export default function EntitiesScreen() {
       <SoftPage>
         {groups.map(([type, items]) => (
           <View key={type} style={styles.group}>
-            <ThemedText colorKey="textMuted" style={styles.kicker}>
-              {typeLabel(type)}
-            </ThemedText>
-            {items.map((entity) => (
-              <Pressable
+            <View style={styles.groupHeader}>
+              <ThemedText colorKey="textMuted" style={styles.kicker}>
+                {typeLabel(type)}
+              </ThemedText>
+              <ThemedText colorKey="textMuted" style={styles.kicker}>
+                {items.length}
+              </ThemedText>
+            </View>
+            {items.map((entity, index) => (
+              <ListRow
                 key={entity.id}
+                title={entity.name}
+                icon={typeIcon(type)}
+                count={entity.observationCount}
+                weight={entity.observationCount / max}
+                lead={entity.observationCount === max}
+                index={index}
                 onPress={() => router.push(`/(app)/entities/${entity.id}`)}
-                style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
-              >
-                <GlassPanel padded={false} contentStyle={styles.row}>
-                  <ThemedText colorKey="text" style={styles.title} numberOfLines={1}>
-                    {entity.name}
-                  </ThemedText>
-                  <ThemedText colorKey="textMuted" style={styles.meta}>
-                    {entity.observationCount}
-                  </ThemedText>
-                </GlassPanel>
-              </Pressable>
+              />
             ))}
           </View>
         ))}
@@ -101,20 +132,11 @@ export default function EntitiesScreen() {
 
 const styles = StyleSheet.create({
   group: { gap: 8 },
+  groupHeader: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, paddingHorizontal: 4 },
   kicker: {
     fontFamily: 'Roboto_500Medium',
     fontSize: 11,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
-    marginTop: 4,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  title: { flex: 1, fontFamily: 'Roboto_500Medium', fontSize: 15 },
-  meta: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
 });

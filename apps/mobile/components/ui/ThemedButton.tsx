@@ -14,6 +14,7 @@ import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -98,10 +99,7 @@ export function ThemedButton({
   };
 
   const handlePressOut = () => {
-    press.value = withTiming(1, {
-      duration: reduced ? 0 : motion.normal,
-      easing: Easing.out(Easing.cubic),
-    });
+    press.value = reduced ? 1 : withSpring(1, { damping: 16, stiffness: 280, mass: 0.7 });
   };
 
   const handlePress = () => {

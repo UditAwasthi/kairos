@@ -7,7 +7,9 @@ import { ThemedText } from '../../../components/ThemedText';
 import { useAppTheme } from '../../../providers/ThemeProvider';
 import { useSubscription } from '../../../providers/SubscriptionProvider';
 import Recall from 'kairos-recall';
-import { PressScale } from '../../../components/ui/Motion';
+import Animated from 'react-native-reanimated';
+import { PressScale, itemEntering } from '../../../components/ui/Motion';
+import { dailyReflection } from '../../../lib/engagement';
 import { tabHref } from '../../../lib/lastRoute';
 
 const OPTIONS = [
@@ -48,6 +50,7 @@ export default function CaptureTab() {
   const subscription = useSubscription();
 
   const close = () => router.navigate(tabHref() as '/(app)/(tabs)');
+  const reflection = dailyReflection();
 
   return (
     <Modal transparent animationType="slide" visible onRequestClose={close}>
@@ -89,8 +92,31 @@ export default function CaptureTab() {
             </ThemedText>
           </View>
 
+          <Animated.View entering={itemEntering(0)}>
+            <PressScale
+              onPress={() => router.push({ pathname: '/(app)/quick-capture', params: { prompt: reflection.prompt } })}
+              accessibilityLabel={`Answer today's reflection: ${reflection.prompt}`}
+            >
+              <View
+                style={[
+                  styles.reflectionRow,
+                  { backgroundColor: colors.primaryContainer, borderColor: colors.borderAccent, borderRadius: radius.lg },
+                ]}
+              >
+                <MaterialIcons name="wb-twilight" size={20} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.reflectionKicker, { color: colors.primary }]}>TODAY’S REFLECTION</Text>
+                  <ThemedText colorKey="text" style={styles.reflectionText} numberOfLines={2}>
+                    {reflection.prompt}
+                  </ThemedText>
+                </View>
+                <MaterialIcons name="arrow-forward" size={18} color={colors.primary} />
+              </View>
+            </PressScale>
+          </Animated.View>
+
           <View style={styles.optionsGrid}>
-            {OPTIONS.map((option) => {
+            {OPTIONS.map((option, index) => {
               const tintColor =
                 option.tint === 'teal'
                   ? colors.accentTeal
@@ -104,8 +130,8 @@ export default function CaptureTab() {
                     ? colors.tintYellow
                     : colors.tertiaryContainer;
               return (
+              <Animated.View key={option.label} entering={itemEntering(index + 1)}>
               <PressScale
-                key={option.label}
                 onPress={() => router.push(option.href as never)}
                 accessibilityLabel={option.label}
               >
@@ -141,6 +167,7 @@ export default function CaptureTab() {
                   <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
                 </View>
               </PressScale>
+              </Animated.View>
               );
             })}
 
@@ -250,6 +277,24 @@ const styles = StyleSheet.create({
   },
   optionsGrid: {
     gap: 10,
+  },
+  reflectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderWidth: 1,
+  },
+  reflectionKicker: {
+    fontFamily: 'Roboto_700Bold',
+    fontSize: 10,
+    letterSpacing: 0.8,
+  },
+  reflectionText: {
+    fontFamily: 'Roboto_500Medium',
+    fontSize: 15,
+    lineHeight: 20,
+    marginTop: 2,
   },
   optionCard: {
     flexDirection: 'row',

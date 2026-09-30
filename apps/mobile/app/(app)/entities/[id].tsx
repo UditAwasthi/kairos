@@ -1,8 +1,9 @@
 import { useAuth } from '@clerk/expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Pressable, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { ThemedText } from '../../../components/ThemedText';
+import { CollectionHeader } from '../../../components/ui/CollectionHeader';
 import {
   EmptyState,
   ErrorState,
@@ -10,10 +11,20 @@ import {
   LoadingSkeleton,
   SoftRefreshBar,
 } from '../../../components/ui/EmptyState';
-import { GlassPanel } from '../../../components/ui/Glass';
-import { SoftLinkList, SoftPage, SoftTitle } from '../../../components/ui/SoftScreen';
+import { ListRow } from '../../../components/ui/ListRow';
+import { SoftLinkList, SoftPage } from '../../../components/ui/SoftScreen';
 import { useAsync } from '../../../hooks/useAsync';
 import { fetchEntity } from '../../../lib/api';
+import { relativeMemoryLabel } from '../../../lib/searchHints';
+
+const TYPE_LABEL: Record<string, string> = {
+  TECHNOLOGY: 'Technology',
+  PERSON: 'Person',
+  ORGANIZATION: 'Organization',
+  PRODUCT: 'Product',
+  LOCATION: 'Place',
+  CONCEPT: 'Concept',
+};
 
 export default function EntityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,18 +49,17 @@ export default function EntityDetailScreen() {
     <FadeInContent>
       <SoftRefreshBar active={refreshing} />
       <SoftPage>
-        <SoftTitle>{data.name}</SoftTitle>
-
-        <GlassPanel padded={false} contentStyle={styles.metaRow}>
-          <ThemedText colorKey="textMuted" style={styles.meta}>
-            {data.type} · {data.observationCount}
-          </ThemedText>
-        </GlassPanel>
+        <CollectionHeader
+          kicker={TYPE_LABEL[data.type] ?? data.type}
+          title={data.name}
+          count={data.observationCount}
+          dates={data.observations.map((observation) => observation.capturedAt)}
+        />
 
         <SoftLinkList
           items={[
             {
-              label: 'Ask',
+              label: `Ask about ${data.name}`,
               icon: 'message-circle',
               onPress: () =>
                 router.push({
@@ -58,7 +68,7 @@ export default function EntityDetailScreen() {
                 }),
             },
             {
-              label: 'Search',
+              label: 'Search mentions',
               icon: 'search',
               onPress: () =>
                 router.push({
@@ -70,24 +80,25 @@ export default function EntityDetailScreen() {
         />
 
         <ThemedText colorKey="textMuted" style={styles.kicker}>
-          Observations
+          Mentioned in
         </ThemedText>
 
         {data.observations.length === 0 ? (
-          <EmptyState title="None yet" />
+          <EmptyState
+            icon="hub"
+            title="No mentions yet"
+            message="Memories that mention this will be collected here."
+          />
         ) : (
-          data.observations.map((observation) => (
-            <Pressable
+          data.observations.map((observation, index) => (
+            <ListRow
               key={observation.id}
+              title={observation.filename}
+              subtitle={relativeMemoryLabel(observation.capturedAt)}
+              titleLines={2}
+              index={index}
               onPress={() => router.push(`/(app)/observation/${observation.id}`)}
-              style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
-            >
-              <GlassPanel padded={false} contentStyle={styles.row}>
-                <ThemedText colorKey="text" style={styles.rowTitle} numberOfLines={2}>
-                  {observation.filename}
-                </ThemedText>
-              </GlassPanel>
-            </Pressable>
+            />
           ))
         )}
       </SoftPage>
@@ -96,11 +107,6 @@ export default function EntityDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  metaRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  meta: { fontFamily: 'Roboto_400Regular', fontSize: 13 },
   kicker: {
     fontFamily: 'Roboto_500Medium',
     fontSize: 11,
@@ -108,9 +114,4 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginTop: 4,
   },
-  row: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  rowTitle: { fontFamily: 'Roboto_500Medium', fontSize: 15 },
 });
