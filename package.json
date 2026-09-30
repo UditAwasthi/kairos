@@ -2,6 +2,7 @@
   "name": "kairos",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "mobile": "npm run start --prefix apps/mobile",
     "mobile:android": "npm run android --prefix apps/mobile",
