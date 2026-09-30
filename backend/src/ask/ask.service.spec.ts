@@ -11,6 +11,7 @@ describe('AskService', () => {
     };
   }) {
     const search = {
+      embedQuery: jest.fn().mockResolvedValue([0.1, 0.2, 0.3]),
       search: jest.fn().mockResolvedValue({
         query: 'What did I learn about Redis?',
         total: overrides?.searchResults?.length ?? 1,
@@ -115,6 +116,7 @@ describe('AskService', () => {
       expect.objectContaining({
         query: 'What is the capital of France?',
       }),
+      expect.any(Array),
     );
     expect(ai.generateGroundedAnswer).not.toHaveBeenCalled();
     expect(response.answer).toBe(NO_CONTEXT_ANSWER);
@@ -182,6 +184,7 @@ describe('AskService', () => {
       expect.objectContaining({
         query: expect.stringContaining('Why did I use it?'),
       }),
+      expect.any(Array),
     );
     const query = search.search.mock.calls[0][1].query as string;
     expect(query).toContain('Redis');
@@ -259,6 +262,7 @@ describe('AskService', () => {
       expect.objectContaining({
         filters: expect.objectContaining({ observationId: 'obs_1' }),
       }),
+      expect.any(Array),
     );
     expect(search.search).toHaveBeenNthCalledWith(
       2,
@@ -266,6 +270,7 @@ describe('AskService', () => {
       expect.objectContaining({
         filters: expect.objectContaining({ excludeObservationId: 'obs_1' }),
       }),
+      expect.any(Array),
     );
     expect(observations.relatedForClerkUser).toHaveBeenCalledWith(
       'clerk_a',

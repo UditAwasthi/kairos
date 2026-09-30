@@ -1,17 +1,20 @@
 import { useAuth, useUser } from '@clerk/expo';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import {
   Alert,
   Modal,
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 import Animated, {
   FadeIn,
@@ -55,7 +58,7 @@ import {
   type ApiConversationSummary,
   type PredictionsSummary,
 } from '../../../lib/api';
-import type { AskMessage } from '../../../types';
+import type { AskMessage, AskSource } from '../../../types';
 import { useProgression } from '../../../providers/ProgressionProvider';
 import { dedupeRequest, readQueryCache, writeQueryCache } from '../../../hooks/useAsync';
 import { removeCache } from '../../../lib/persistentCache';
@@ -76,6 +79,30 @@ const STARTERS: { icon: IconName; prompt: string }[] = [
   { icon: 'schedule', prompt: 'When am I most productive?' },
   { icon: 'school', prompt: 'What did I learn last week?' },
 ];
+
+const THINKING_STEPS = [
+  'Searching memories…',
+  'Reading what you saved…',
+  'Putting an answer together…',
+];
+
+function formatChatWhen(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfThat = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const days = Math.round((startOfToday.getTime() - startOfThat.getTime()) / 86_400_000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return date.toLocaleDateString(undefined, { weekday: 'long' });
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function shareMessage(content: string) {
+  void Haptics.selectionAsync();
+  void Share.share({ message: content });
+}
 
 const INPUT_MIN = 22;
 const INPUT_MAX = 120;
@@ -155,6 +182,96 @@ function toUiMessages(
   }));
 }
 
+const ChatMessage = memo(function ChatMessage({
+  message,
+  animate,
+  showFollowUps,
+  suggestions,
+  onAsk,
+  onOpenSource,
+  onCapture,
+  onBroaden,
+}: {
+  message: AskMessage;
+  animate: boolean;
+  showFollowUps: boolean;
+  suggestions: string[];
+  onAsk: (text: string) => void;
+  onOpenSource: (source: AskSource) => void;
+  onCapture: () => void;
+  onBroaden: () => void;
+}) {
+  const { colors } = useAppTheme();
+  const onShare = useCallback(() => shareMessage(message.content), [message.content]);
+
+  return (
+    <View style={styles.messageBlock}>
+      {message.role === 'kairos' ? (
+        <View style={styles.assistantHead}>
+          <View style={[styles.mark, { backgroundColor: colors.text }]}>
+            <Text style={[styles.markLetter, { color: colors.inverseText }]}>K</Text>
+          </View>
+          <Text style={[styles.assistantName, { color: colors.text }]}>Kairos</Text>
+        </View>
+      ) : null}
+      <AskBubble message={message} animate={animate} onLongPress={onShare} />
+      {message.role === 'kairos' && message.insufficientEvidence ? (
+        <View style={[styles.evidenceNote, { backgroundColor: colors.surfaceElevated }]}>
+          <Text style={{ color: colors.textSecondary }}>
+            There is not enough in your memories to answer this confidently.
+          </Text>
+          <View style={styles.evidenceActions}>
+            <Pressable onPress={onCapture} accessibilityRole="button" accessibilityLabel="Capture more information">
+              <Text style={{ color: colors.text }}>Capture something</Text>
+            </Pressable>
+            <Pressable onPress={onBroaden} accessibilityRole="button" accessibilityLabel="Broaden memory scope">
+              <Text style={{ color: colors.text }}>Broaden scope</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+      {message.role === 'kairos' && message.sources && message.sources.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sources}>
+          {message.sources.map((source, index) => (
+            <Pressable
+              key={`${source.observationId}:${source.chunkId}`}
+              onPress={() => onOpenSource(source)}
+              accessibilityRole="button"
+              accessibilityLabel={`Open citation ${source.title}`}
+              style={[styles.sourceChip, { backgroundColor: colors.primaryContainer }]}
+            >
+              <Text style={[styles.sourceIndex, { color: colors.textSecondary }]}>{index + 1}</Text>
+              <Text style={[styles.sourceTitle, { color: colors.text }]} numberOfLines={1}>
+                {source.title}
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }} numberOfLines={2}>
+                {source.snippet}
+              </Text>
+              <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>
+                {source.createdAt ? new Date(source.createdAt).toLocaleDateString() : ''}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+      {showFollowUps && suggestions.length > 0 ? (
+        <View style={styles.followUps}>
+          {suggestions.map((question) => (
+            <PressScale
+              key={question}
+              onPress={() => onAsk(question)}
+              accessibilityLabel={question}
+              style={[styles.followChip, { borderColor: colors.border, backgroundColor: colors.background }]}
+            >
+              <Text style={[styles.followText, { color: colors.text }]}>{question}</Text>
+            </PressScale>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+});
+
 export default function AskScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -171,6 +288,7 @@ export default function AskScreen() {
   }>();
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
+  const stickToBottom = useRef(true);
   const hasListRef = useRef(readQueryCache(CONVERSATIONS_KEY) != null);
   const consumedQuery = useRef<string | null>(null);
   const keyboardHeight = useGradualKeyboardHeight();
@@ -182,6 +300,9 @@ export default function AskScreen() {
   const [scopePickerOpen, setScopePickerOpen] = useState(false);
   const [scopeChoices, setScopeChoices] = useState<Array<{ id: string; name: string; type: 'topic' | 'entity' | 'project' | 'observation' }>>([]);
   const [conversations, setConversations] = useState<ApiConversationSummary[]>(() => readQueryCache<ApiConversationSummary[]>(CONVERSATIONS_KEY) ?? []);
+  const [historyCursor, setHistoryCursor] = useState<string | null>(null);
+  const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
+  const [freshIds, setFreshIds] = useState<ReadonlySet<string>>(() => new Set());
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationTitle, setConversationTitle] = useState('Kairos');
   const [scopeType, setScopeType] = useState<
@@ -201,10 +322,10 @@ export default function AskScreen() {
   const [scopeName, setScopeName] = useState<string | null>(
     typeof params.scopeName === 'string' ? params.scopeName : null,
   );
-  const scopedFilters: ApiSemanticSearchFilters = (() => {
+  const scopedFilters = useMemo<ApiSemanticSearchFilters>(() => {
     if (scopeType !== 'filters' || typeof params.filterScope !== 'string') return {};
     try { return JSON.parse(params.filterScope) as ApiSemanticSearchFilters; } catch { return {}; }
-  })();
+  }, [scopeType, params.filterScope]);
   const [input, setInput] = useState('');
   const [inputHeight, setInputHeight] = useState(INPUT_MIN);
   const [messages, setMessages] = useState<AskMessage[]>([]);
@@ -237,33 +358,50 @@ export default function AskScreen() {
     height: Math.abs(keyboardHeight.value),
   }));
 
-  const scrollToEnd = (animated = true) => {
+  const scrollToEnd = useCallback((animated = true, force = false) => {
+    if (!force && !stickToBottom.current) return;
     requestAnimationFrame(() => {
       scrollRef.current?.scrollToEnd({ animated });
     });
-  };
+  }, []);
+
+  const onThreadScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distance = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    stickToBottom.current = distance < 96;
+  }, []);
 
   useEffect(() => {
     if (keyboardVisible) scrollToEnd();
-  }, [keyboardVisible]);
+  }, [keyboardVisible, scrollToEnd]);
 
-  const refreshList = useCallback(async () => {
-    if (!hasListRef.current) setLoadingList(true);
+  const refreshList = useCallback(async (cursor?: string) => {
+    const appending = Boolean(cursor);
+    if (!appending && !hasListRef.current) setLoadingList(true);
+    if (appending) setLoadingMoreHistory(true);
     try {
       const token = await getToken();
       if (!token) throw new ApiError('You must be signed in.', 401);
-      const data = await listConversations({ token, limit: 8 });
-      setConversations(data.items);
-      writeQueryCache(CONVERSATIONS_KEY, data.items);
-      hasListRef.current = true;
+      const data = await listConversations({ token, limit: 24, cursor });
+      setHistoryCursor(data.nextCursor);
+      setConversations((prev) => {
+        if (!appending) return data.items;
+        const seen = new Set(prev.map((item) => item.id));
+        return [...prev, ...data.items.filter((item) => !seen.has(item.id))];
+      });
+      if (!appending) {
+        writeQueryCache(CONVERSATIONS_KEY, data.items);
+        hasListRef.current = true;
+      }
     } catch (err) {
-      if (!hasListRef.current) {
+      if (!appending && !hasListRef.current) {
         setError(
           err instanceof ApiError ? err.message : 'Could not load conversations.',
         );
       }
     } finally {
       setLoadingList(false);
+      setLoadingMoreHistory(false);
     }
   }, [getToken]);
 
@@ -312,6 +450,8 @@ export default function AskScreen() {
     setMessages(saved ? toUiMessages(saved.messages) : []);
     setConversationId(id);
     setConversationTitle(saved?.title ?? '…');
+    setFreshIds(new Set());
+    stickToBottom.current = true;
     setHistoryOpen(false);
     try {
       const token = await getToken();
@@ -341,6 +481,7 @@ export default function AskScreen() {
     setConversationId(null);
     setConversationTitle('Kairos');
     setMessages([]);
+    setFreshIds(new Set());
     setError(null);
     setHistoryOpen(false);
     requestAnimationFrame(() => inputRef.current?.focus());
@@ -352,79 +493,87 @@ export default function AskScreen() {
     }
   }, [scopeId, scopeName]);
 
-  const send = async (text: string) => {
+  const live = useRef({
+    typing,
+    messages,
+    conversationId,
+    scopeType,
+    scopeId,
+    scopedFilters,
+  });
+  live.current = { typing, messages, conversationId, scopeType, scopeId, scopedFilters };
+
+  const send = useCallback(async (text: string, opts?: { alreadyShown?: boolean }) => {
     const query = text.trim();
-    if (!query || typing) return;
+    const snapshot = live.current;
+    if (!query || snapshot.typing) return;
+
+    const alreadyShown =
+      opts?.alreadyShown === true &&
+      snapshot.messages.some((message) => message.role === 'user' && message.content === query);
 
     const clientRequestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    const optimisticUser: AskMessage = {
-      id: `local-user-${Date.now()}`,
-      role: 'user',
-      content: query,
-      createdAt: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, optimisticUser]);
+    if (!alreadyShown) {
+      const optimisticUser: AskMessage = {
+        id: `local-user-${Date.now()}`,
+        role: 'user',
+        content: query,
+        createdAt: new Date().toISOString(),
+      };
+      setFreshIds(new Set([optimisticUser.id]));
+      setMessages((prev) => [...prev, optimisticUser]);
+    }
     setInput('');
     setInputHeight(INPUT_MIN);
     setTyping(true);
+    live.current.typing = true;
     setError(null);
-    setStatusLabel('Searching memories…');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    scrollToEnd();
+    setStatusLabel(THINKING_STEPS[0]);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    stickToBottom.current = true;
+    scrollToEnd(true, true);
 
     try {
       const token = await getToken();
       if (!token) throw new ApiError('You must be signed in to ask Kairos.', 401);
 
-      setStatusLabel('Thinking…');
       const result = await askKairos({
         token,
         question: query,
         limit: 6,
-        conversationId: conversationId ?? undefined,
+        conversationId: snapshot.conversationId ?? undefined,
         clientRequestId,
         filters: {
-          topicId: scopeType === 'topic' ? scopeId ?? undefined : undefined,
-          entityId: scopeType === 'entity' ? scopeId ?? undefined : undefined,
-          projectId: scopeType === 'project' ? scopeId ?? undefined : undefined,
+          topicId: snapshot.scopeType === 'topic' ? snapshot.scopeId ?? undefined : undefined,
+          entityId: snapshot.scopeType === 'entity' ? snapshot.scopeId ?? undefined : undefined,
+          projectId: snapshot.scopeType === 'project' ? snapshot.scopeId ?? undefined : undefined,
           observationId:
-            scopeType === 'observation' ? scopeId ?? undefined : undefined,
-          ...scopedFilters,
+            snapshot.scopeType === 'observation' ? snapshot.scopeId ?? undefined : undefined,
+          ...snapshot.scopedFilters,
         },
       });
 
       setConversationId(result.conversationId);
-      if (!conversationId) {
+      if (!snapshot.conversationId) {
         setConversationTitle(query.slice(0, 42));
       }
 
-      setMessages((prev) => {
-        const withoutOptimistic = prev.filter((m) => m.id !== optimisticUser.id);
-        return [
-          ...withoutOptimistic,
-          {
-            id: result.userMessageId,
-            role: 'user',
-            content: query,
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: result.assistantMessageId,
-            role: 'kairos',
-            content: result.answer,
-            createdAt: new Date().toISOString(),
-            sources: result.citations.map((citation) => ({
-              observationId: citation.observationId,
-              chunkId: citation.chunkId,
-              title: citation.title,
-              snippet: citation.snippet,
-              createdAt: citation.createdAt,
-            })),
-            insufficientEvidence: result.insufficientEvidence,
-            followUps: suggestions,
-          },
-        ];
-      });
+      const assistant: AskMessage = {
+        id: result.assistantMessageId,
+        role: 'kairos',
+        content: result.answer,
+        createdAt: new Date().toISOString(),
+        sources: result.citations.map((citation) => ({
+          observationId: citation.observationId,
+          chunkId: citation.chunkId,
+          title: citation.title,
+          snippet: citation.snippet,
+          createdAt: citation.createdAt,
+        })),
+        insufficientEvidence: result.insufficientEvidence,
+      };
+      setFreshIds(new Set([assistant.id]));
+      setMessages((prev) => (prev.some((message) => message.id === assistant.id) ? prev : [...prev, assistant]));
       void refreshProgression();
     } catch (err) {
       const message =
@@ -434,17 +583,76 @@ export default function AskScreen() {
       setError(message);
     } finally {
       setTyping(false);
-      scrollToEnd();
+      live.current.typing = false;
+      stickToBottom.current = true;
+      scrollToEnd(true, true);
     }
-  };
+  }, [getToken, refreshProgression, scrollToEnd]);
+
+  useEffect(() => {
+    if (!typing) return;
+    let step = 0;
+    const timer = setInterval(() => {
+      step = (step + 1) % THINKING_STEPS.length;
+      setStatusLabel(THINKING_STEPS[step]);
+    }, 2400);
+    return () => clearInterval(timer);
+  }, [typing]);
+
+  const askPrompt = useCallback((text: string) => {
+    void send(text);
+  }, [send]);
+
+  const retryLast = useCallback(() => {
+    const lastUser = [...live.current.messages].reverse().find((message) => message.role === 'user');
+    if (lastUser) void send(lastUser.content, { alreadyShown: true });
+  }, [send]);
+
+  const openSource = useCallback((source: AskSource) => {
+    router.push({
+      pathname: '/(app)/observation/[id]',
+      params: {
+        id: source.observationId,
+        chunkId: source.chunkId,
+        highlight: source.snippet.slice(0, 240),
+      },
+    });
+  }, [router]);
+
+  const goCapture = useCallback(() => {
+    router.push('/(app)/quick-capture');
+  }, [router]);
+
+  const broadenScope = useCallback(() => {
+    setScopeType(null);
+    setScopeId(null);
+    setScopeName(null);
+  }, []);
+
+  const clearScope = useCallback(() => {
+    broadenScope();
+    setConversationTitle('Kairos');
+  }, [broadenScope]);
+
+  const lastAssistantId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.role === 'kairos') return messages[index].id;
+    }
+    return null;
+  }, [messages]);
+
+  const visibleConversations = useMemo(() => {
+    const needle = conversationSearch.trim().toLowerCase();
+    if (!needle) return conversations;
+    return conversations.filter((item) => item.title.toLowerCase().includes(needle));
+  }, [conversations, conversationSearch]);
 
   useEffect(() => {
     if (typeof params.q === 'string' && params.q.length > 0 && consumedQuery.current !== params.q) {
       consumedQuery.current = params.q;
       void send(params.q);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.q]);
+  }, [params.q, send]);
 
   const confirmDelete = (item: ApiConversationSummary) => {
     Alert.alert('Delete chat?', item.title, [
@@ -485,25 +693,29 @@ export default function AskScreen() {
 
             {
               <View style={styles.scopeRow}>
-                <Pressable onPress={() => void openScopePicker()} accessibilityRole="button" accessibilityLabel={`Choose memory scope. Current scope: ${scopeName || 'All memories'}`} style={[styles.scopeChip, { backgroundColor: colors.primaryContainer }]}>
-                  <MaterialIcons name="filter-list" size={14} color={colors.text} />
-                  <Text style={[styles.scopeLabel, { color: colors.text }]} numberOfLines={1}>
-                    {scopeName || 'All memories'}
-                  </Text>
-                  {scopeName ? <Pressable
-                    onPress={() => {
-                      setScopeType(null);
-                      setScopeId(null);
-                      setScopeName(null);
-                      setConversationTitle('Kairos');
-                    }}
-                    hitSlop={8}
+                <View style={[styles.scopeChip, { backgroundColor: colors.primaryContainer }]}>
+                  <Pressable
+                    onPress={() => void openScopePicker()}
                     accessibilityRole="button"
-                    accessibilityLabel="Clear scope"
+                    accessibilityLabel={`Choose memory scope. Current scope: ${scopeName || 'All memories'}`}
+                    style={styles.scopePick}
                   >
-                    <MaterialIcons name="close" size={16} color={colors.textMuted} />
-                  </Pressable> : null}
-                </Pressable>
+                    <MaterialIcons name="filter-list" size={14} color={colors.text} />
+                    <Text style={[styles.scopeLabel, { color: colors.text }]} numberOfLines={1}>
+                      {scopeName || 'All memories'}
+                    </Text>
+                  </Pressable>
+                  {scopeName ? (
+                    <Pressable
+                      onPress={clearScope}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear scope"
+                    >
+                      <MaterialIcons name="close" size={16} color={colors.textMuted} />
+                    </Pressable>
+                  ) : null}
+                </View>
               </View>
             }
 
@@ -517,6 +729,8 @@ export default function AskScreen() {
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="interactive"
               showsVerticalScrollIndicator={false}
+              onScroll={onThreadScroll}
+              scrollEventThrottle={16}
               onContentSizeChange={() => {
                 if (!emptyThread) scrollToEnd(false);
               }}
@@ -529,10 +743,10 @@ export default function AskScreen() {
                     <Mascot state="thinking" size={mascotSize.lg} />
                   </Breathe>
                   <Text style={[styles.hero, { color: colors.text }]}>
-                    Ask Kairos
+                    {firstName ? `Hi, ${firstName}` : 'Ask Kairos'}
                   </Text>
                   <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
-                    Ask about your memories, patterns, habits, or past.
+                    Ask about a memory, a habit, or something you saved.
                   </Text>
                   <View style={styles.starterGrid}>
                     {STARTERS.map((item, index) => (
@@ -587,81 +801,17 @@ export default function AskScreen() {
 
               <View style={styles.thread}>
                 {messages.map((message) => (
-                  <View key={message.id} style={styles.messageBlock}>
-                    {message.role === 'kairos' ? (
-                      <View style={styles.assistantHead}>
-                        <View style={[styles.mark, { backgroundColor: colors.text }]}>
-                          <Text style={[styles.markLetter, { color: colors.inverseText }]}>K</Text>
-                        </View>
-                        <Text style={[styles.assistantName, { color: colors.text }]}>Kairos</Text>
-                      </View>
-                    ) : null}
-                    <AskBubble message={message} />
-                    {message.role === 'kairos' && message.insufficientEvidence ? (
-                      <View style={[styles.evidenceNote, { backgroundColor: colors.surfaceElevated }]}>
-                        <Text style={{ color: colors.textSecondary }}>There is not enough in your memories to answer this confidently.</Text>
-                        <View style={styles.evidenceActions}>
-                          <Pressable onPress={() => router.push('/(app)/quick-capture')} accessibilityRole="button" accessibilityLabel="Capture more information"><Text style={{ color: colors.text }}>Capture something</Text></Pressable>
-                          <Pressable onPress={() => { setScopeType(null); setScopeId(null); setScopeName(null); }} accessibilityRole="button" accessibilityLabel="Broaden memory scope"><Text style={{ color: colors.text }}>Broaden scope</Text></Pressable>
-                        </View>
-                      </View>
-                    ) : null}
-                    {message.role === 'kairos' && message.sources && message.sources.length > 0 ? (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.sources}
-                      >
-                        {message.sources.map((source, index) => (
-                          <Pressable
-                            key={`${source.observationId}:${source.chunkId}`}
-                            onPress={() =>
-                              router.push({
-                                pathname: '/(app)/observation/[id]',
-                                params: {
-                                  id: source.observationId,
-                                  chunkId: source.chunkId,
-                                  highlight: source.snippet.slice(0, 240),
-                                },
-                              })
-                            }
-                            accessibilityRole="button"
-                            accessibilityLabel={`Open citation ${source.title}`}
-                            style={[
-                              styles.sourceChip,
-                              { backgroundColor: colors.primaryContainer },
-                            ]}
-                          >
-                            <Text style={[styles.sourceIndex, { color: colors.textSecondary }]}>
-                              {index + 1}
-                            </Text>
-                            <Text style={[styles.sourceTitle, { color: colors.text }]} numberOfLines={1}>
-                              {source.title}
-                            </Text>
-                            <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }} numberOfLines={2}>{source.snippet}</Text>
-                            <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>{source.createdAt ? new Date(source.createdAt).toLocaleDateString() : ''}</Text>
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    ) : null}
-                    {message.role === 'kairos' && message.followUps && message.followUps.length > 0 ? (
-                      <View style={styles.followUps}>
-                        {message.followUps.map((q) => (
-                          <PressScale
-                            key={q}
-                            onPress={() => void send(q)}
-                            accessibilityLabel={q}
-                            style={[
-                              styles.followChip,
-                              { borderColor: colors.border, backgroundColor: colors.background },
-                            ]}
-                          >
-                            <Text style={[styles.followText, { color: colors.text }]}>{q}</Text>
-                          </PressScale>
-                        ))}
-                      </View>
-                    ) : null}
-                  </View>
+                  <ChatMessage
+                    key={message.id}
+                    message={message}
+                    animate={freshIds.has(message.id)}
+                    showFollowUps={!typing && message.id === lastAssistantId}
+                    suggestions={suggestions}
+                    onAsk={askPrompt}
+                    onOpenSource={openSource}
+                    onCapture={goCapture}
+                    onBroaden={broadenScope}
+                  />
                 ))}
 
                 {typing ? (
@@ -680,13 +830,7 @@ export default function AskScreen() {
                 {error ? (
                   <View style={styles.errorBlock}>
                     <Text style={[styles.errorText, { color: colors.text }]}>{error}</Text>
-                    <Pressable
-                      onPress={() => {
-                        const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-                        if (lastUser) void send(lastUser.content);
-                      }}
-                      hitSlop={8}
-                    >
+                    <Pressable onPress={retryLast} hitSlop={8} accessibilityRole="button" accessibilityLabel="Retry the last question">
                       <Text style={[styles.retry, { color: colors.text }]}>Retry</Text>
                     </Pressable>
                   </View>
@@ -700,7 +844,7 @@ export default function AskScreen() {
                   ref={inputRef}
                   value={input}
                   onChangeText={setInput}
-                  placeholder="Ask anything"
+                  placeholder="Ask about your memories"
                   placeholderTextColor={colors.inputPlaceholder}
                   accessibilityLabel="Ask Kairos"
                   multiline
@@ -800,7 +944,12 @@ export default function AskScreen() {
                     Your chats will show up here
                   </Text>
                 ) : null}
-                {conversations.filter((item) => item.title.toLowerCase().includes(conversationSearch.toLowerCase())).map((item) => {
+                {conversations.length > 0 && visibleConversations.length === 0 ? (
+                  <Text style={[styles.historyEmpty, { color: colors.textMuted }]}>
+                    No chats match that search
+                  </Text>
+                ) : null}
+                {visibleConversations.map((item) => {
                   const active = item.id === conversationId;
                   return (
                     <Pressable
@@ -819,12 +968,26 @@ export default function AskScreen() {
                           {item.title}
                         </Text>
                         <Text style={[styles.historyRowMeta, { color: colors.textMuted }]}>
-                          {new Date(item.updatedAt).toLocaleDateString()}
+                          {formatChatWhen(item.updatedAt)}
+                          {item.messageCount ? ` · ${item.messageCount}` : ''}
                         </Text>
                       </View>
                     </Pressable>
                   );
                 })}
+                {historyCursor && !conversationSearch.trim() ? (
+                  <Pressable
+                    onPress={() => void refreshList(historyCursor)}
+                    disabled={loadingMoreHistory}
+                    accessibilityRole="button"
+                    accessibilityLabel="Load older chats"
+                    style={styles.historyMore}
+                  >
+                    <Text style={[styles.historyRowTitle, { color: colors.text }]}>
+                      {loadingMoreHistory ? 'Loading…' : 'Older chats'}
+                    </Text>
+                  </Pressable>
+                ) : null}
               </ScrollView>
             )}
           </View>
@@ -886,6 +1049,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
     maxWidth: '100%',
+  },
+  scopePick: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
   },
   scopeLabel: {
     fontFamily: 'Roboto_500Medium',
@@ -1149,5 +1318,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Roboto_400Regular',
     fontSize: 12,
     marginTop: 2,
+  },
+  historyMore: {
+    paddingHorizontal: 10,
+    paddingVertical: 14,
   },
 });

@@ -1,5 +1,8 @@
-/** Current default for Ask, analysis, transcription, and OCR. */
+/** Ask stays on the full Flash model. */
 export const DEFAULT_GEMINI_CHAT_MODEL = 'gemini-3.8-flash';
+
+/** Ingest (analysis, OCR, transcription) stays off the Ask model. */
+export const DEFAULT_GEMINI_INGEST_MODEL = 'gemini-3.5-flash-lite';
 
 const RETIRED_GEMINI_CHAT_MODELS: Record<string, string> = {
   'gemini-2.0-flash': DEFAULT_GEMINI_CHAT_MODEL,
@@ -25,6 +28,26 @@ export function resolveGeminiChatModel(model?: string): string {
   const id = model?.replace(/^models\//, '').trim();
   if (!id) return DEFAULT_GEMINI_CHAT_MODEL;
   return RETIRED_GEMINI_CHAT_MODELS[id] ?? id;
+}
+
+/** Model for document analysis, OCR, and transcription. Ask keeps AI_MODEL. */
+export function readIngestModel(env: NodeJS.ProcessEnv = process.env): string {
+  return resolveGeminiChatModel(
+    env.AI_INGEST_MODEL?.trim() || DEFAULT_GEMINI_INGEST_MODEL,
+  );
+}
+
+/**
+ * Gemini 3 Flash spends time in a hidden thinking pass unless this is set.
+ * Older Flash ids still accept a zero thinking budget.
+ */
+export function geminiThinkingConfig(
+  model: string,
+): { thinkingLevel: 'minimal' } | { thinkingBudget: 0 } {
+  if (/^gemini-3/i.test(model.replace(/^models\//, ''))) {
+    return { thinkingLevel: 'minimal' };
+  }
+  return { thinkingBudget: 0 };
 }
 
 export function geminiChatModelChain(

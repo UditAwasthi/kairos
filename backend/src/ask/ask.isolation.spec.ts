@@ -22,6 +22,7 @@ describe('AskService user isolation', () => {
     };
 
     const search = {
+      embedQuery: jest.fn().mockResolvedValue([0.1, 0.2, 0.3]),
       search: jest.fn().mockImplementation(async (clerkUserId: string) => {
         expect(clerkUserId).toBe('clerk_user_a');
         return {
@@ -86,6 +87,7 @@ describe('AskService user isolation', () => {
     expect(search.search).toHaveBeenCalledWith(
       'clerk_user_a',
       expect.any(Object),
+      expect.any(Array),
     );
     expect(response.answer).toContain('Redis');
     expect(response.answer.toLowerCase()).not.toContain('postgresql');

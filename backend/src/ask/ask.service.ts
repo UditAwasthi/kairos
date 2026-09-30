@@ -84,6 +84,9 @@ export class AskService {
       }
     }
 
+    const earlyEmbed = this.search.embedQuery(request.question);
+    void earlyEmbed.catch(() => undefined);
+
     const userMessage = await this.conversations.persistUserMessage({
       conversationId,
       content: request.question,
@@ -112,12 +115,17 @@ export class AskService {
     );
 
     try {
+      const queryEmbedding =
+        retrievalQuery === request.question
+          ? await earlyEmbed
+          : await this.search.embedQuery(retrievalQuery);
       const retrievalStarted = Date.now();
       const searchResult = await this.retrieveForAsk(
         clerkUserId,
         retrievalQuery,
         request.limit,
         request.filters,
+        queryEmbedding,
       );
       const retrievalMs = Date.now() - retrievalStarted;
 
@@ -266,6 +274,7 @@ export class AskService {
       source?: CaptureSource;
       observationId?: string;
     },
+    embedding: number[],
   ): Promise<SemanticSearchResult[]> {
     const baseFilters = {
       from: filters.from?.toISOString(),
@@ -280,14 +289,18 @@ export class AskService {
       source: filters.source,
     };
 
-    const primary = await this.search.search(clerkUserId, {
-      query,
-      limit,
-      filters: {
-        ...baseFilters,
-        observationId: filters.observationId,
+    const primary = await this.search.search(
+      clerkUserId,
+      {
+        query,
+        limit,
+        filters: {
+          ...baseFilters,
+          observationId: filters.observationId,
+        },
       },
-    });
+      embedding,
+    );
 
     if (!filters.observationId) {
       return primary.results;
@@ -308,14 +321,18 @@ export class AskService {
       return primary.results;
     }
 
-    const neighbors = await this.search.search(clerkUserId, {
-      query,
-      limit,
-      filters: {
-        ...baseFilters,
-        excludeObservationId: filters.observationId,
+    const neighbors = await this.search.search(
+      clerkUserId,
+      {
+        query,
+        limit,
+        filters: {
+          ...baseFilters,
+          excludeObservationId: filters.observationId,
+        },
       },
-    });
+      embedding,
+    );
     const extra = neighbors.results.filter((hit) =>
       relatedIds.has(hit.observationId),
     );

@@ -30,6 +30,8 @@ export default function TabsLayout() {
           elevation: 0,
         },
         tabBarHideOnKeyboard: true,
+        lazy: true,
+        freezeOnBlur: true,
         animation: 'shift',
         transitionSpec: {
           animation: 'timing',

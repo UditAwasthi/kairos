@@ -7,7 +7,7 @@ import {
 } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ObservationJobsService } from '../queue/observation-jobs.service';
-import { resolveGeminiChatModel } from '../ai/gemini-models';
+import { readIngestModel } from '../ai/gemini-models';
 import { AI_PROVIDER, type AIProvider } from '../ai/ai.types';
 import { ChunkEmbeddingService } from '../embeddings/chunk-embedding.service';
 import {
@@ -201,7 +201,14 @@ export class ObservationProcessor {
 
     await this.setStatus(observationId, ProcessingStatus.ANALYZING);
 
+    const embedPromise =
+      chunks.length > 0 && this.embeddingProvider.isConfigured()
+        ? this.chunkEmbeddings.embedMissingChunks(observationId)
+        : null;
+    if (embedPromise) void embedPromise.catch(() => undefined);
+
     let analysisNote: string | undefined;
+    let analysisModel: string | undefined;
     if (!normalized || chunks.length === 0) {
       analysisNote =
         'No extractable text available for summary/topics/entities.';
@@ -223,6 +230,7 @@ export class ObservationProcessor {
         const analysis = await this.ai.analyzeDocument(
           chunks.map((c) => c.content),
         );
+        analysisModel = analysis.model;
         await this.persistAnalysis(observationId, userId, analysis);
       } catch (error) {
         const message =
@@ -232,6 +240,14 @@ export class ObservationProcessor {
         // Keep extracted text + chunks; do not fail the whole observation.
       }
     }
+
+    if (chunks.length > 0 && !this.embeddingProvider.isConfigured()) {
+      throw new Error(
+        'Embedding provider is not configured. Set EMBEDDING_API_KEY / AI_API_KEY or EMBEDDING_PROVIDER=local.',
+      );
+    }
+
+    const embedStats = embedPromise ? await embedPromise : null;
 
     const current = await this.prisma.observation.findUnique({
       where: { id: observationId },
@@ -244,7 +260,16 @@ export class ObservationProcessor {
       ...(analysisNote ? { analysisNote } : {}),
       analysisProvider: this.ai.isConfigured() ? this.ai.name : 'none',
       ...(this.ai.isConfigured()
-        ? { analysisModel: resolveGeminiChatModel(process.env.AI_MODEL) }
+        ? { analysisModel: analysisModel ?? readIngestModel() }
+        : {}),
+      ...(embedStats
+        ? {
+            embeddingProvider: this.embeddingProvider.name,
+            embeddingModel: this.embeddingProvider.model,
+            embeddingDimensions: this.embeddingProvider.dimensions,
+            embeddingsCreated: embedStats.newlyEmbedded,
+            embeddingsReused: embedStats.alreadyEmbedded,
+          }
         : {}),
     } as Prisma.InputJsonValue;
 
@@ -254,33 +279,6 @@ export class ObservationProcessor {
         sourceMetadata,
       },
     });
-
-    // Embeddings are required for eligible text chunks before COMPLETED.
-    if (chunks.length > 0) {
-      await this.setStatus(observationId, ProcessingStatus.EMBEDDING);
-      if (!this.embeddingProvider.isConfigured()) {
-        throw new Error(
-          'Embedding provider is not configured. Set EMBEDDING_API_KEY / AI_API_KEY or EMBEDDING_PROVIDER=local.',
-        );
-      }
-      const embedStats =
-        await this.chunkEmbeddings.embedMissingChunks(observationId);
-      await this.prisma.observation.update({
-        where: { id: observationId },
-        data: {
-          sourceMetadata: {
-            ...(typeof sourceMetadata === 'object' && sourceMetadata !== null
-              ? (sourceMetadata as Record<string, unknown>)
-              : {}),
-            embeddingProvider: this.embeddingProvider.name,
-            embeddingModel: this.embeddingProvider.model,
-            embeddingDimensions: this.embeddingProvider.dimensions,
-            embeddingsCreated: embedStats.newlyEmbedded,
-            embeddingsReused: embedStats.alreadyEmbedded,
-          },
-        },
-      });
-    }
 
     await this.prisma.observation.update({
       where: { id: observationId },

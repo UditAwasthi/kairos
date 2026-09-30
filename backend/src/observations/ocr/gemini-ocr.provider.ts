@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { geminiThinkingConfig } from '../../ai/gemini-models';
 import {
   OCR_MAX_IMAGE_BYTES,
   OCR_SUPPORTED_MIME,
@@ -113,7 +114,8 @@ export class GeminiOcrProvider implements OcrProvider {
           ],
           generationConfig: {
             temperature: 0.1,
-            maxOutputTokens: 4096,
+            maxOutputTokens: 2048,
+            thinkingConfig: geminiThinkingConfig(model),
           },
         }),
         signal: controller.signal,

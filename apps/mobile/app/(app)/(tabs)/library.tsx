@@ -531,6 +531,10 @@ export default function LibraryScreen() {
           keyExtractor={(item, index) => ('chunkId' in item ? `${item.chunkId}-${index}` : item.id)}
           renderItem={({ item, index }) => memoryRow(item, index)}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + FLOATING_TAB_BAR_CONTENT + 24, gap: 8 }}
+          initialNumToRender={8}
+          maxToRenderPerBatch={6}
+          windowSize={7}
+          updateCellsBatchingPeriod={50}
           onEndReached={() => {
             if (!searchResults && cursor) void load(true);
           }}
@@ -575,6 +579,9 @@ export default function LibraryScreen() {
                 : [...entities].sort((a, b) => a.type.localeCompare(b.type))
           }
           keyExtractor={(item) => item.id}
+          initialNumToRender={10}
+          maxToRenderPerBatch={8}
+          windowSize={7}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + FLOATING_TAB_BAR_CONTENT + 24, gap: 8 }}
           ListEmptyComponent={
             <EmptyState

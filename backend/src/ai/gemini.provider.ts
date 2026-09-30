@@ -9,7 +9,6 @@ import { AiApiKeyPool, readAiApiKeys } from './ai-api-key-pool';
 import {
   validateDocumentAnalysis,
   validateGroundedAnswerPayload,
-  validateSummary,
 } from './ai-output.validation';
 import type {
   AIProvider,
@@ -21,15 +20,18 @@ import type {
   GroundedAnswerResult,
   GroundedContextItem,
 } from './ai.types';
-import { geminiChatModelChain } from './gemini-models';
+import {
+  geminiChatModelChain,
+  geminiThinkingConfig,
+  readIngestModel,
+} from './gemini-models';
 import { RAG_SYSTEM_PROMPT } from './rag.prompt';
 
 type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
-const SINGLE_PASS_MAX_CHARS = 24_000;
-const MAP_REDUCE_MAX_CHUNKS = 6;
-const MAP_REDUCE_CHUNK_CHARS = 4_000;
-const INTER_REQUEST_DELAY_MS = 350;
+const ANALYSIS_EXCERPT_CHARS = 24_000;
+const ASK_MAX_OUTPUT_TOKENS = 700;
+const INGEST_MAX_OUTPUT_TOKENS = 2048;
 const DEFAULT_GEMINI_BASE = 'https://generativelanguage.googleapis.com';
 
 @Injectable()
@@ -62,13 +64,6 @@ export class GeminiProvider implements AIProvider {
 
   get model(): string {
     return this.models[this.modelIndex] ?? this.models[0] ?? 'gemini-3.8-flash';
-  }
-
-  private advanceModel(): boolean {
-    if (this.modelIndex + 1 >= this.models.length) return false;
-    this.modelIndex += 1;
-    this.logger.warn(`Gemini falling back to ${this.model} after capacity/unavailable error`);
-    return true;
   }
 
   replaceGateForTests(gate: AiRequestGate): void {
@@ -115,10 +110,11 @@ export class GeminiProvider implements AIProvider {
     }
 
     const joined = chunks.join('\n\n').trim();
-    if (joined.length <= SINGLE_PASS_MAX_CHARS) {
-      return this.analyzeSinglePass(joined);
-    }
-    return this.analyzeMapReduce(chunks);
+    const excerpt =
+      joined.length <= ANALYSIS_EXCERPT_CHARS
+        ? joined
+        : joined.slice(0, ANALYSIS_EXCERPT_CHARS);
+    return this.analyzeSinglePass(excerpt);
   }
 
   async generateGroundedAnswer(params: {
@@ -147,20 +143,23 @@ export class GeminiProvider implements AIProvider {
         ? 'None.'
         : history.map((turn) => `${turn.role}: ${turn.content}`).join('\n');
 
-    const payload = await this.chatJson([
-      { role: 'system', content: RAG_SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: `Recent conversation (for resolving references only; not a knowledge source):\n${historyBlock}\n\nCurrent question:\n${params.question}\n\nRetrieved Kairos context (source of truth):\n${contextBlock}`,
-      },
-    ]);
+    const { data, model } = await this.chatJson(
+      [
+        { role: 'system', content: RAG_SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: `Recent conversation (for resolving references only; not a knowledge source):\n${historyBlock}\n\nCurrent question:\n${params.question}\n\nRetrieved Kairos context (source of truth):\n${contextBlock}`,
+        },
+      ],
+      { maxOutputTokens: ASK_MAX_OUTPUT_TOKENS },
+    );
 
-    const validated = validateGroundedAnswerPayload(payload, allowedRefs);
+    const validated = validateGroundedAnswerPayload(data, allowedRefs);
     return {
       answer: validated.answer,
       citationRefs: validated.citationRefs,
       provider: this.name,
-      model: this.model,
+      model,
     };
   }
 
@@ -178,7 +177,7 @@ export class GeminiProvider implements AIProvider {
     }
 
     const models = geminiChatModelChain(
-      process.env.TRANSCRIPTION_MODEL || this.model,
+      process.env.TRANSCRIPTION_MODEL?.trim() || readIngestModel(),
     );
     const selected = this.keyPool.acquire();
     if (!selected) {
@@ -214,7 +213,8 @@ export class GeminiProvider implements AIProvider {
             ],
             generationConfig: {
               temperature: 0.1,
-              maxOutputTokens: 4096,
+              maxOutputTokens: INGEST_MAX_OUTPUT_TOKENS,
+              thinkingConfig: geminiThinkingConfig(model),
             },
           }),
           signal: controller.signal,
@@ -264,57 +264,32 @@ export class GeminiProvider implements AIProvider {
   }
 
   private async analyzeSinglePass(text: string): Promise<DocumentAnalysis> {
-    const combined = await this.chatJson([
-      { role: 'system', content: DOCUMENT_ANALYSIS_SYSTEM_PROMPT },
-      { role: 'user', content: `Analyze this document:\n${text}` },
-    ]);
-    return validateDocumentAnalysis(combined, {
+    const models = geminiChatModelChain(readIngestModel());
+    const { data, model } = await this.chatJson(
+      [
+        { role: 'system', content: DOCUMENT_ANALYSIS_SYSTEM_PROMPT },
+        { role: 'user', content: `Analyze this document:\n${text}` },
+      ],
+      { maxOutputTokens: INGEST_MAX_OUTPUT_TOKENS, models },
+    );
+    return validateDocumentAnalysis(data, {
       provider: this.name,
-      model: this.model,
+      model,
     });
   }
 
-  private async analyzeMapReduce(chunks: string[]): Promise<DocumentAnalysis> {
-    const limitedChunks = chunks.slice(0, MAP_REDUCE_MAX_CHUNKS);
-    const chunkSummaries: string[] = [];
-
-    for (const [index, chunk] of limitedChunks.entries()) {
-      if (index > 0) {
-        await sleep(INTER_REQUEST_DELAY_MS);
-      }
-      const partial = await this.chatJson([
-        {
-          role: 'system',
-          content:
-            'You summarize document excerpts for a personal memory app. Return strict JSON only: {"summary":"..."}. Be concise and factual. Do not invent facts.',
-        },
-        {
-          role: 'user',
-          content: `Chunk ${index + 1}/${limitedChunks.length}:\n${chunk.slice(0, MAP_REDUCE_CHUNK_CHARS)}`,
-        },
-      ]);
-      chunkSummaries.push(validateSummary(partial.summary));
-    }
-
-    await sleep(INTER_REQUEST_DELAY_MS);
-    const combined = await this.chatJson([
-      { role: 'system', content: DOCUMENT_ANALYSIS_SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: `Combine these chunk summaries into one analysis:\n${chunkSummaries.map((s, i) => `${i + 1}. ${s}`).join('\n')}`,
-      },
-    ]);
-    return validateDocumentAnalysis(combined, {
-      provider: this.name,
-      model: this.model,
-    });
-  }
-
-  private async chatJson(messages: ChatMessage[]): Promise<Record<string, unknown>> {
+  private async chatJson(
+    messages: ChatMessage[],
+    options: { maxOutputTokens: number; models?: string[] },
+  ): Promise<{ data: Record<string, unknown>; model: string }> {
+    const models = options.models?.length ? options.models : this.models;
+    const pinned = Boolean(options.models?.length);
+    let cursor = pinned ? 0 : this.modelIndex;
     let attempt = 0;
     let lastError: Error | undefined;
 
     while (attempt <= this.maxRetries) {
+      const model = models[Math.min(cursor, models.length - 1)] ?? models[0];
       if (this.keyPool.availableCount() === 0) {
         const waitMs = Math.max(200, this.keyPool.msUntilAnyAvailable() || 1_000);
         this.gate.noteCooldownFor(waitMs);
@@ -337,7 +312,15 @@ export class GeminiProvider implements AIProvider {
             throw new RateLimitError('All AI API keys cooling down', waitMs);
           }
           try {
-            return await this.chatJsonOnce(messages, attempt, selected.key, selected.slot);
+            const data = await this.chatJsonOnce(
+              messages,
+              attempt,
+              selected.key,
+              selected.slot,
+              model,
+              options.maxOutputTokens,
+            );
+            return { data, model };
           } catch (error) {
             if (error instanceof RateLimitError) {
               this.keyPool.markRateLimited(
@@ -355,7 +338,15 @@ export class GeminiProvider implements AIProvider {
         const retryAfterMs =
           error instanceof RateLimitError ? error.retryAfterMs : undefined;
 
-        if (error instanceof ModelUnavailableError && this.advanceModel()) {
+        if (
+          error instanceof ModelUnavailableError &&
+          cursor + 1 < models.length
+        ) {
+          cursor += 1;
+          if (!pinned) this.modelIndex = cursor;
+          this.logger.warn(
+            `Gemini falling back to ${models[cursor]} after capacity/unavailable error`,
+          );
           attempt += 1;
           continue;
         }
@@ -399,24 +390,32 @@ export class GeminiProvider implements AIProvider {
     attempt: number,
     apiKey: string,
     keySlot: number,
+    model: string,
+    maxOutputTokens: number,
   ): Promise<Record<string, unknown>> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 45_000);
 
     try {
-      const response = await fetch(this.generateUrl(this.model), {
+      const response = await fetch(this.generateUrl(model), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-goog-api-key': apiKey,
         },
-        body: JSON.stringify(toGeminiGenerateBody(messages, true)),
+        body: JSON.stringify(
+          toGeminiGenerateBody(messages, {
+            json: true,
+            maxOutputTokens,
+            model,
+          }),
+        ),
         signal: controller.signal,
       });
 
       if (response.status === 503 || response.status === 404) {
         throw new ModelUnavailableError(
-          `AI request failed with status ${response.status} (model=${this.model})${await readErrorDetail(response)}`,
+          `AI request failed with status ${response.status} (model=${model})${await readErrorDetail(response)}`,
           response.status,
         );
       }
@@ -426,7 +425,7 @@ export class GeminiProvider implements AIProvider {
             operation: 'generateContent',
             event: 'rate_limited',
             provider: this.name,
-            model: this.model,
+            model,
             status: 429,
             attempt: attempt + 1,
             keySlot: keySlot + 1,
@@ -440,7 +439,7 @@ export class GeminiProvider implements AIProvider {
         );
       }
       if (!response.ok) {
-        const message = `AI request failed with status ${response.status} (model=${this.model})${await readErrorDetail(response)}`;
+        const message = `AI request failed with status ${response.status} (model=${model})${await readErrorDetail(response)}`;
         throw new Error(message);
       }
 
@@ -475,7 +474,10 @@ export function normalizeGeminiChatBaseUrl(baseUrl: string): string {
   return `${raw}/v1beta`;
 }
 
-function toGeminiGenerateBody(messages: ChatMessage[], json: boolean) {
+function toGeminiGenerateBody(
+  messages: ChatMessage[],
+  options: { json: boolean; maxOutputTokens: number; model: string },
+) {
   const system = messages
     .filter((message) => message.role === 'system')
     .map((message) => message.content)
@@ -492,7 +494,9 @@ function toGeminiGenerateBody(messages: ChatMessage[], json: boolean) {
     contents,
     generationConfig: {
       temperature: 0.2,
-      ...(json ? { responseMimeType: 'application/json' } : {}),
+      maxOutputTokens: options.maxOutputTokens,
+      thinkingConfig: geminiThinkingConfig(options.model),
+      ...(options.json ? { responseMimeType: 'application/json' } : {}),
     },
   };
 }

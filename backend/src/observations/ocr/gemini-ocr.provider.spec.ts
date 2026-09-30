@@ -16,12 +16,14 @@ describe('OCR helpers', () => {
 
   it('reads OCR config with embedding key fallback', () => {
     delete process.env.OCR_API_KEY;
+    delete process.env.OCR_MODEL;
+    delete process.env.AI_INGEST_MODEL;
     process.env.EMBEDDING_API_KEY = 'test-key';
     process.env.OCR_PROVIDER = 'gemini';
     const config = readOcrConfig();
     expect(config.provider).toBe('gemini');
     expect(config.apiKey).toBe('test-key');
-    expect(config.model).toBe('gemini-3.8-flash');
+    expect(config.model).toBe('gemini-3.5-flash-lite');
   });
 
   it('falls back to the chat Gemini key pool when no OCR or embedding key is set', () => {

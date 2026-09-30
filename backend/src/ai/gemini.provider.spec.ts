@@ -22,6 +22,7 @@ describe('GeminiProvider', () => {
     delete process.env.AI_API_KEY_3;
     delete process.env.AI_BASE_URL;
     delete process.env.AI_MODEL;
+    delete process.env.AI_INGEST_MODEL;
     delete process.env.TRANSCRIPTION_MODEL;
     delete process.env.AI_CHAT_MAX_RETRIES;
     delete process.env.AI_CHAT_CONCURRENCY;
@@ -39,7 +40,7 @@ describe('GeminiProvider', () => {
   it('calls Gemini generateContent with the rotating API key', async () => {
     const provider = buildProvider();
     global.fetch = jest.fn(async (url, init) => {
-      expect(String(url)).toMatch(/generativelanguage\.googleapis\.com\/v1beta\/models\/gemini-3\.8-flash:generateContent/);
+      expect(String(url)).toMatch(/generativelanguage\.googleapis\.com\/v1beta\/models\/gemini-3\.5-flash-lite:generateContent/);
       const headers = init?.headers as Record<string, string>;
       expect(headers['x-goog-api-key']).toBe('gemini-key');
       return geminiJsonResponse(VALID_ANALYSIS);
@@ -47,22 +48,44 @@ describe('GeminiProvider', () => {
 
     const result = await provider.analyzeDocument(['a personal note']);
     expect(result.provider).toBe('gemini');
-    expect(result.model).toBe('gemini-3.8-flash');
+    expect(result.model).toBe('gemini-3.5-flash-lite');
     expect(result.summary).toMatch(/valid document summary/i);
   });
 
-  it('remaps retired gemini-2.5-flash to gemini-3.8-flash', async () => {
+  it('remaps retired gemini-2.5-flash to gemini-3.8-flash for Ask', async () => {
     process.env.AI_API_KEY = 'gemini-key';
     process.env.AI_MODEL = 'gemini-2.5-flash';
     const provider = new GeminiProvider();
     provider.replaceGateForTests(new AiRequestGate(1));
-    global.fetch = jest.fn(async (url) => {
+    global.fetch = jest.fn(async (url, init) => {
       expect(String(url)).toMatch(/models\/gemini-3\.8-flash:generateContent/);
-      return geminiJsonResponse(VALID_ANALYSIS);
+      const body = JSON.parse(String(init?.body)) as {
+        generationConfig?: { maxOutputTokens?: number; thinkingConfig?: { thinkingLevel?: string } };
+      };
+      expect(body.generationConfig?.maxOutputTokens).toBe(700);
+      expect(body.generationConfig?.thinkingConfig?.thinkingLevel).toBe('minimal');
+      return geminiJsonResponse({
+        answer: 'A valid grounded answer for tests.',
+        citations: [1],
+      });
     });
 
-    const result = await provider.analyzeDocument(['retired model']);
+    const result = await provider.generateGroundedAnswer({
+      question: 'What does the note say?',
+      context: [
+        {
+          ref: 1,
+          chunkId: 'chunk_1',
+          observationId: 'obs_1',
+          title: 'note.txt',
+          content: 'A personal note.',
+          createdAt: '2026-09-01T00:00:00.000Z',
+          similarity: 0.9,
+        },
+      ],
+    });
     expect(result.model).toBe('gemini-3.8-flash');
+    expect(result.answer).toMatch(/grounded answer/i);
   });
 
   it('falls back to the next Flash model on 503 high demand', async () => {
@@ -86,7 +109,7 @@ describe('GeminiProvider', () => {
     });
 
     const result = await provider.analyzeDocument(['capacity spike']);
-    expect(models[0]).toBe('gemini-3.8-flash');
+    expect(models[0]).toBe('gemini-3.5-flash-lite');
     expect(models[1]).toBe('gemini-3.6-flash');
     expect(result.model).toBe('gemini-3.6-flash');
   });

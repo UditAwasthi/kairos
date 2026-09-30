@@ -1,5 +1,5 @@
 import { readEmbeddingApiKeys } from '../../ai/ai-api-key-pool';
-import { resolveGeminiChatModel } from '../../ai/gemini-models';
+import { readIngestModel, resolveGeminiChatModel } from '../../ai/gemini-models';
 
 export type OcrConfig = {
   provider: string;
@@ -25,7 +25,7 @@ export function readOcrConfig(): OcrConfig {
   const provider = (process.env.OCR_PROVIDER ?? 'gemini').toLowerCase();
   return {
     provider,
-    model: resolveGeminiChatModel(process.env.OCR_MODEL),
+    model: resolveGeminiChatModel(process.env.OCR_MODEL?.trim() || readIngestModel()),
     apiKey:
       process.env.OCR_API_KEY?.trim() || readEmbeddingApiKeys()[0] || undefined,
     baseUrl: (

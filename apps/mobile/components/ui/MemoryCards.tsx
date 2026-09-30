@@ -287,46 +287,35 @@ export function EvidenceCard({
   );
 }
 
-export function AskBubble({ message }: { message: AskMessage }) {
+export const AskBubble = React.memo(function AskBubble({
+  message,
+  animate = false,
+  onLongPress,
+}: {
+  message: AskMessage;
+  /** Animate only a message that just arrived. History should stay still. */
+  animate?: boolean;
+  onLongPress?: () => void;
+}) {
   const { colors, spacing, radius } = useAppTheme();
   const isUser = message.role === 'user';
-
-  if (isUser) {
-    return (
-      <Animated.View entering={messageEntering()} style={{ alignSelf: 'flex-end', maxWidth: '85%' }}>
-        <View
-          style={{
-            backgroundColor: colors.buttonFill,
-            borderBottomRightRadius: 6,
-            borderRadius: radius.xl,
-            paddingHorizontal: spacing['4'],
-            paddingVertical: spacing['3'],
-            shadowColor: colors.buttonBottom,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.15,
-            shadowRadius: 4,
-            elevation: 2,
-          }}
-        >
-          <ThemedText
-            colorKey="buttonText"
-            style={[
-              styles.body,
-              { color: colors.buttonText, fontSize: 16, lineHeight: 22, fontWeight: '500' },
-            ]}
-          >
-            {message.content}
-          </ThemedText>
-        </View>
-      </Animated.View>
-    );
-  }
-
-  return (
-    <Animated.View
-      entering={messageEntering()}
-      style={{
-        alignSelf: 'stretch',
+  const frameStyle = isUser
+    ? {
+        alignSelf: 'flex-end' as const,
+        maxWidth: '85%' as const,
+        backgroundColor: colors.buttonFill,
+        borderBottomRightRadius: 6,
+        borderRadius: radius.xl,
+        paddingHorizontal: spacing['4'],
+        paddingVertical: spacing['3'],
+        shadowColor: colors.buttonBottom,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 2,
+      }
+    : {
+        alignSelf: 'stretch' as const,
         backgroundColor: colors.surfaceElevated,
         borderColor: colors.border,
         borderWidth: 1,
@@ -339,19 +328,35 @@ export function AskBubble({ message }: { message: AskMessage }) {
         shadowOpacity: colors.shadow.shadowOpacity,
         shadowRadius: 6,
         elevation: 2,
-      }}
+      };
+
+  const enterOnMount = React.useRef(animate).current;
+  const body = (
+    <Pressable
+      onLongPress={onLongPress}
+      delayLongPress={320}
+      disabled={!onLongPress}
+      accessibilityHint={onLongPress ? 'Long press to share this message' : undefined}
     >
-      <ThemedText colorKey="text" style={[styles.body, { fontSize: 16, lineHeight: 24 }]}>
-        {message.content}
-      </ThemedText>
-      {message.insufficientEvidence ? (
-        <ThemedText colorKey="textMuted" style={styles.meta}>
-          Not enough supporting memories yet
+      <View style={frameStyle}>
+        <ThemedText
+          colorKey={isUser ? 'buttonText' : 'text'}
+          style={[
+            styles.body,
+            isUser
+              ? { color: colors.buttonText, fontSize: 16, lineHeight: 22, fontWeight: '500' }
+              : { fontSize: 16, lineHeight: 24 },
+          ]}
+        >
+          {message.content}
         </ThemedText>
-      ) : null}
-    </Animated.View>
+      </View>
+    </Pressable>
   );
-}
+
+  if (!enterOnMount) return body;
+  return <Animated.View entering={messageEntering()}>{body}</Animated.View>;
+});
 
 function stepGlyph(status: ProcessingStep['status']): string {
   if (status === 'completed') return '✓';

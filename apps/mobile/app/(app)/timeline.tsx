@@ -385,6 +385,9 @@ export default function TimelineScreen() {
           data={observations}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          initialNumToRender={8}
+          maxToRenderPerBatch={6}
+          windowSize={7}
           style={{ opacity: filtering ? 0.72 : 1 }}
           onEndReachedThreshold={0.4}
           onEndReached={loadMore}

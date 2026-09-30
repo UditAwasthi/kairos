@@ -77,9 +77,14 @@ export class SearchService {
     );
   }
 
+  embedQuery(text: string): Promise<number[]> {
+    return this.embeddings.embedText(text).then((result) => result.embedding);
+  }
+
   async search(
     clerkUserId: string,
     body: SearchRequestBody,
+    precomputedEmbedding?: number[],
   ): Promise<SemanticSearchResponse> {
     const started = Date.now();
     const request = validateSearchRequest(body);
@@ -120,9 +125,13 @@ export class SearchService {
       excludeObservationId: request.filters.excludeObservationId,
     };
 
-    const embedStarted = Date.now();
-    const embedded = await this.embeddings.embedText(request.query);
-    const embedMs = Date.now() - embedStarted;
+    let embedMs = 0;
+    let embedding = precomputedEmbedding;
+    if (!embedding || embedding.length === 0) {
+      const embedStarted = Date.now();
+      embedding = (await this.embeddings.embedText(request.query)).embedding;
+      embedMs = Date.now() - embedStarted;
+    }
 
     const semanticLimit = this.hybridEnabled
       ? this.semanticCandidateLimit
@@ -135,7 +144,7 @@ export class SearchService {
     if (this.hybridEnabled) {
       const lexicalStarted = Date.now();
       const [semanticHits, lexicalHits] = await Promise.all([
-        this.vectorSearch.search(user.id, embedded.embedding, {
+        this.vectorSearch.search(user.id, embedding, {
           candidateLimit: semanticLimit,
           minSimilarity: this.minSimilarity,
           filters,
@@ -163,7 +172,7 @@ export class SearchService {
         similarity: row.similarity,
       }));
     } else {
-      hits = await this.vectorSearch.search(user.id, embedded.embedding, {
+      hits = await this.vectorSearch.search(user.id, embedding, {
         candidateLimit: semanticLimit,
         minSimilarity: this.minSimilarity,
         filters,
