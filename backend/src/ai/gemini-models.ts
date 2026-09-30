@@ -39,13 +39,14 @@ export function readIngestModel(env: NodeJS.ProcessEnv = process.env): string {
 
 /**
  * Gemini 3 Flash spends time in a hidden thinking pass unless this is set.
+ * gemini-3.8-flash rejects `minimal`; `low` is the shortest level it accepts.
  * Older Flash ids still accept a zero thinking budget.
  */
 export function geminiThinkingConfig(
   model: string,
-): { thinkingLevel: 'minimal' } | { thinkingBudget: 0 } {
+): { thinkingLevel: 'low' } | { thinkingBudget: 0 } {
   if (/^gemini-3/i.test(model.replace(/^models\//, ''))) {
-    return { thinkingLevel: 'minimal' };
+    return { thinkingLevel: 'low' };
   }
   return { thinkingBudget: 0 };
 }

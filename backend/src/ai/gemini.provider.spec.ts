@@ -63,7 +63,7 @@ describe('GeminiProvider', () => {
         generationConfig?: { maxOutputTokens?: number; thinkingConfig?: { thinkingLevel?: string } };
       };
       expect(body.generationConfig?.maxOutputTokens).toBe(700);
-      expect(body.generationConfig?.thinkingConfig?.thinkingLevel).toBe('minimal');
+      expect(body.generationConfig?.thinkingConfig?.thinkingLevel).toBe('low');
       return geminiJsonResponse({
         answer: 'A valid grounded answer for tests.',
         citations: [1],
